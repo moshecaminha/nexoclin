@@ -599,8 +599,8 @@ const NAV={
 const TITLES={cockpit:'Atendimento',agenda:'Agenda',clinica:'Minha clínica',plataforma:'Plataforma',relatorios:'Relatórios',integr:'Integrações',equipe:'Equipe & acessos'};
 let ROLE=null;
 const SB_URL='https://kzbazzwfdagfhyxuadqp.supabase.co';
-const SB_KEY='sb_publishable_3BdfmucRk66Dc4bY2mA80w_CZEodm_L';
-const SB=(window.supabase&&window.supabase.createClient)?window.supabase.createClient(SB_URL,SB_KEY):null;
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6YmF6endmZGFnZmh5eHVhZHFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwNTYwMjUsImV4cCI6MjEwMjYzMjAyNX0.CembztJIxu21Q2WB6BV4iCGWLkYo8xXQW7Id35b3pyM';
+const SB=(window.supabase&&window.supabase.createClient)?window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:false}}):null;
 const NX={real:false,clinic:null,me:null,clinicInfo:null};
 function curWa(){ return (((NX.real&&NX.clinicInfo&&NX.clinicInfo.telefone_whatsapp)||CLINIC.whatsapp)||'').replace(/\D/g,''); }
 function emptyState(t,msg){ return `<div class="page-h"><h1>${t}</h1></div><div style="max-width:540px;margin:34px auto;text-align:center;color:var(--mute)"><div style="font-size:38px;margin-bottom:10px">🗂️</div><p style="font-size:15px;line-height:1.6">${msg}</p></div>`; }
@@ -834,6 +834,7 @@ function plataformaView(){
   const modo = NX.real ? '' : ' <span style="color:var(--sun,#B4790B)">Modo demonstração — entre como super-admin para gerenciar.</span>';
   return `<div class="pf-wrap">
     <div class="page-h"><h1>Plataforma NexoClin</h1><p>Administração das clínicas.${modo}</p></div>
+    ${(NX.real&&NX._diag)?`<div style="background:#FBEFD6;border:1px solid #F0DCA8;border-radius:10px;padding:10px 12px;font-size:12px;color:#7a5b12;margin-bottom:12px">Diagnóstico — sessão: <b>${NX._diag.sess}</b> · super-admin: <b>${NX._diag.padmin}</b> · clínicas recebidas: <b>${NX._diag.n}</b>${NX._diag.err?' · erro: <b>'+NX._diag.err+'</b>':''} <button class="eq-act" style="margin-left:8px" onclick="PF_LOADED=false;pfLoad()">Recarregar</button></div>`:''}
     <div class="pf-kpis">${kpi.map(k=>`<div class="pf-kpi"><div class="n">${k[1]}</div><div class="l">${k[0]}</div></div>`).join('')}</div>
     <div class="pf-grid">
       <div class="cl-card"><div class="cl-ct">Clínicas no Brasil</div>
@@ -874,6 +875,7 @@ function teamRows(){
 async function teamLoad(){
   if(!SB||!NX.clinic) return;
   try{
+    await SB.auth.getSession();
     const {data,error}=await SB.rpc('nx_admin_users',{p_clinic:NX.clinic});
     if(error) throw error;
     TEAM=(data||[]).map(r=>({user_id:r.user_id,nome:r.nome,email:r.email,role:r.role,status:r.ativo?'Ativo':'Inativo'}));
@@ -970,12 +972,17 @@ let PF_LOADED=false;
 async function pfLoad(){
   if(!SB||!NX.real){ return; }
   PF_LOADED=true;
+  const diag={sess:'—',padmin:'—',n:'—',err:''};
   try{
+    const sd=await SB.auth.getSession();
+    diag.sess=(sd&&sd.data&&sd.data.session&&sd.data.session.user&&sd.data.session.user.email)||'NENHUMA';
+    try{ const {data:me}=await SB.rpc('nx_me'); diag.padmin= me? String(!!me.is_platform_admin) : 'null'; }catch(e){ diag.padmin='erro:'+(e.message||e); }
     const {data,error}=await SB.rpc('nx_admin_clinics');
-    if(error) throw error;
-    PF_ROWS=(data||[]).map(c=>({id:c.id,nome:c.nome,cidade:c.cidade||'',uf:c.estado||'',lat:c.lat,lng:c.lng,pac:c.pacientes||0,usuarios:c.usuarios||0,plano:c.plano||'trial',ativo:c.ativo}));
-    if(document.getElementById('pfMap')){ document.getElementById('view').innerHTML=plataformaView(); plataformaMount(); }
-  }catch(e){ toast('Erro ao carregar clínicas','⚠'); }
+    if(error){ diag.err=error.message||String(error); diag.n='erro'; }
+    else { diag.n=(data||[]).length; PF_ROWS=(data||[]).map(c=>({id:c.id,nome:c.nome,cidade:c.cidade||'',uf:c.estado||'',lat:c.lat,lng:c.lng,pac:c.pacientes||0,usuarios:c.usuarios||0,plano:c.plano||'trial',ativo:c.ativo})); }
+  }catch(e){ diag.err=e.message||String(e); }
+  NX._diag=diag;
+  if(document.getElementById('pfMap')){ document.getElementById('view').innerHTML=plataformaView(); plataformaMount(); }
 }
 function clinicForm(i){
   const c=i>=0?PF_ROWS[i]:{nome:'',cidade:'',uf:'RJ',plano:'trial',whatsapp:''};
@@ -1077,7 +1084,24 @@ function plataformaMount(){
   setTimeout(()=>{ try{PF_MAP.invalidateSize();}catch(e){} },250);
 }
 
+async function nxRestoreSession(){
+  if(!SB) return;
+  if(new URLSearchParams(location.search).get('onboard')) return;
+  try{
+    const {data}=await SB.auth.getSession();
+    if(!data||!data.session) return;
+    const {data:me,error}=await SB.rpc('nx_me');
+    if(error||!me||!me.id) return;
+    NX.real=true; NX.me=me; TEAM=[];
+    const cl=(me.clinics&&me.clinics[0])||null; NX.clinic=cl?cl.clinic_id:null;
+    await loadClinicInfo();
+    const role=me.is_platform_admin?'admin':(cl?cl.role:'recepcao');
+    const lg=document.getElementById('login'); if(lg) lg.style.display='none';
+    enter(role);
+  }catch(e){}
+}
 nxCheckOnboard();
+nxRestoreSession();
 nxCheckSlug();
 </script>
 <script id="wa-script">
