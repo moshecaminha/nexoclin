@@ -155,6 +155,19 @@ footer{border-top:1px solid var(--line);padding:44px 0}
   .nav-links{display:none}
   .seg{padding:36px 24px}
 }
+
+/* waitlist form */
+.wl-card{max-width:560px;margin:36px auto 0;background:var(--cyan-ghost);border:1px solid var(--cyan-soft);border-radius:22px;padding:34px 32px;text-align:left}
+.wl-h{font-size:26px;margin-bottom:8px}
+.wl-sub{color:var(--mute);font-size:15px;margin-bottom:22px}
+.wl-field{margin-bottom:15px;display:flex;flex-direction:column}
+.wl-field label{font-family:var(--display);font-weight:700;font-size:13px;color:var(--navy);margin-bottom:7px}
+.wl-field input,.wl-field select{border:1px solid var(--line);border-radius:11px;padding:13px 15px;font-size:15px;font-family:var(--body);background:#fff;color:var(--ink);outline:none;width:100%}
+.wl-field input:focus,.wl-field select:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(41,169,208,.15)}
+.wl-btn{width:100%;margin-top:10px;background:var(--navy);color:#fff;border:none;border-radius:12px;padding:16px;font-family:var(--display);font-weight:700;font-size:16px;cursor:pointer;transition:.15s;box-shadow:0 14px 26px -12px rgba(20,58,78,.55)}
+.wl-btn:hover{background:#0E2C3B;transform:translateY(-1px)}
+.wl-btn:disabled{opacity:.7;cursor:default;transform:none}
+.wl-note{text-align:center;font-size:12.5px;color:var(--mute);margin-top:14px}
 </style>
 </head>
 <body>
@@ -183,7 +196,7 @@ footer{border-top:1px solid var(--line);padding:44px 0}
       <p class="hero-sub">A NexoClin organiza cada conversa por prioridade clínica, coloca o histórico do prontuário na mão do médico e registra tudo com segurança. Mais tempo com o paciente, menos com a tela.</p>
       <div class="hero-cta">
         <a href="nexoclin.html" class="btn btn-cyan">Acessar a plataforma</a>
-        <a href="#cta" class="btn btn-ghost">Entrar na lista de espera</a>
+        <a href="#cta" class="btn btn-ghost">Quero ser avisado primeiro</a>
       </div>
       <div class="hero-trust">
         <span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> LGPD</span>
@@ -318,13 +331,24 @@ footer{border-top:1px solid var(--line);padding:44px 0}
 <!-- CTA -->
 <section class="cta" id="cta">
   <div class="wrap">
-    <h2>Comece a organizar o WhatsApp do seu consultório.</h2>
-    <p>Entre na lista do pré-lançamento e ganhe acesso antecipado. Sem compromisso.</p>
-    <form class="cta-form" onsubmit="return nxSub(event)">
-      <input type="email" required placeholder="Seu melhor e-mail" aria-label="E-mail">
-      <button type="submit" class="btn btn-primary">Quero acesso antecipado</button>
-    </form>
-    <div class="cta-note" id="ctaNote">Acesso antecipado gratuito por 30 dias · vagas limitadas</div>
+    <div class="wl-card">
+      <h2 class="wl-h">Entre na lista de espera</h2>
+      <p class="wl-sub">Seja um dos primeiros a testar o NexoClin. Vagas limitadas para o piloto gratuito.</p>
+      <form id="wlForm" onsubmit="return nxSub(event)">
+        <div class="wl-field"><label>Nome completo *</label><input name="nome" type="text" required placeholder="Dr(a). Maria Silva"></div>
+        <div class="wl-field"><label>E-mail profissional *</label><input name="email" type="email" required placeholder="dra.maria@clinica.com.br"></div>
+        <div class="wl-field"><label>Cidade / Estado *</label><input name="cidade" type="text" required placeholder="São Paulo / SP"></div>
+        <div class="wl-field"><label>Consultas por dia</label>
+          <select name="consultas">
+            <option value="">Selecione…</option>
+            <option>Até 10</option><option>10 a 20</option><option>20 a 30</option><option>Mais de 30</option>
+          </select>
+        </div>
+        <div class="wl-field"><label>WhatsApp (para contato)</label><input name="whatsapp" type="tel" placeholder="(11) 99999-9999"></div>
+        <button type="submit" class="wl-btn" id="wlBtn">Quero ser avisado primeiro →</button>
+        <div class="wl-note" id="ctaNote">🔒 Seus dados são confidenciais. Sem spam, sem ligações.</div>
+      </form>
+    </div>
   </div>
 </section>
 
@@ -352,18 +376,25 @@ footer{border-top:1px solid var(--line);padding:44px 0}
 <script>
 const SB_URL='https://kzbazzwfdagfhyxuadqp.supabase.co';
 const SB_KEY='sb_publishable_3BdfmucRk66Dc4bY2mA80w_CZEodm_L';
+const CONTATO='contato@nexoclin.com.br';
 async function nxSub(e){
   e.preventDefault();
-  const inp=e.target.querySelector('input');
-  const email=(inp.value||'').trim();
-  const note=document.getElementById('ctaNote');
-  note.textContent='Enviando…'; note.style.color='var(--mute)';
+  const f=e.target;
+  const g=n=>{const el=f.querySelector('[name="'+n+'"]');return el?(el.value||'').trim():'';};
+  const nome=g('nome'),email=g('email'),cidade=g('cidade'),consultas=g('consultas'),whatsapp=g('whatsapp');
+  const btn=document.getElementById('wlBtn'),note=document.getElementById('ctaNote');
+  const btnTxt=btn.textContent; btn.disabled=true; btn.textContent='Enviando…';
+  note.textContent='Enviando sua inscrição…'; note.style.color='var(--mute)';
+  // 1) registro durável no Supabase
   try{
-    const r=await fetch(SB_URL+'/rest/v1/waitlist',{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({email,origem:'landing'})});
-    if(!r.ok) throw new Error('status '+r.status);
-  }catch(err){ console.error('waitlist:',err); }
+    await fetch(SB_URL+'/rest/v1/waitlist',{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify({email,nome,cidade,consultas_dia:consultas,whatsapp,origem:'landing'})});
+  }catch(err){ console.error('supabase:',err); }
+  // 2) e-mail direto para o contato da clínica
+  try{
+    await fetch('https://formsubmit.co/ajax/'+CONTATO,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({_subject:'Nova inscrição — lista de espera NexoClin',Nome:nome,'E-mail':email,'Cidade/Estado':cidade,'Consultas por dia':consultas||'—',WhatsApp:whatsapp||'—',_template:'table',_captcha:'false'})});
+  }catch(err){ console.error('email:',err); }
   note.innerHTML='✓ Pronto! Você entrou na lista — em breve entramos em contato.';
-  note.style.color='var(--green)'; e.target.reset(); return false;
+  note.style.color='var(--green)'; f.reset(); btn.disabled=false; btn.textContent=btnTxt; return false;
 }
 </script>
 </body>
