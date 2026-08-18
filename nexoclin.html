@@ -156,6 +156,52 @@ button{font-family:inherit}
 .ag-kpi b{font-family:var(--display)}
 .ag-wait{font-size:12.5px;color:var(--navy-2,#33525F);padding:4px 0}
 @media(max-width:760px){.ag-grid{grid-template-columns:1fr}}
+
+/* clínica */
+.cl-wrap{max-width:1000px}.pf-wrap{max-width:1040px}
+.cl-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.cl-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px}
+.cl-wide{grid-column:1/-1}
+.cl-ct{font-family:var(--display);font-weight:700;font-size:14.5px;margin-bottom:4px}
+.cl-cs{font-size:12px;color:var(--mute);margin-bottom:12px}
+.cl-profile{display:flex;gap:16px}
+.cl-foto{width:72px;height:72px;border-radius:16px;background:var(--role,var(--cyan));color:#fff;display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:26px}
+.cl-field{margin-bottom:10px;display:flex;flex-direction:column}
+.cl-field label{font-size:10.5px;font-weight:700;color:var(--mute);margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em}
+.cl-field input{border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;font-family:var(--body);outline:none;background:#fff}
+.cl-field input:focus{border-color:var(--role,var(--cyan))}
+.cl-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cl-hint{font-size:11px;font-weight:600;margin-top:4px;min-height:14px}
+.cl-btn{border:none;border-radius:10px;padding:11px 16px;font-family:var(--display);font-weight:700;font-size:14px;cursor:pointer;margin-top:6px}
+.cl-btn.pri{background:var(--role,var(--cyan));color:#fff}
+.cl-qr{display:grid;place-items:center;padding:12px;background:var(--bg);border-radius:14px;margin-bottom:12px}
+.cl-qr img{border-radius:10px;background:#fff;padding:6px;max-width:100%}
+.cl-inp{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.cl-inp code{flex:1;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:ui-monospace,monospace}
+.cl-copy{border:none;background:var(--role,var(--cyan));color:#fff;border-radius:7px;padding:6px 11px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+.cl-convite{display:flex;gap:16px;align-items:flex-start;margin-top:14px;padding:14px;background:var(--bg);border-radius:14px}
+.cl-convite img{border-radius:10px;background:#fff;padding:6px}
+.cl-token{font-family:var(--display);font-weight:800;font-size:16px;color:var(--role,var(--cyan))}
+/* plataforma / mapa */
+.pf-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+.pf-kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:15px}
+.pf-kpi .n{font-family:var(--display);font-weight:800;font-size:25px;color:var(--role,var(--navy))}
+.pf-kpi .l{font-size:12px;color:var(--mute);margin-top:3px}
+.pf-grid{display:grid;grid-template-columns:1fr 300px;gap:14px}
+.pf-map{position:relative;height:420px;overflow:hidden;border:1px solid var(--line);border-radius:14px;margin-top:8px;background:linear-gradient(160deg,#EAF3F7,#F5F9FB);background-image:radial-gradient(#DCE7EC .6px,transparent .6px);background-size:15px 15px}
+.pf-mark{position:absolute;transform:translate(-50%,-50%);border-radius:50%;background:var(--cyan);box-shadow:0 0 0 4px rgba(41,169,208,.18);cursor:pointer;transition:.15s}
+.pf-mark:hover{box-shadow:0 0 0 8px rgba(41,169,208,.26)}
+.pf-mark.off{background:#9DB0B9;box-shadow:0 0 0 4px rgba(157,176,185,.18)}
+.pf-region{position:absolute;transform:translate(-50%,-50%);font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#A6BCC6;pointer-events:none}
+.pf-legend{font-size:11.5px;color:var(--mute);margin-top:9px}
+.pf-dot{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:middle}
+.pf-dot.on{background:var(--cyan)}.pf-dot.off{background:#9DB0B9}
+.pf-bars{display:flex;flex-direction:column;gap:9px}
+.pf-bar{display:grid;grid-template-columns:30px 1fr 56px;gap:8px;align-items:center;font-size:12px;font-weight:600}
+.pf-bar .t{background:var(--bg);border-radius:6px;height:10px;overflow:hidden}
+.pf-bar .f{display:block;height:100%;background:var(--role,var(--cyan));border-radius:6px}
+.pf-bar .v{text-align:right;font-family:var(--display);font-weight:700}
+@media(max-width:760px){.cl-grid{grid-template-columns:1fr}.cl-convite{flex-direction:column}.pf-kpis{grid-template-columns:1fr 1fr}.pf-grid{grid-template-columns:1fr}.pf-map{height:340px}}
 </style>
 <style id="wa-style">
 /* ===== Cockpit de Atendimento WhatsApp — escopo .wa- ===== */
@@ -490,21 +536,25 @@ const ICON={
   calendar:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
   steth:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6 6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"/><path d="M8 15v1a6 6 0 0 0 6 6 6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg>',
   shield:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
+  building:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/><path d="M12 7v6M9 10h6"/></svg>',
+  map:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.686-7-11a7 7 0 0 1 14 0c0 5.314-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
 };
 const ROLES={
   recepcao:{label:'Recepção',ic:'inbox',banner:'Central de Recepção',short:'Triagem e roteamento da fila',desc:'Você recebe as conversas novas, faz a triagem e encaminha cada caso.',color:'#1596BE',soft:'#E1F4FA'},
   secretaria:{label:'Secretaria',ic:'calendar',banner:'Agenda & Secretaria',short:'Agenda, confirmações e retornos',desc:'Você agenda, confirma e organiza os retornos dos pacientes.',color:'#6C5CE7',soft:'#ECEAFD'},
   medico:{label:'Médico',ic:'steth',banner:'Consultório',short:'Atendimento clínico e documentos',desc:'Você atende os casos encaminhados, assina os documentos e conclui.',color:'#12996A',soft:'#DCF3EA'},
-  admin:{label:'Administrativo',ic:'shield',banner:'Painel Administrativo',short:'Acesso total à plataforma',desc:'Acesso coringa: acompanha filas, relatórios, integrações e equipe.',color:'#D97A25',soft:'#FBEEDD'},
+  gestor:{label:'Gestor da clínica',ic:'building',banner:'Gestão da Clínica',short:'Perfil, equipe, agenda e onboarding',desc:'Você administra a sua clínica: perfil, equipe, QR de pacientes e resultados.',color:'#2D4EA8',soft:'#E7ECFA'},
+  admin:{label:'Super-admin',ic:'shield',banner:'Plataforma NexoClin',short:'Todas as clínicas do país',desc:'Acesso da plataforma: mapa das clínicas, integrações e gestão global.',color:'#D97A25',soft:'#FBEEDD'},
 };
-const USER={recepcao:'Marina Souza',secretaria:'Cláudia Reis',medico:'Dra. Camila Ferreira',admin:'Admin NexoClin'};
+const USER={recepcao:'Marina Souza',secretaria:'Cláudia Reis',medico:'Dra. Camila Ferreira',gestor:'Roberto Caminha',admin:'Super-admin'};
 const NAV={
   recepcao:[['cockpit','Atendimento','chat'],['relatorios','Relatórios','chart']],
   secretaria:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['relatorios','Relatórios','chart']],
   medico:[['cockpit','Atendimento','chat'],['relatorios','Meus indicadores','chart']],
-  admin:[['cockpit','Atendimento','chat'],['relatorios','Relatórios','chart'],['integr','Integrações','plug'],['equipe','Equipe & acessos','users']],
+  gestor:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['clinica','Minha clínica','building'],['relatorios','Relatórios','chart'],['equipe','Equipe','users']],
+  admin:[['plataforma','Plataforma','map'],['cockpit','Atendimento','chat'],['relatorios','Relatórios','chart'],['integr','Integrações','plug'],['equipe','Equipe','users']],
 };
-const TITLES={cockpit:'Atendimento',agenda:'Agenda',relatorios:'Relatórios',integr:'Integrações',equipe:'Equipe & acessos'};
+const TITLES={cockpit:'Atendimento',agenda:'Agenda',clinica:'Minha clínica',plataforma:'Plataforma',relatorios:'Relatórios',integr:'Integrações',equipe:'Equipe & acessos'};
 let ROLE=null;
 
 function toast(m,i){ let t=document.getElementById('nxToasts'); if(!t){t=document.createElement('div');t.id='nxToasts';t.style.cssText='position:fixed;bottom:18px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:8px';document.body.appendChild(t);} const el=document.createElement('div'); el.style.cssText='background:#143A4E;color:#fff;padding:11px 15px;border-radius:11px;font:600 13px Inter,sans-serif;box-shadow:0 12px 30px -10px rgba(20,58,78,.5);max-width:320px'; el.textContent=(i?i+' ':'✓ ')+m; t.appendChild(el); setTimeout(()=>el.remove(),3600); }
@@ -546,6 +596,8 @@ function nav(v){
   else if(v==='agenda'){ view.innerHTML=agendaView(); }
   else if(v==='relatorios'){ const sc=ROLE==='medico'?'medico':'admin'; view.innerHTML=WA.dash.view(sc); WA.dash.mount(sc); }
   else if(v==='integr'){ view.innerHTML=WA.integr.view(); WA.integr.mount(); }
+  else if(v==='clinica'){ view.innerHTML=clinicaView(); }
+  else if(v==='plataforma'){ view.innerHTML=plataformaView(); }
   else if(v==='equipe'){ view.innerHTML=equipeView(); }
 }
 function equipeView(){
@@ -586,7 +638,7 @@ function renderRoleBand(){
 const FLOW=[['wpp','WhatsApp'],['recepcao','Recepção'],['secretaria','Secretaria'],['medico','Médico'],['fim','Concluído']];
 function flowStepper(){
   return `<div class="flow">`+FLOW.map((st,i)=>{
-    const on = st[0]===ROLE || ROLE==='admin';
+    const on = st[0]===ROLE || ROLE==='admin' || ROLE==='gestor';
     return `<div class="flow-step ${on?'on':''}"><span class="fn">${i+1}</span>${st[1]}</div>`+(i<FLOW.length-1?`<span class="flow-arrow">›</span>`:'');
   }).join('')+`</div>`;
 }
@@ -631,6 +683,109 @@ function agendaAction(i,act){
   else if(act==='confirmar'){ AGENDA[i].st='confirmado'; toast('Consulta confirmada'); }
   else if(act==='wpp'){ toast('Lembrete enviado pelo WhatsApp','💬'); return; }
   renderRoleBand(); document.getElementById('view').innerHTML=agendaView();
+}
+
+
+const CLINIC={nome:'Consultório Dra. Camila Ferreira',cnpj:'42.113.884/0001-20',endereco:'R. Conde de Bonfim, 255 · Tijuca',cidade:'Rio de Janeiro',estado:'RJ',whatsapp:'+55 21 99812-4477',slug:'dra-camila',foto:'CF'};
+function nxCopy(t,btn){ try{navigator.clipboard&&navigator.clipboard.writeText(t);}catch(e){} if(btn){const o=btn.textContent;btn.textContent='Copiado ✓';setTimeout(()=>btn.textContent=o,1400);} }
+function cpfValido(cpf){ cpf=(cpf||'').replace(/\D/g,''); if(cpf.length!==11||/^(\d)\1{10}$/.test(cpf))return false;
+  let s=0; for(let i=0;i<9;i++)s+=+cpf[i]*(10-i); let d=(s*10)%11; if(d===10)d=0; if(d!==+cpf[9])return false;
+  s=0; for(let i=0;i<10;i++)s+=+cpf[i]*(11-i); d=(s*10)%11; if(d===10)d=0; return d===+cpf[10]; }
+function cpfCheck(el){
+  let v=el.value.replace(/\D/g,'').slice(0,11);
+  v=v.replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3}\.\d{3})(\d)/,'$1.$2').replace(/(\d{3}\.\d{3}\.\d{3})(\d)/,'$1-$2');
+  el.value=v; const raw=v.replace(/\D/g,''); const msg=document.getElementById('npCpfMsg'); if(!msg)return;
+  if(raw.length<11){ msg.textContent=''; return; }
+  if(cpfValido(raw)){ msg.textContent='✓ CPF válido · nome preenchido pela base (demonstração)'; msg.style.color='var(--green)';
+    const nomes=['Sofia Almeida','Miguel Santos','Helena Costa','Arthur Lima','Valentina Rocha','Bernardo Dias']; const nn=document.getElementById('npNome');
+    if(nn&&(!nn.value||nn.dataset.auto)){ nn.value=nomes[raw.charCodeAt(2)%nomes.length]; nn.dataset.auto='1'; }
+  } else { msg.textContent='✗ CPF inválido'; msg.style.color='var(--coral)'; }
+}
+function qrURL(data,size){ return 'https://api.qrserver.com/v1/create-qr-code/?size='+size+'x'+size+'&margin=8&data='+encodeURIComponent(data); }
+function clinicaView(){
+  const wnum=CLINIC.whatsapp.replace(/\D/g,'');
+  const link='https://wa.me/'+wnum+'?text='+encodeURIComponent('Olá! Vim pelo NexoClin e gostaria de atendimento.');
+  return `<div class="cl-wrap">
+    <div class="page-h"><h1>Minha clínica</h1><p>Perfil da clínica, número oficial do WhatsApp e onboarding de pacientes por QR code.</p></div>
+    <div class="cl-grid">
+      <div class="cl-card">
+        <div class="cl-ct">Perfil da clínica</div>
+        <div class="cl-profile">
+          <div><div class="cl-foto">${CLINIC.foto}</div><button class="cl-copy" style="margin-top:8px;width:100%" onclick="toast('Upload de foto (demonstração)','📷')">Trocar foto</button></div>
+          <div style="flex:1">
+            <div class="cl-field"><label>Nome da clínica</label><input value="${CLINIC.nome}"></div>
+            <div class="cl-2"><div class="cl-field"><label>CNPJ</label><input value="${CLINIC.cnpj}"></div><div class="cl-field"><label>WhatsApp oficial</label><input value="${CLINIC.whatsapp}"></div></div>
+            <div class="cl-field"><label>Endereço</label><input value="${CLINIC.endereco}"></div>
+            <div class="cl-2"><div class="cl-field"><label>Cidade</label><input value="${CLINIC.cidade}"></div><div class="cl-field"><label>UF</label><input value="${CLINIC.estado}"></div></div>
+            <button class="cl-btn pri" onclick="toast('Perfil da clínica salvo')">Salvar perfil</button>
+          </div>
+        </div>
+      </div>
+      <div class="cl-card">
+        <div class="cl-ct">Link & QR de contato</div>
+        <div class="cl-cs">Divulgue este QR/link — o paciente cai direto no WhatsApp oficial da clínica.</div>
+        <div class="cl-qr"><img src="${qrURL(link,200)}" alt="QR de contato" width="180" height="180"></div>
+        <div class="cl-inp"><code>${link}</code><button class="cl-copy" onclick="nxCopy(this.previousElementSibling.textContent,this)">Copiar</button></div>
+      </div>
+      <div class="cl-card cl-wide">
+        <div class="cl-ct">Convidar novo paciente</div>
+        <div class="cl-cs">Gere um QR único por paciente — o código identifica o paciente automaticamente quando ele enviar a mensagem.</div>
+        <div class="cl-2">
+          <div class="cl-field"><label>CPF</label><input id="npCpf" placeholder="000.000.000-00" oninput="cpfCheck(this)" inputmode="numeric"><div class="cl-hint" id="npCpfMsg"></div></div>
+          <div class="cl-field"><label>Nome do paciente</label><input id="npNome" placeholder="preenchido pela base de CPF"></div>
+        </div>
+        <button class="cl-btn pri" onclick="gerarConvite()">Gerar QR de convite</button>
+        <div id="npResult"></div>
+      </div>
+    </div></div>`;
+}
+function gerarConvite(){
+  const cpfEl=document.getElementById('npCpf'); const cpf=(cpfEl.value||'').replace(/\D/g,'');
+  if(cpf && !cpfValido(cpf)){ toast('CPF inválido — corrija antes de gerar','⚠'); return; }
+  const token='NX'+Math.random().toString(36).slice(2,8).toUpperCase();
+  const wnum=CLINIC.whatsapp.replace(/\D/g,'');
+  const link='https://wa.me/'+wnum+'?text='+encodeURIComponent('Olá! Código de atendimento '+token+' (NexoClin)');
+  document.getElementById('npResult').innerHTML=`<div class="cl-convite">
+    <img src="${qrURL(link,200)}" width="150" height="150" alt="QR do convite">
+    <div style="flex:1;min-width:0"><div class="cl-token">Código ${token}</div>
+      <div class="cl-inp" style="margin-top:8px"><code>${link}</code><button class="cl-copy" onclick="nxCopy(this.previousElementSibling.textContent,this)">Copiar</button></div>
+      <div class="cl-cs" style="margin-top:8px">Envie este QR/link ao paciente. Ao mandar a mensagem, ele entra na fila já identificado pelo código.</div></div></div>`;
+  toast('QR de convite gerado — código '+token,'🔗');
+}
+const CLINICS_ALL=[
+  {nome:'Consultório Dra. Camila',cidade:'Rio de Janeiro',uf:'RJ',lat:-22.91,lng:-43.20,pac:1240,med:3,at:428,plano:'Pro',ativo:true},
+  {nome:'Clínica Bem Estar',cidade:'São Paulo',uf:'SP',lat:-23.55,lng:-46.63,pac:2180,med:6,at:812,plano:'Pro',ativo:true},
+  {nome:'Pediatria Sul',cidade:'Porto Alegre',uf:'RS',lat:-30.03,lng:-51.23,pac:640,med:2,at:210,plano:'Trial',ativo:true},
+  {nome:'Clínica Cerrado',cidade:'Brasília',uf:'DF',lat:-15.79,lng:-47.88,pac:900,med:4,at:355,plano:'Pro',ativo:true},
+  {nome:'Clínica Minas',cidade:'Belo Horizonte',uf:'MG',lat:-19.92,lng:-43.94,pac:1120,med:4,at:503,plano:'Pro',ativo:true},
+  {nome:'Clínica Sertão',cidade:'Recife',uf:'PE',lat:-8.05,lng:-34.88,pac:730,med:3,at:288,plano:'Trial',ativo:true},
+  {nome:'Clínica Amazônia',cidade:'Belém',uf:'PA',lat:-1.46,lng:-48.50,pac:410,med:2,at:132,plano:'Trial',ativo:false},
+  {nome:'Clínica Litoral',cidade:'Salvador',uf:'BA',lat:-12.97,lng:-38.50,pac:980,med:3,at:361,plano:'Pro',ativo:true},
+];
+function mapXY(lat,lng){ let x=((lng+74)/40)*100; let y=((5-lat)/39)*100; return [Math.max(3,Math.min(97,x)),Math.max(3,Math.min(97,y))]; }
+function plataformaView(){
+  const A=CLINICS_ALL, maxp=Math.max(...A.map(c=>c.pac));
+  const kpi=[['Clínicas ativas',A.filter(c=>c.ativo).length],['Pacientes',A.reduce((s,c)=>s+c.pac,0).toLocaleString('pt-BR')],['Médicos',A.reduce((s,c)=>s+c.med,0)],['Atendimentos · 90d',A.reduce((s,c)=>s+c.at,0).toLocaleString('pt-BR')]];
+  const markers=A.map(c=>{const p=mapXY(c.lat,c.lng);const r=9+(c.pac/maxp)*15;return `<div class="pf-mark ${c.ativo?'':'off'}" style="left:${p[0]}%;top:${p[1]}%;width:${r}px;height:${r}px" title="${c.nome} · ${c.cidade}/${c.uf} · ${c.pac} pacientes"></div>`;}).join('');
+  const regions=[['Norte','24%','20%'],['Nordeste','66%','26%'],['Centro-Oeste','46%','50%'],['Sudeste','62%','64%'],['Sul','48%','86%']];
+  const uf={}; A.forEach(c=>uf[c.uf]=(uf[c.uf]||0)+c.pac); const ufa=Object.entries(uf).sort((a,b)=>b[1]-a[1]); const um=Math.max(...ufa.map(x=>x[1]));
+  return `<div class="pf-wrap">
+    <div class="page-h"><h1>Plataforma NexoClin</h1><p>Visão global das clínicas ativas no Brasil.</p></div>
+    <div class="pf-kpis">${kpi.map(k=>`<div class="pf-kpi"><div class="n">${k[1]}</div><div class="l">${k[0]}</div></div>`).join('')}</div>
+    <div class="pf-grid">
+      <div class="cl-card"><div class="cl-ct">Clínicas no Brasil</div>
+        <div class="pf-map">${regions.map(r=>`<span class="pf-region" style="left:${r[1]};top:${r[2]}">${r[0]}</span>`).join('')}${markers}</div>
+        <div class="pf-legend"><span class="pf-dot on"></span> ativa &nbsp;&nbsp; <span class="pf-dot off"></span> inativa &nbsp;&nbsp;·&nbsp;&nbsp;tamanho do ponto = nº de pacientes</div>
+      </div>
+      <div class="cl-card"><div class="cl-ct">Pacientes por estado</div>
+        <div class="pf-bars">${ufa.map(([u,v])=>`<div class="pf-bar"><span>${u}</span><span class="t"><span class="f" style="width:${v/um*100}%"></span></span><span class="v">${v.toLocaleString('pt-BR')}</span></div>`).join('')}</div>
+      </div>
+    </div>
+    <div class="cl-card cl-wide" style="margin-top:14px"><div class="cl-ct">Clínicas (${A.length})</div>
+      <div class="wad-table-wrap" style="overflow-x:auto"><table class="eq-tbl"><thead><tr><th>Clínica</th><th>Cidade/UF</th><th>Pacientes</th><th>Médicos</th><th>Atend. 90d</th><th>Plano</th><th>Status</th></tr></thead><tbody>
+      ${A.map(c=>`<tr><td><b>${c.nome}</b></td><td>${c.cidade}/${c.uf}</td><td>${c.pac.toLocaleString('pt-BR')}</td><td>${c.med}</td><td>${c.at}</td><td><span class="eq-badge">${c.plano}</span></td><td style="color:${c.ativo?'var(--green)':'var(--mute)'};font-weight:600">${c.ativo?'Ativa':'Inativa'}</td></tr>`).join('')}
+      </tbody></table></div></div>
+  </div>`;
 }
 
 renderRoles();

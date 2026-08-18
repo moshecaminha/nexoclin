@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NexoClin · API & Webhooks</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0NCA0NCI+PGcgc3Ryb2tlPSIjMjlBOUQwIiBzdHJva2Utd2lkdGg9IjIuNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj48bGluZSB4MT0iMjIiIHkxPSIyMiIgeDI9IjIyLjAwIiB5Mj0iOC4wMCIvPjxsaW5lIHgxPSIyMiIgeTE9IjIyIiB4Mj0iMzIuOTUiIHkyPSIxMy4yNyIvPjxsaW5lIHgxPSIyMiIgeTE9IjIyIiB4Mj0iMzUuNjUiIHkyPSIyNS4xMiIvPjxsaW5lIHgxPSIyMiIgeTE9IjIyIiB4Mj0iMjguMDciIHkyPSIzNC42MSIvPjxsaW5lIHgxPSIyMiIgeTE9IjIyIiB4Mj0iMTUuOTMiIHkyPSIzNC42MSIvPjxsaW5lIHgxPSIyMiIgeTE9IjIyIiB4Mj0iOC4zNSIgeTI9IjI1LjEyIi8+PGxpbmUgeDE9IjIyIiB5MT0iMjIiIHgyPSIxMS4wNSIgeTI9IjEzLjI3Ii8+PC9nPjxjaXJjbGUgY3g9IjIyLjAwIiBjeT0iOC4wMCIgcj0iMy4yIiBmaWxsPSIjMjlBOUQwIi8+PGNpcmNsZSBjeD0iMzIuOTUiIGN5PSIxMy4yNyIgcj0iMy42IiBmaWxsPSIjRjI1NjRDIi8+PGNpcmNsZSBjeD0iMzUuNjUiIGN5PSIyNS4xMiIgcj0iMy4yIiBmaWxsPSIjMjlBOUQwIi8+PGNpcmNsZSBjeD0iMjguMDciIGN5PSIzNC42MSIgcj0iMy4yIiBmaWxsPSIjMjlBOUQwIi8+PGNpcmNsZSBjeD0iMTUuOTMiIGN5PSIzNC42MSIgcj0iMy4yIiBmaWxsPSIjMjlBOUQwIi8+PGNpcmNsZSBjeD0iOC4zNSIgY3k9IjI1LjEyIiByPSIzLjIiIGZpbGw9IiMyOUE5RDAiLz48Y2lyY2xlIGN4PSIxMS4wNSIgY3k9IjEzLjI3IiByPSIzLjIiIGZpbGw9IiMyOUE5RDAiLz48Y2lyY2xlIGN4PSIyMiIgY3k9IjIyIiByPSI1IiBmaWxsPSIjMjlBOUQwIi8+PC9zdmc+">
+<meta name="theme-color" content="#29A9D0">
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#143A4E;--cyan:#29A9D0;--cyan-dk:#1E86A8;--coral:#F2564C;--ink:#143A4E;--mute:#647D8A;--line:#E7EEF2;--bg:#F6F9FB;--green:#1E9E6A}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,sans-serif;color:var(--ink);background:#fff;line-height:1.6}
+.wrap{max-width:900px;margin:0 auto;padding:0 24px}
+header{border-bottom:1px solid var(--line);padding:26px 0;position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);z-index:5}
+.brand{font-family:Lato;font-weight:900;font-size:22px}.brand b{color:var(--navy)}.brand i{color:var(--cyan);font-style:normal}
+.tag{font-size:12px;color:var(--mute);font-weight:600}
+h1,h2,h3{font-family:Lato;color:var(--navy);font-weight:900}
+h1{font-size:30px;margin:34px 0 6px}h2{font-size:22px;margin:40px 0 10px;padding-top:14px;border-top:2px solid var(--line)}
+h3{font-size:16px;margin:22px 0 6px}
+p,li{font-size:15px}code,.mono{font-family:ui-monospace,Menlo,monospace}
+code{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:13px}
+pre{background:#0E2C3B;color:#DCEAF0;border-radius:12px;padding:16px;overflow-x:auto;font-size:12.5px;line-height:1.55}
+pre .k{color:#5AD1E8}.lead{font-size:17px;color:var(--mute);max-width:640px}
+.ep{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:10px 0;background:#fff}
+.ep .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.m{font:700 11px ui-monospace;padding:3px 9px;border-radius:6px;color:#fff}
+.m.get{background:#1E86A8}.m.post{background:#1E9E6A}.m.patch{background:#B4790B}.m.del{background:#F2564C}.m.in{background:#8455C7}
+.path{font-family:ui-monospace;font-weight:700;font-size:13.5px}
+.ep .d{color:var(--mute);font-size:13.5px;margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin:10px 0}
+th{text-align:left;background:var(--bg);color:var(--cyan-dk);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.note{background:var(--bg);border-left:3px solid var(--cyan);border-radius:8px;padding:12px 14px;font-size:13.5px;margin:14px 0}
+.warn{border-left-color:var(--coral)}
+.toc{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin:20px 0}
+.toc a{color:var(--cyan-dk);text-decoration:none;font-size:14px;font-weight:600}
+.pill{font-size:11px;font-weight:700;background:#DDF1F8;color:var(--cyan-dk);border-radius:20px;padding:2px 9px}
+footer{border-top:1px solid var(--line);margin-top:40px;padding:24px 0;color:var(--mute);font-size:13px}
+</style></head><body>
+<header><div class="wrap" style="display:flex;justify-content:space-between;align-items:center">
+<span class="brand"><b>Nexo</b><i>Clin</i></span><span class="tag">Documentação · API &amp; Webhooks · v1</span></div></header>
+<div class="wrap">
+
+<h1>API &amp; Webhooks</h1>
+<p class="lead">Referência técnica da plataforma multi-tenant NexoClin: autenticação, escopo por clínica, endpoints REST, integração com a WhatsApp Business Platform (Meta) e webhooks.</p>
+
+<div class="toc">
+<b>Índice</b><br>
+<a href="#conc">1. Conceitos &amp; multi-tenancy</a> · <a href="#auth">2. Autenticação</a> · <a href="#rest">3. Endpoints REST</a> · <a href="#wh">4. Webhook do WhatsApp (Meta)</a> · <a href="#out">5. Webhooks de saída</a> · <a href="#model">6. Modelo de dados</a> · <a href="#stor">7. Uploads &amp; storage</a> · <a href="#sec">8. Segurança &amp; LGPD</a>
+</div>
+
+<h2 id="conc">1. Conceitos &amp; multi-tenancy</h2>
+<p>A NexoClin é um <b>SaaS multi-tenant</b>: várias clínicas operam na mesma plataforma, cada uma com seu número oficial do WhatsApp, sua equipe e seus dados isolados. A unidade de isolamento é a <b>clínica</b> (<code>clinic_id</code>).</p>
+<table>
+<tr><th>Papel</th><th>Escopo</th><th>Pode</th></tr>
+<tr><td>Super-admin (plataforma)</td><td>Global</td><td>Ver todas as clínicas, mapa nacional, integrações, gestão de contas</td></tr>
+<tr><td>Gestor</td><td>Clínica</td><td>Perfil da clínica, equipe, agenda, onboarding (QR), relatórios</td></tr>
+<tr><td>Médico</td><td>Clínica</td><td>Atender, coletar dados, assinar documentos (ICP-Brasil), concluir</td></tr>
+<tr><td>Secretaria</td><td>Clínica</td><td>Agenda, confirmações, retornos, fila</td></tr>
+<tr><td>Recepção</td><td>Clínica</td><td>Triagem e roteamento da fila</td></tr>
+</table>
+<div class="note">Todo dado clínico (<code>conversations</code>, <code>messages</code>, <code>documents</code> etc.) carrega <code>clinic_id</code> e é protegido por <b>Row-Level Security</b> no banco: um usuário só enxerga linhas das clínicas em que é membro ativo. O super-admin tem acesso global via <code>is_platform_admin()</code>.</p></div>
+
+<h2 id="auth">2. Autenticação</h2>
+<p>Requisições autenticam com <b>Bearer token</b> (JWT de sessão do usuário) no header. O tenant é derivado da <b>associação (membership)</b> do usuário; para usuários multi-clínica, informe a clínica ativa em <code>X-Clinic-Id</code>.</p>
+<pre><span class="k">GET</span> /v1/conversations
+Authorization: Bearer &lt;jwt&gt;
+X-Clinic-Id: 3f9a...c21</pre>
+<p>Tokens de <b>serviço</b> (integrações servidor-a-servidor, ex.: o webhook receiver) usam a <code>service_role</code> e <b>nunca</b> são expostos ao navegador.</p>
+
+<h2 id="rest">3. Endpoints REST <span class="pill">base: https://api.nexoclin.com.br</span></h2>
+
+<h3>Clínicas &amp; equipe</h3>
+<div class="ep"><div class="row"><span class="m get">GET</span><span class="path">/v1/clinics</span></div><div class="d">Lista as clínicas do usuário (ou todas, se super-admin).</div></div>
+<div class="ep"><div class="row"><span class="m post">POST</span><span class="path">/v1/clinics</span></div><div class="d">Cria uma clínica (onboarding). Body: nome, cnpj, endereço, cidade, uf, telefone_whatsapp.</div></div>
+<div class="ep"><div class="row"><span class="m patch">PATCH</span><span class="path">/v1/clinics/:id</span></div><div class="d">Atualiza perfil (foto, endereço, número oficial, plano).</div></div>
+<div class="ep"><div class="row"><span class="m get">GET</span><span class="path">/v1/clinics/:id/members</span></div><div class="d">Equipe da clínica com papéis.</div></div>
+<div class="ep"><div class="row"><span class="m post">POST</span><span class="path">/v1/clinics/:id/members</span></div><div class="d">Convida um membro (email + papel: gestor|medico|secretaria|recepcao).</div></div>
+
+<h3>Pacientes &amp; onboarding</h3>
+<div class="ep"><div class="row"><span class="m get">GET</span><span class="path">/v1/patients</span></div><div class="d">Lista pacientes da clínica (filtros: nome, cpf, telefone).</div></div>
+<div class="ep"><div class="row"><span class="m post">POST</span><span class="path">/v1/patients</span></div><div class="d">Cadastra paciente. CPF validado (dígitos verificadores); autocomplete de nome via provedor licenciado.</div></div>
+<div class="ep"><div class="row"><span class="m get">GET</span><span class="path">/v1/patients/lookup?cpf=</span></div><div class="d">Consulta CPF em provedor licenciado (Serpro/Receita) com consentimento — retorna nome/nascimento.</div></div>
+<div class="ep"><div class="row"><span class="m post">POST</span><span class="path">/v1/invites</span></div><div class="d">Gera um <b>token de convite</b> e o link/QR do WhatsApp. Body: patient_id?, label?. Retorna token + <code>wa.me</code> link.</div></div>
+<div class="ep"><div class="row"><span class="m get">GET</span><span class="path">/v1/invites/:token</span></div><div class="d">Resolve um token (usado pelo webhook para identificar clínica + paciente quando a 1ª mensagem chega).</div></div>
+
+<h3>Atendimento</h3>
+<div class="ep"><div class="row"><span class="m get">GET</span><span class="path">/v1/conversations</span></div><div class="d">Fila de atendimentos (filtros: status, risco, atenção). Ordenada por gravidade.</div></div>
+<div class="ep"><div class="row"><span class="m get">GET</span><span class="path">/v1/conversations/:id</span></div><div class="d">Detalhe do atendimento + dados coletados.</div></div>
+<div class="ep"><div class="row"><span class="m get">GET</span><span class="path">/v1/conversations/:id/messages</span></div><div class="d">Histórico completo da conversa.</div></div>
+<div class="ep"><div class="row"><span class="m post">POST</span><span class="path">/v1/messages</span></div><div class="d">Envia mensagem (texto/mídia). Dentro da janela de 24h. Body: conversation_id, type, body|media_id.</div></div>
+<div class="ep"><div class="row"><span class="m post">POST</span><span class="path">/v1/messages/template</span></div><div class="d">Envia <b>template (HSM)</b> aprovado — necessário fora da janela de 24h (lembretes, confirmações).</div></div>
+<div class="ep"><div class="row"><span class="m post">POST</span><span class="path">/v1/media</span></div><div class="d">Faz upload de mídia (áudio/imagem/PDF) e retorna <code>media_id</code>.</div></div>
+
+<h3>Documentos</h3>
+<div class="ep"><div class="row"><span class="m post">POST</span><span class="path">/v1/documents</span></div><div class="d">Cria rascunho (receita/atestado/resumo/encaminhamento) a partir do atendimento.</div></div>
+<div class="ep"><div class="row"><span class="m post">POST</span><span class="path">/v1/documents/:id/sign</span></div><div class="d">Assina com <b>ICP-Brasil</b> (integração CFM/ITI) e anexa ao paciente. Retorna <code>signature_ref</code>.</div></div>
+
+<h3>Relatórios &amp; notificações</h3>
+<div class="ep"><div class="row"><span class="m get">GET</span><span class="path">/v1/reports/summary?period=90d</span></div><div class="d">Indicadores agregados (atendimentos, exames, medicações, faltas, SLA, por bairro/estado).</div></div>
+<div class="ep"><div class="row"><span class="m get">GET</span><span class="path">/v1/notifications</span></div><div class="d">Alertas do usuário/clínica (novo atendimento, ponto de atenção, SLA estourado, documento assinado).</div></div>
+<div class="ep"><div class="row"><span class="m patch">PATCH</span><span class="path">/v1/notifications/:id/read</span></div><div class="d">Marca como lida.</div></div>
+
+<h2 id="wh">4. Webhook do WhatsApp (Meta) <span class="pill">inbound</span></h2>
+<p>A NexoClin recebe os eventos da Meta Cloud API em um único endpoint. Cada número (Phone Number ID) é mapeado à sua clínica, garantindo o roteamento correto no multi-tenant.</p>
+
+<h3>4.1 Verificação (handshake)</h3>
+<pre><span class="k">GET</span> /webhooks/whatsapp?hub.mode=subscribe
+   &amp;hub.verify_token=&lt;VERIFY_TOKEN&gt;&amp;hub.challenge=123456
+→ 200 text/plain: 123456   (se o verify_token conferir)</pre>
+
+<h3>4.2 Recebimento de eventos</h3>
+<div class="ep"><div class="row"><span class="m in">POST</span><span class="path">/webhooks/whatsapp</span></div><div class="d">Recebe mensagens e status. Valida a assinatura <code>X-Hub-Signature-256</code> (HMAC-SHA256 com o App Secret) antes de processar.</div></div>
+<p>Eventos assinados: <code>messages</code> (recebidas), <code>message_status</code> (sent/delivered/read), <code>message_template_status</code>.</p>
+<pre>{
+  "object": "whatsapp_business_account",
+  "entry": [{
+    "changes": [{
+      "value": {
+        "metadata": { "phone_number_id": "4471...1120" },
+        "contacts": [{ "wa_id": "5521998124477", "profile": {"name":"Beatriz"} }],
+        "messages": [{
+          "from": "5521998124477", "id": "wamid...", "timestamp": "1718000000",
+          "type": "text", "text": { "body": "Bom dia, meu filho está com febre" }
+        }]
+      }, "field": "messages"
+    }]
+  }]
+}</pre>
+
+<h3>4.3 Como cada evento vira dado</h3>
+<table>
+<tr><th>Evento</th><th>Ação na NexoClin</th></tr>
+<tr><td>1ª mensagem (com código de convite)</td><td>Resolve <code>invite_token</code> → identifica clínica + paciente → cria <code>conversation</code> (status <code>nova</code>)</td></tr>
+<tr><td>message (texto)</td><td>Insere em <code>messages</code>; alimenta a triagem/coleta (<code>collected_data</code>)</td></tr>
+<tr><td>message (áudio/imagem)</td><td>Baixa a mídia, transcreve/interpreta, marca "a validar" pelo paciente</td></tr>
+<tr><td>ponto de atenção detectado</td><td>Cria <code>notification</code> (tipo <code>atencao</code>) e eleva a prioridade (risco)</td></tr>
+<tr><td>message_status = read/delivered</td><td>Atualiza o status da mensagem enviada</td></tr>
+<tr><td>template_status = approved</td><td>Libera o template para uso em lembretes/confirmações</td></tr>
+</table>
+<div class="note warn"><b>Segurança:</b> requisições sem assinatura válida (<code>X-Hub-Signature-256</code>) são descartadas com 401. O <code>App Secret</code> e o <code>access_token</code> ficam em variáveis de ambiente do servidor/Edge Function — nunca no cliente.</div>
+
+<h2 id="out">5. Webhooks de saída <span class="pill">outbound (opcional)</span></h2>
+<p>Para clínicas que querem integrar com seus próprios sistemas (ERP/prontuário), a NexoClin pode notificar eventos:</p>
+<table>
+<tr><th>Evento</th><th>Quando</th></tr>
+<tr><td><code>atendimento.finalizado</code></td><td>Médico conclui o atendimento (prontuário + financeiro gerados)</td></tr>
+<tr><td><code>documento.assinado</code></td><td>Receita/atestado assinado com ICP-Brasil</td></tr>
+<tr><td><code>consulta.confirmada</code></td><td>Paciente confirma via WhatsApp</td></tr>
+<tr><td><code>paciente.criado</code></td><td>Novo paciente cadastrado/onboarded</td></tr>
+</table>
+<p>Entrega com assinatura HMAC própria da NexoClin no header <code>X-Nexo-Signature</code> e reentrega com backoff.</p>
+
+<h2 id="model">6. Modelo de dados (resumo)</h2>
+<table>
+<tr><th>Tabela</th><th>Descrição</th><th>Tenant</th></tr>
+<tr><td>clinics</td><td>Clínicas (nome, CNPJ, endereço, lat/lng, número WhatsApp, plano)</td><td>—</td></tr>
+<tr><td>memberships</td><td>Usuário × clínica × papel</td><td>clinic_id</td></tr>
+<tr><td>patients</td><td>Pacientes (CPF, nome, nascimento, responsável)</td><td>clinic_id</td></tr>
+<tr><td>invite_tokens</td><td>Tokens de convite/QR de onboarding</td><td>clinic_id</td></tr>
+<tr><td>conversations</td><td>Atendimentos (status, risco, atenção, estágio)</td><td>clinic_id</td></tr>
+<tr><td>messages</td><td>Mensagens (in/out, texto/áudio/imagem, transcrição)</td><td>via conversa</td></tr>
+<tr><td>collected_data</td><td>Dados clínicos estruturados extraídos do diálogo</td><td>via conversa</td></tr>
+<tr><td>documents</td><td>Documentos (receita/atestado), assinatura ICP-Brasil</td><td>via conversa</td></tr>
+<tr><td>notifications</td><td>Alertas por usuário/clínica</td><td>clinic_id</td></tr>
+<tr><td>webhook_events</td><td>Log bruto dos eventos da Meta</td><td>clinic_id</td></tr>
+<tr><td>audit_log</td><td>Trilha de auditoria (quem fez o quê)</td><td>clinic_id</td></tr>
+<tr><td>waitlist</td><td>Lista de espera da landing (pré-lançamento)</td><td>plataforma</td></tr>
+</table>
+
+<h2 id="stor">7. Uploads &amp; storage</h2>
+<p>Arquivos (mídia do WhatsApp, PDFs, documentos assinados) ficam no bucket privado <code>documentos</code> do Supabase Storage, com convenção de caminho <code>&lt;clinic_id&gt;/&lt;conversation_id&gt;/&lt;arquivo&gt;</code>. O acesso é feito por <b>URLs assinadas</b> de curta duração geradas pelo servidor, garantindo isolamento por clínica. O upload direto do cliente passa por uma Edge Function que valida o tenant.</p>
+
+<h2 id="sec">8. Segurança &amp; LGPD</h2>
+<ul>
+<li><b>Isolamento por tenant:</b> Row-Level Security em 100% das tabelas; o usuário só acessa dados das suas clínicas.</li>
+<li><b>Segredos no servidor:</b> access_token da Meta, App Secret e service_role nunca vão ao navegador.</li>
+<li><b>Assinatura de webhook:</b> validação <code>X-Hub-Signature-256</code> em cada evento recebido.</li>
+<li><b>Consentimento:</b> registro do opt-in de LGPD por atendimento; base legal de tutela da saúde.</li>
+<li><b>Documentos:</b> validade jurídica via ICP-Brasil (CFM/ITI).</li>
+<li><b>Auditoria:</b> trilha por clínica em <code>audit_log</code>.</li>
+</ul>
+
+<footer>NexoClin · Documentação técnica gerada em 2026. Endpoints marcados como contrato de referência da v1; alguns fluxos de servidor (Edge Functions) estão em implementação — ver o documento de Auditoria &amp; Roadmap.</footer>
+</div></body></html>

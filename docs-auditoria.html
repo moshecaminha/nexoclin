@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NexoClin · Auditoria & Roadmap</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0NCA0NCI+PGcgc3Ryb2tlPSIjMjlBOUQwIiBzdHJva2Utd2lkdGg9IjIuNCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIj48bGluZSB4MT0iMjIiIHkxPSIyMiIgeDI9IjIyLjAwIiB5Mj0iOC4wMCIvPjxsaW5lIHgxPSIyMiIgeTE9IjIyIiB4Mj0iMzIuOTUiIHkyPSIxMy4yNyIvPjxsaW5lIHgxPSIyMiIgeTE9IjIyIiB4Mj0iMzUuNjUiIHkyPSIyNS4xMiIvPjxsaW5lIHgxPSIyMiIgeTE9IjIyIiB4Mj0iMjguMDciIHkyPSIzNC42MSIvPjxsaW5lIHgxPSIyMiIgeTE9IjIyIiB4Mj0iMTUuOTMiIHkyPSIzNC42MSIvPjxsaW5lIHgxPSIyMiIgeTE9IjIyIiB4Mj0iOC4zNSIgeTI9IjI1LjEyIi8+PGxpbmUgeDE9IjIyIiB5MT0iMjIiIHgyPSIxMS4wNSIgeTI9IjEzLjI3Ii8+PC9nPjxjaXJjbGUgY3g9IjIyLjAwIiBjeT0iOC4wMCIgcj0iMy4yIiBmaWxsPSIjMjlBOUQwIi8+PGNpcmNsZSBjeD0iMzIuOTUiIGN5PSIxMy4yNyIgcj0iMy42IiBmaWxsPSIjRjI1NjRDIi8+PGNpcmNsZSBjeD0iMzUuNjUiIGN5PSIyNS4xMiIgcj0iMy4yIiBmaWxsPSIjMjlBOUQwIi8+PGNpcmNsZSBjeD0iMjguMDciIGN5PSIzNC42MSIgcj0iMy4yIiBmaWxsPSIjMjlBOUQwIi8+PGNpcmNsZSBjeD0iMTUuOTMiIGN5PSIzNC42MSIgcj0iMy4yIiBmaWxsPSIjMjlBOUQwIi8+PGNpcmNsZSBjeD0iOC4zNSIgY3k9IjI1LjEyIiByPSIzLjIiIGZpbGw9IiMyOUE5RDAiLz48Y2lyY2xlIGN4PSIxMS4wNSIgY3k9IjEzLjI3IiByPSIzLjIiIGZpbGw9IiMyOUE5RDAiLz48Y2lyY2xlIGN4PSIyMiIgY3k9IjIyIiByPSI1IiBmaWxsPSIjMjlBOUQwIi8+PC9zdmc+">
+<meta name="theme-color" content="#29A9D0">
+<link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#143A4E;--cyan:#29A9D0;--cyan-dk:#1E86A8;--coral:#F2564C;--ink:#143A4E;--mute:#647D8A;--line:#E7EEF2;--bg:#F6F9FB;--green:#1E9E6A;--sun:#B4790B}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,sans-serif;color:var(--ink);background:#fff;line-height:1.6}
+.wrap{max-width:920px;margin:0 auto;padding:0 24px}
+header{border-bottom:1px solid var(--line);padding:26px 0;position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);z-index:5}
+.brand{font-family:Lato;font-weight:900;font-size:22px}.brand b{color:var(--navy)}.brand i{color:var(--cyan);font-style:normal}
+.tag{font-size:12px;color:var(--mute);font-weight:600}
+h1,h2,h3{font-family:Lato;color:var(--navy);font-weight:900}
+h1{font-size:30px;margin:34px 0 6px}h2{font-size:22px;margin:40px 0 10px;padding-top:14px;border-top:2px solid var(--line)}
+h3{font-size:16px;margin:22px 0 6px}
+p,li{font-size:15px}.lead{font-size:17px;color:var(--mute);max-width:660px}
+code{background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:13px;font-family:ui-monospace,monospace}
+table{width:100%;border-collapse:collapse;font-size:13.8px;margin:12px 0}
+th{text-align:left;background:var(--bg);color:var(--cyan-dk);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:9px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.st{font-size:11px;font-weight:800;border-radius:20px;padding:2px 9px;white-space:nowrap}
+.ok{background:#DBF3E9;color:var(--green)}.part{background:#FBEFD6;color:var(--sun)}.no{background:#FDE4E2;color:var(--coral)}
+.note{background:var(--bg);border-left:3px solid var(--cyan);border-radius:8px;padding:12px 14px;font-size:14px;margin:14px 0}
+.warn{border-left-color:var(--coral)}
+.flowmap{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:16px 18px;font-size:14px;line-height:2}
+.flowmap b{color:var(--navy)}
+.p0{color:var(--coral);font-weight:800}.p1{color:var(--sun);font-weight:800}.p2{color:var(--cyan-dk);font-weight:800}
+footer{border-top:1px solid var(--line);margin-top:40px;padding:24px 0;color:var(--mute);font-size:13px}
+ul{margin:8px 0}
+</style></head><body>
+<header><div class="wrap" style="display:flex;justify-content:space-between;align-items:center">
+<span class="brand"><b>Nexo</b><i>Clin</i></span><span class="tag">Auditoria de sistema &amp; Roadmap · v1</span></div></header>
+<div class="wrap">
+
+<h1>Auditoria de sistema &amp; Roadmap</h1>
+<p class="lead">Revisão de engenharia e produto da plataforma NexoClin: o que está pronto, o que é demonstração, o que falta, riscos e o plano priorizado para chegar à operação real multi-clínica.</p>
+
+<h2>1. Sumário executivo</h2>
+<p>A NexoClin já tem uma <b>fundação sólida</b>: landing publicada, aplicação com 5 perfis, cockpit de atendimento por gravidade, relatórios, telas de clínica/plataforma e — nesta iteração — um <b>banco de dados multi-tenant seguro</b> (RLS em 100% das tabelas) e a <b>documentação de API/webhooks</b>. O que ainda é <b>demonstração</b> (dados em memória no front) precisa ser ligado ao backend, e três peças de servidor são o caminho crítico: <b>autenticação real</b>, <b>Edge Function do webhook do WhatsApp</b> e o <b>pipeline de upload</b>. Abaixo, o cruzamento completo.</p>
+
+<h2>2. Cruzamento da lógica (fluxo ponta a ponta)</h2>
+<div class="flowmap">
+<b>Paciente</b> escaneia o QR → cai no <b>WhatsApp oficial</b> da clínica <span class="st ok">UI pronta</span><br>
+→ Meta envia o evento ao <b>webhook</b> <span class="st no">Edge Function a construir</span><br>
+→ resolve o <b>código de convite</b> → identifica <b>clínica + paciente</b> <span class="st part">modelo pronto</span><br>
+→ cria <b>conversa</b> e faz <b>triagem/coleta</b> <span class="st ok">UI</span> <span class="st part">dados mock</span><br>
+→ entra na <b>fila por gravidade</b> (Manchester) <span class="st ok">pronto</span><br>
+→ <b>Recepção</b> assume e roteia · <b>Secretaria</b> agenda · <b>Médico</b> atende <span class="st ok">pronto (por perfil)</span><br>
+→ <b>documentos</b> gerados e <b>assinados (ICP-Brasil)</b> <span class="st ok">UI</span> <span class="st no">assinatura real a integrar</span><br>
+→ vira <b>prontuário</b> + <b>financeiro</b> + <b>relatórios</b> <span class="st ok">UI</span> <span class="st part">agregação em memória</span><br>
+→ <b>notificações/alertas</b> para a equipe <span class="st part">tabela pronta, engine a construir</span>
+</div>
+
+<h2>3. Estado de cada componente</h2>
+<table>
+<tr><th>Componente</th><th>Status</th><th>Observação</th></tr>
+<tr><td>Landing + captação (waitlist)</td><td><span class="st ok">Pronto</span></td><td>No ar na Vercel; grava no Supabase; e-mail via FormSubmit (ativar caixa contato@).</td></tr>
+<tr><td>App · 5 perfis + cores + faixa + fluxo</td><td><span class="st ok">Pronto</span></td><td>Recepção, Secretaria, Médico, Gestor, Super-admin.</td></tr>
+<tr><td>Cockpit de atendimento</td><td><span class="st ok">Pronto</span> <span class="st part">mock</span></td><td>Fila por risco, triagem, roteamento, cockpit médico, assinatura, finalizar. Dados em memória.</td></tr>
+<tr><td>Relatórios (KPIs, gráficos, CSV, PDF)</td><td><span class="st ok">Pronto</span> <span class="st part">mock</span></td><td>Agregação in-memory; migrar para <code>GET /v1/reports</code>.</td></tr>
+<tr><td>Agenda (secretaria)</td><td><span class="st ok">Pronto</span> <span class="st part">mock</span></td><td>Confirmações/lembretes; ligar à tabela de agendamentos.</td></tr>
+<tr><td>Clínica (perfil + QR contato + convite)</td><td><span class="st ok">Pronto</span></td><td>QR via serviço externo (mover para geração própria).</td></tr>
+<tr><td>Onboarding de paciente + CPF</td><td><span class="st ok">Validação</span> <span class="st part">autocomplete mock</span></td><td>Dígitos verificadores reais; consulta a provedor (Serpro) pendente.</td></tr>
+<tr><td>Plataforma (mapa + KPIs nacionais)</td><td><span class="st ok">Pronto</span> <span class="st part">mock</span></td><td>Mapa por coordenadas; evoluir para mapa interativo real.</td></tr>
+<tr><td>Banco multi-tenant + RLS</td><td><span class="st ok">Aplicado</span></td><td>13 tabelas, RLS 100%, isolamento por <code>clinic_id</code>, super-admin global.</td></tr>
+<tr><td>Storage de documentos</td><td><span class="st part">Bucket criado</span></td><td>Bucket privado <code>documentos</code>; pipeline de upload (URLs assinadas) a construir.</td></tr>
+<tr><td>Autenticação real (Supabase Auth)</td><td><span class="st no">A construir</span></td><td>App usa login de demonstração; ligar Auth + memberships.</td></tr>
+<tr><td>Webhook WhatsApp (Meta) — Edge Function</td><td><span class="st no">A construir</span></td><td>Documentado; falta a função receptora + validação de assinatura + credenciais.</td></tr>
+<tr><td>Envio (mensagens/templates) via API Meta</td><td><span class="st no">A construir</span></td><td>Contrato definido; integrar Cloud API por clínica.</td></tr>
+<tr><td>Engine de notificações/alertas</td><td><span class="st part">Tabela pronta</span></td><td>Regras (novo atendimento, atenção, SLA) + central de notificações no app.</td></tr>
+<tr><td>Assinatura ICP-Brasil real</td><td><span class="st no">A integrar</span></td><td>Fluxo/UI prontos; integrar provedor homologado.</td></tr>
+<tr><td>Billing / planos (SaaS)</td><td><span class="st no">A construir</span></td><td>Campo <code>plano</code> existe; falta cobrança e limites por plano.</td></tr>
+</table>
+
+<div class="note"><b>Respondendo diretamente às suas perguntas:</b><br>
+• <b>Upload de arquivos/documentos?</b> Parcial — o bucket seguro existe; o <i>pipeline</i> de upload (front → Edge Function → storage com URL assinada por clínica) ainda será construído.<br>
+• <b>Conexão do WhatsApp com a API da Meta?</b> Ainda não — está <i>desenhada e documentada</i> (endpoint, verificação, assinatura, mapeamento número→clínica); falta a Edge Function receptora e as credenciais da Meta.<br>
+• <b>Fluxos de alertas e notificações?</b> Parcial — a tabela <code>notifications</code> está pronta e há avisos pontuais na UI; falta a <i>engine</i> de regras e a central de notificações.</div>
+
+<h2>4. Riscos &amp; pontos de atenção (visão sênior)</h2>
+<ul>
+<li><span class="p0">Segurança/tenant:</span> a base está correta (RLS por <code>clinic_id</code>). Ao ligar a autenticação, garantir que todo acesso derive do <code>membership</code> — nunca confiar em <code>clinic_id</code> vindo do cliente sem checagem.</li>
+<li><span class="p0">Segredos da Meta:</span> <code>access_token</code>, <code>App Secret</code> e <code>service_role</code> só no servidor. Validar <code>X-Hub-Signature-256</code> em todo webhook.</li>
+<li><span class="p1">LGPD:</span> consentimento deve ser registrado e verificável no servidor; dado de saúde é sensível — minimização, retenção e trilha de auditoria.</li>
+<li><span class="p1">CPF:</span> a consulta que preenche nome exige <b>provedor licenciado</b> (Serpro/Receita) + base legal + consentimento. A validação de dígitos já é local e real; o autocomplete atual é demonstração.</li>
+<li><span class="p2">Dependências externas:</span> QR (serviço externo) e e-mail (FormSubmit) devem migrar para geração/enviador próprios em produção.</li>
+<li><span class="p2">Storage:</span> hoje o bucket é <i>deny-by-default</i> (seguro). Ao abrir upload, isolar por pasta <code>clinic_id/</code> e servir por URL assinada.</li>
+</ul>
+
+<h2>5. Roadmap priorizado</h2>
+<h3><span class="p0">P0 — caminho crítico (operação real)</span></h3>
+<ul>
+<li>Ligar <b>Supabase Auth</b> ao app (login real por e-mail/senha) + resolução de <code>membership</code> → clínica ativa.</li>
+<li><b>Edge Function do webhook</b> do WhatsApp: verificação, validação de assinatura, gravação em <code>conversations/messages</code>, roteamento por número.</li>
+<li><b>Envio</b> de mensagens e <b>templates</b> pela Cloud API (por clínica).</li>
+<li>Trocar os dados mock do cockpit/relatórios por leituras reais (<code>/v1/conversations</code>, <code>/v1/reports</code>).</li>
+</ul>
+<h3><span class="p1">P1 — robustez do produto</span></h3>
+<ul>
+<li><b>Engine de notificações</b> + central no app (novo atendimento, ponto de atenção, SLA, documento assinado).</li>
+<li><b>Pipeline de upload</b> (mídia/PDF) com URLs assinadas por clínica.</li>
+<li><b>Onboarding de clínica</b> completo (cadastro, número, equipe) + <b>billing por plano</b>.</li>
+<li>Integração real de <b>assinatura ICP-Brasil</b> e de <b>consulta de CPF</b> licenciada.</li>
+</ul>
+<h3><span class="p2">P2 — escala &amp; refinamento</span></h3>
+<ul>
+<li>Mapa interativo real na Plataforma (tiles) e métricas nacionais ao vivo.</li>
+<li>Geração de QR própria (sem serviço externo).</li>
+<li>Webhooks de saída para ERPs/prontuários das clínicas.</li>
+<li>Observabilidade (logs, métricas, alertas de SLA da própria plataforma).</li>
+</ul>
+
+<h2>6. O que foi entregue nesta iteração</h2>
+<ul>
+<li>Reposicionamento para <b>SaaS multi-tenant</b> com papel <b>Gestor</b> e <b>Super-admin</b> de plataforma.</li>
+<li><b>Banco multi-tenant</b>: <code>clinics</code>, <code>memberships</code>, <code>patients</code>, <code>invite_tokens</code>, <code>notifications</code>, <code>audit_log</code> + <code>clinic_id</code> nas tabelas clínicas; <b>RLS em 100%</b> e helpers (<code>is_member</code>, <code>is_platform_admin</code>).</li>
+<li>Tela da <b>Clínica</b>: perfil, <b>QR/link de contato</b> e <b>convite de paciente por QR</b> com <b>CPF validado</b>.</li>
+<li>Tela da <b>Plataforma</b>: <b>mapa do Brasil</b> com clínicas, KPIs nacionais e tabela.</li>
+<li><b>Documentação</b> de API &amp; Webhooks e esta <b>auditoria</b>.</li>
+</ul>
+
+<footer>NexoClin · Auditoria gerada em 2026 por análise de engenharia/produto. Status: fundação multi-tenant pronta; caminho crítico P0 é autenticação + webhook Meta + envio. Documento vivo — atualizar a cada release.</footer>
+</div></body></html>
