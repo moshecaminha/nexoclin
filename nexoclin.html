@@ -13,6 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 :root{
   --navy:#143A4E;--navy-2:#2A5566;
@@ -228,6 +229,15 @@ button{font-family:inherit}
 .pf-map{background:#EAF3F7}
 .pf-mapfb{display:grid;place-items:center;height:100%;color:var(--mute);font-size:13px}
 .leaflet-container{border-radius:14px;font:inherit}
+
+.real-login{margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
+.rl-sep{text-align:center;margin-bottom:12px}
+.rl-sep span{font-size:11.5px;color:var(--mute);text-transform:uppercase;letter-spacing:.05em}
+.rl-inp{width:100%;border:1px solid var(--line);border-radius:11px;padding:12px 14px;font-size:14px;font-family:var(--body);margin-bottom:9px;outline:none}
+.rl-inp:focus{border-color:var(--cyan)}
+.rl-btn{width:100%;background:var(--navy);color:#fff;border:none;border-radius:11px;padding:13px;font-family:var(--display);font-weight:700;font-size:15px;cursor:pointer}
+.rl-btn:hover{background:#0E2C3B}
+.rl-err{font-size:12.5px;color:var(--coral);margin-top:8px;text-align:center;min-height:16px}
 </style>
 <style id="wa-style">
 /* ===== Cockpit de Atendimento WhatsApp — escopo .wa- ===== */
@@ -522,6 +532,13 @@ html,body{overflow-x:hidden}
     <div class="login-tag">Gestão do <b>WhatsApp médico</b> — prioriza o que precisa da sua atenção, integra ao prontuário e registra com segurança.</div>
     <div class="role-lab">Entrar como</div>
     <div class="roles" id="roles"></div>
+    <div class="real-login">
+      <div class="rl-sep"><span>ou entre com sua conta</span></div>
+      <input id="rlEmail" type="email" placeholder="E-mail" class="rl-inp" autocomplete="username">
+      <input id="rlPass" type="password" placeholder="Senha" class="rl-inp" autocomplete="current-password">
+      <button class="rl-btn" onclick="nxLogin()">Entrar</button>
+      <div class="rl-err" id="rlErr"></div>
+    </div>
     <div class="promo">
   <div class="promo-item"><span class="pi-ic">◑</span><div><b>Prioriza o que precisa de você</b><span>Classificação de risco na fila</span></div></div>
   <div class="promo-item"><span class="pi-ic">▤</span><div><b>Integração com o prontuário</b><span>O diálogo vira registro clínico</span></div></div>
@@ -579,10 +596,14 @@ const NAV={
   secretaria:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['relatorios','Relatórios','chart']],
   medico:[['cockpit','Atendimento','chat'],['relatorios','Meus indicadores','chart']],
   gestor:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['clinica','Minha clínica','building'],['relatorios','Relatórios','chart'],['equipe','Equipe','users']],
-  admin:[['plataforma','Plataforma','map'],['cockpit','Atendimento','chat'],['relatorios','Relatórios','chart'],['integr','Integrações','plug'],['equipe','Equipe','users']],
+  admin:[['plataforma','Plataforma','map'],['relatorios','Relatórios','chart'],['integr','Integrações','plug']],
 };
 const TITLES={cockpit:'Atendimento',agenda:'Agenda',clinica:'Minha clínica',plataforma:'Plataforma',relatorios:'Relatórios',integr:'Integrações',equipe:'Equipe & acessos'};
 let ROLE=null;
+const SB_URL='https://kzbazzwfdagfhyxuadqp.supabase.co';
+const SB_KEY='sb_publishable_3BdfmucRk66Dc4bY2mA80w_CZEodm_L';
+const SB=(window.supabase&&window.supabase.createClient)?window.supabase.createClient(SB_URL,SB_KEY):null;
+const NX={real:false,clinic:null,me:null};
 
 function toast(m,i){ let t=document.getElementById('nxToasts'); if(!t){t=document.createElement('div');t.id='nxToasts';t.style.cssText='position:fixed;bottom:18px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:8px';document.body.appendChild(t);} const el=document.createElement('div'); el.style.cssText='background:#143A4E;color:#fff;padding:11px 15px;border-radius:11px;font:600 13px Inter,sans-serif;box-shadow:0 12px 30px -10px rgba(20,58,78,.5);max-width:320px'; el.textContent=(i?i+' ':'✓ ')+m; t.appendChild(el); setTimeout(()=>el.remove(),3600); }
 window.toast=toast;
@@ -624,18 +645,17 @@ function nav(v){
   else if(v==='relatorios'){ const sc=ROLE==='medico'?'medico':'admin'; view.innerHTML=WA.dash.view(sc); WA.dash.mount(sc); }
   else if(v==='integr'){ view.innerHTML=WA.integr.view(); WA.integr.mount(); }
   else if(v==='clinica'){ view.innerHTML=clinicaView(); }
-  else if(v==='plataforma'){ view.innerHTML=plataformaView(); plataformaMount(); }
+  else if(v==='plataforma'){ PF_LOADED=false; view.innerHTML=plataformaView(); plataformaMount(); }
   else if(v==='equipe'){ view.innerHTML=equipeView(); }
 }
 function equipeView(){
   const cards=Object.entries(ROLES).map(([k,r])=>`<div class="eq-card"><div class="ic" style="background:${r.soft};color:${r.color}">${ICON[r.ic]}</div><h4>${r.label}</h4><p>${r.short}</p></div>`).join('');
-  return `<div class="wi" style="max-width:none"><div class="page-h"><h1>Equipe & acessos</h1><p>Gerencie os acessos da área administrativa: adicionar, editar, redefinir senha e excluir. Cada acesso é isolado por clínica.</p></div>
+  if(NX.real) setTimeout(teamLoad,0);
+  const modo = NX.real ? ' <b style="color:var(--green)">Conectado ao Supabase.</b>' : ' <span style="color:var(--sun,#B4790B)">Modo demonstração.</span>';
+  return `<div class="wi" style="max-width:none"><div class="page-h"><h1>Equipe & acessos</h1><p>Gerencie os acessos: adicionar, editar, redefinir senha e excluir.${modo}</p></div>
     <div class="eq-grid">${cards}</div>
-    <div class="eq-bar"><b>Acessos (${TEAM.length})</b><button class="cl-btn pri" style="margin:0;padding:10px 15px" onclick="teamForm(-1)">+ Adicionar acesso</button></div>
-    <table class="eq-tbl"><thead><tr><th>Pessoa</th><th>Perfil</th><th>E-mail</th><th>Status</th><th style="text-align:right">Ações</th></tr></thead><tbody>
-    ${TEAM.map((t,i)=>`<tr><td><b>${t.nome}</b></td><td><span class="eq-badge" style="background:${ROLES[t.role].soft};color:${ROLES[t.role].color}">${ROLES[t.role].label}</span></td><td style="color:var(--mute)">${t.email}</td><td style="color:${t.status==='Ativo'?'var(--green)':'var(--mute)'};font-weight:600">${t.status}</td>
-      <td style="text-align:right;white-space:nowrap"><button class="eq-act" onclick="teamForm(${i})">Editar</button><button class="eq-act" onclick="teamReset(${i})">Redefinir senha</button><button class="eq-act danger" onclick="teamDelete(${i})">Excluir</button></td></tr>`).join('')}
-    </tbody></table></div>`;
+    <div class="eq-bar"><b>Acessos</b><button class="cl-btn pri" style="margin:0;padding:10px 15px" onclick="teamForm(-1)">+ Adicionar acesso</button></div>
+    <table class="eq-tbl"><thead><tr><th>Pessoa</th><th>Perfil</th><th>E-mail</th><th>Status</th><th style="text-align:right">Ações</th></tr></thead><tbody id="eqBody">${teamRows()}</tbody></table></div>`;
 }
 
 function roleCounts(){
@@ -786,26 +806,28 @@ const CLINICS_ALL=[
 ];
 function mapXY(lat,lng){ let x=((lng+74)/40)*100; let y=((5-lat)/39)*100; return [Math.max(3,Math.min(97,x)),Math.max(3,Math.min(97,y))]; }
 function plataformaView(){
-  const A=CLINICS_ALL, maxp=Math.max(...A.map(c=>c.pac));
-  const kpi=[['Clínicas ativas',A.filter(c=>c.ativo).length],['Pacientes',A.reduce((s,c)=>s+c.pac,0).toLocaleString('pt-BR')],['Médicos',A.reduce((s,c)=>s+c.med,0)],['Atendimentos · 90d',A.reduce((s,c)=>s+c.at,0).toLocaleString('pt-BR')]];
-  const markers=A.map(c=>{const p=mapXY(c.lat,c.lng);const r=9+(c.pac/maxp)*15;return `<div class="pf-mark ${c.ativo?'':'off'}" style="left:${p[0]}%;top:${p[1]}%;width:${r}px;height:${r}px" title="${c.nome} · ${c.cidade}/${c.uf} · ${c.pac} pacientes"></div>`;}).join('');
-  const regions=[['Norte','24%','20%'],['Nordeste','66%','26%'],['Centro-Oeste','46%','50%'],['Sudeste','62%','64%'],['Sul','48%','86%']];
-  const uf={}; A.forEach(c=>uf[c.uf]=(uf[c.uf]||0)+c.pac); const ufa=Object.entries(uf).sort((a,b)=>b[1]-a[1]); const um=Math.max(...ufa.map(x=>x[1]));
+  const A=PF_ROWS;
+  if(NX.real && !PF_LOADED) setTimeout(pfLoad,0);
+  const kpi=[['Clínicas ativas',A.filter(c=>c.ativo).length],['Pacientes',A.reduce((s,c)=>s+(c.pac||0),0).toLocaleString('pt-BR')],['Usuários',A.reduce((s,c)=>s+(c.usuarios||0),0)],['Clínicas',A.length]];
+  const uf={}; A.forEach(c=>{ if(c.uf) uf[c.uf]=(uf[c.uf]||0)+(c.pac||0); }); const ufa=Object.entries(uf).sort((a,b)=>b[1]-a[1]); const um=Math.max(1,...ufa.map(x=>x[1]));
+  const modo = NX.real ? '' : ' <span style="color:var(--sun,#B4790B)">Modo demonstração — entre como super-admin para gerenciar.</span>';
   return `<div class="pf-wrap">
-    <div class="page-h"><h1>Plataforma NexoClin</h1><p>Visão global das clínicas ativas no Brasil.</p></div>
+    <div class="page-h"><h1>Plataforma NexoClin</h1><p>Administração das clínicas.${modo}</p></div>
     <div class="pf-kpis">${kpi.map(k=>`<div class="pf-kpi"><div class="n">${k[1]}</div><div class="l">${k[0]}</div></div>`).join('')}</div>
     <div class="pf-grid">
       <div class="cl-card"><div class="cl-ct">Clínicas no Brasil</div>
         <div id="pfMap" class="pf-map"></div>
-        <div class="pf-legend"><span class="pf-dot on"></span> ativa &nbsp;&nbsp; <span class="pf-dot off"></span> inativa &nbsp;&nbsp;·&nbsp;&nbsp;mapa real (OpenStreetMap) · ponto = nº de pacientes</div>
+        <div class="pf-legend"><span class="pf-dot on"></span> ativa &nbsp;&nbsp; <span class="pf-dot off"></span> inativa &nbsp;&nbsp;·&nbsp;&nbsp;mapa real (OpenStreetMap)</div>
       </div>
       <div class="cl-card"><div class="cl-ct">Pacientes por estado</div>
-        <div class="pf-bars">${ufa.map(([u,v])=>`<div class="pf-bar"><span>${u}</span><span class="t"><span class="f" style="width:${v/um*100}%"></span></span><span class="v">${v.toLocaleString('pt-BR')}</span></div>`).join('')}</div>
+        <div class="pf-bars">${ufa.length?ufa.map(([u,v])=>`<div class="pf-bar"><span>${u}</span><span class="t"><span class="f" style="width:${v/um*100}%"></span></span><span class="v">${v.toLocaleString('pt-BR')}</span></div>`).join(''):'<div style="color:var(--mute);font-size:13px">Sem dados ainda.</div>'}</div>
       </div>
     </div>
-    <div class="cl-card cl-wide" style="margin-top:14px"><div class="cl-ct">Clínicas (${A.length})</div>
-      <div class="wad-table-wrap" style="overflow-x:auto"><table class="eq-tbl"><thead><tr><th>Clínica</th><th>Cidade/UF</th><th>Pacientes</th><th>Médicos</th><th>Atend. 90d</th><th>Plano</th><th>Status</th></tr></thead><tbody>
-      ${A.map(c=>`<tr><td><b>${c.nome}</b></td><td>${c.cidade}/${c.uf}</td><td>${c.pac.toLocaleString('pt-BR')}</td><td>${c.med}</td><td>${c.at}</td><td><span class="eq-badge">${c.plano}</span></td><td style="color:${c.ativo?'var(--green)':'var(--mute)'};font-weight:600">${c.ativo?'Ativa':'Inativa'}</td></tr>`).join('')}
+    <div class="cl-card cl-wide" style="margin-top:14px">
+      <div class="eq-bar"><b>Clínicas (${A.length})</b><button class="cl-btn pri" style="margin:0;padding:10px 15px" onclick="clinicForm(-1)">+ Nova clínica</button></div>
+      <div class="wad-table-wrap" style="overflow-x:auto"><table class="eq-tbl"><thead><tr><th>Clínica</th><th>Cidade/UF</th><th>Pacientes</th><th>Usuários</th><th>Plano</th><th>Status</th><th style="text-align:right">Ações</th></tr></thead><tbody>
+      ${A.map((c,i)=>`<tr><td><b>${c.nome}</b></td><td>${c.cidade||'—'}${c.uf?'/'+c.uf:''}</td><td>${(c.pac||0).toLocaleString('pt-BR')}</td><td>${c.usuarios||0}</td><td><span class="eq-badge">${c.plano}</span></td><td style="color:${c.ativo?'var(--green)':'var(--mute)'};font-weight:600">${c.ativo?'Ativa':'Inativa'}</td>
+        <td style="text-align:right;white-space:nowrap"><button class="eq-act" onclick="clinicForm(${i})">Editar</button><button class="eq-act" onclick="clinicInvite(${i})">Link de acesso</button><button class="eq-act ${c.ativo?'danger':''}" onclick="clinicToggle(${i})">${c.ativo?'Desativar':'Ativar'}</button></td></tr>`).join('')}
       </tbody></table></div></div>
   </div>`;
 }
@@ -823,28 +845,199 @@ let TEAM=[
 ];
 function roleOptions(sel){ return Object.entries(ROLES).map(([k,r])=>`<option value="${k}" ${k===sel?'selected':''}>${r.label}</option>`).join(''); }
 function teamRefresh(){ if(document.querySelector('.eq-tbl')) document.getElementById('view').innerHTML=equipeView(); }
+function teamRows(){
+  if(!TEAM.length) return '<tr><td colspan="5" style="color:var(--mute)">Carregando…</td></tr>';
+  return TEAM.map((t,i)=>`<tr><td><b>${t.nome}</b></td><td><span class="eq-badge" style="background:${ROLES[t.role].soft};color:${ROLES[t.role].color}">${ROLES[t.role].label}</span></td><td style="color:var(--mute)">${t.email}</td><td style="color:${t.status==='Ativo'?'var(--green)':'var(--mute)'};font-weight:600">${t.status}</td>
+    <td style="text-align:right;white-space:nowrap"><button class="eq-act" onclick="teamForm(${i})">Editar</button><button class="eq-act" onclick="teamReset(${i})">Redefinir senha</button><button class="eq-act danger" onclick="teamDelete(${i})">Excluir</button></td></tr>`).join('');
+}
+async function teamLoad(){
+  if(!SB||!NX.clinic) return;
+  try{
+    const {data,error}=await SB.rpc('nx_admin_users',{p_clinic:NX.clinic});
+    if(error) throw error;
+    TEAM=(data||[]).map(r=>({user_id:r.user_id,nome:r.nome,email:r.email,role:r.role,status:r.ativo?'Ativo':'Inativo'}));
+    const b=document.getElementById('eqBody'); if(b) b.innerHTML=teamRows();
+  }catch(e){ const b=document.getElementById('eqBody'); if(b) b.innerHTML='<tr><td colspan="5" style="color:var(--coral)">Erro ao carregar acessos.</td></tr>'; }
+}
+async function nxLogin(){
+  const err=document.getElementById('rlErr'); err.textContent='';
+  if(!SB){ err.textContent='Conexão indisponível.'; return; }
+  const email=(document.getElementById('rlEmail').value||'').trim();
+  const pass=document.getElementById('rlPass').value||'';
+  if(!email||!pass){ err.textContent='Informe e-mail e senha.'; return; }
+  err.textContent='Entrando…';
+  try{
+    const {error}=await SB.auth.signInWithPassword({email,password:pass});
+    if(error){ err.textContent='Login falhou: '+error.message; return; }
+    const {data:me,error:e2}=await SB.rpc('nx_me');
+    if(e2){ err.textContent='Erro ao carregar perfil.'; return; }
+    NX.real=true; NX.me=me; TEAM=[];
+    const cl=(me&&me.clinics&&me.clinics[0])||null;
+    NX.clinic=cl?cl.clinic_id:null;
+    const role=(me&&me.is_platform_admin)?'admin':(cl?cl.role:'recepcao');
+    enter(role);
+  }catch(ex){ err.textContent='Erro: '+(ex.message||ex); }
+}
 function teamForm(i){
   const t=i>=0?TEAM[i]:{nome:'',email:'',role:'recepcao',status:'Ativo'};
+  const pwd=(NX.real&&i<0)?`<div class="nxm-field"><label>Senha inicial</label><input id="tfPass" type="text" placeholder="mínimo 6 caracteres"></div>`:'';
   openModal(`<h3>${i>=0?'Editar acesso':'Adicionar acesso'}</h3>
     <div class="nxm-field"><label>Nome</label><input id="tfNome" value="${t.nome}"></div>
-    <div class="nxm-field"><label>E-mail</label><input id="tfEmail" type="email" value="${t.email}"></div>
+    <div class="nxm-field"><label>E-mail</label><input id="tfEmail" type="email" value="${t.email}" ${i>=0?'disabled':''}></div>
     <div class="nxm-field"><label>Perfil</label><select id="tfRole">${roleOptions(t.role)}</select></div>
+    ${pwd}
     <div class="nxm-field"><label>Status</label><select id="tfStatus"><option ${t.status==='Ativo'?'selected':''}>Ativo</option><option ${t.status==='Inativo'?'selected':''}>Inativo</option></select></div>
     <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="teamSave(${i})">Salvar</button></div>`);
 }
-function teamSave(i){
-  const o={nome:(document.getElementById('tfNome').value||'').trim(),email:(document.getElementById('tfEmail').value||'').trim(),role:document.getElementById('tfRole').value,status:document.getElementById('tfStatus').value};
-  if(!o.nome||!o.email){ toast('Preencha nome e e-mail','⚠'); return; }
-  if(i>=0){ TEAM[i]=o; toast('Acesso atualizado'); } else { TEAM.push(o); toast('Acesso criado — convite enviado por e-mail','✉'); }
+async function teamSave(i){
+  const nome=(document.getElementById('tfNome').value||'').trim();
+  const email=(document.getElementById('tfEmail').value||'').trim();
+  const role=document.getElementById('tfRole').value;
+  const status=document.getElementById('tfStatus').value;
+  if(!nome||!email){ toast('Preencha nome e e-mail','⚠'); return; }
+  if(NX.real){
+    try{
+      if(i>=0){
+        await SB.rpc('nx_admin_update_user',{p_user_id:TEAM[i].user_id,p_nome:nome});
+        await SB.rpc('nx_admin_set_member_role',{p_clinic:NX.clinic,p_user_id:TEAM[i].user_id,p_role:role});
+        toast('Acesso atualizado');
+      } else {
+        const pass=(document.getElementById('tfPass').value||'').trim();
+        if(pass.length<6){ toast('Senha inicial mínima de 6 caracteres','⚠'); return; }
+        const {error}=await SB.rpc('nx_admin_create_user',{p_clinic:NX.clinic,p_email:email,p_password:pass,p_nome:nome,p_role:role});
+        if(error) throw error; toast('Acesso criado');
+      }
+      closeModal(); teamLoad();
+    }catch(e){ toast('Erro: '+(e.message||e),'⚠'); }
+    return;
+  }
+  const o={nome,email,role,status};
+  if(i>=0){ TEAM[i]={...TEAM[i],...o}; toast('Acesso atualizado'); } else { TEAM.push(o); toast('Acesso criado — convite enviado por e-mail','✉'); }
   closeModal(); teamRefresh();
 }
-function teamReset(i){ toast('Link de redefinição de senha enviado para '+TEAM[i].email,'🔑'); }
+function teamReset(i){
+  if(NX.real){
+    openModal(`<h3>Redefinir senha</h3><p style="color:var(--mute);font-size:13.5px;margin:6px 0 0">Nova senha para <b>${TEAM[i].nome}</b>.</p>
+      <div class="nxm-field"><label>Nova senha</label><input id="tfNewPass" type="text" placeholder="mínimo 6 caracteres"></div>
+      <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="teamDoReset(${i})">Redefinir</button></div>`);
+    return;
+  }
+  toast('Link de redefinição de senha enviado para '+TEAM[i].email,'🔑');
+}
+async function teamDoReset(i){
+  const pw=(document.getElementById('tfNewPass').value||'').trim();
+  if(pw.length<6){ toast('Senha mínima de 6 caracteres','⚠'); return; }
+  try{ const {error}=await SB.rpc('nx_admin_set_password',{p_user_id:TEAM[i].user_id,p_password:pw}); if(error) throw error; closeModal(); toast('Senha redefinida'); }
+  catch(e){ toast('Erro: '+(e.message||e),'⚠'); }
+}
 function teamDelete(i){
   const t=TEAM[i];
   openModal(`<h3>Excluir acesso</h3><p style="color:var(--mute);font-size:14px;margin:8px 0 0">Remover <b>${t.nome}</b> (${t.email})? O login é desativado imediatamente.</p>
     <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn danger" onclick="teamDoDelete(${i})">Excluir</button></div>`);
 }
-function teamDoDelete(i){ const t=TEAM.splice(i,1)[0]; closeModal(); teamRefresh(); toast('Acesso de '+t.nome+' removido'); }
+async function teamDoDelete(i){
+  if(NX.real){
+    try{ const {error}=await SB.rpc('nx_admin_remove_member',{p_clinic:NX.clinic,p_user_id:TEAM[i].user_id}); if(error) throw error; closeModal(); teamLoad(); toast('Acesso removido'); }
+    catch(e){ toast('Erro: '+(e.message||e),'⚠'); }
+    return;
+  }
+  const t=TEAM.splice(i,1)[0]; closeModal(); teamRefresh(); toast('Acesso de '+t.nome+' removido');
+}
+let PF_ROWS = CLINICS_ALL.map(c=>({id:null,nome:c.nome,cidade:c.cidade,uf:c.uf,lat:c.lat,lng:c.lng,pac:c.pac,usuarios:c.med,plano:c.plano,ativo:c.ativo}));
+let PF_LOADED=false;
+async function pfLoad(){
+  if(!SB||!NX.real){ return; }
+  PF_LOADED=true;
+  try{
+    const {data,error}=await SB.rpc('nx_admin_clinics');
+    if(error) throw error;
+    PF_ROWS=(data||[]).map(c=>({id:c.id,nome:c.nome,cidade:c.cidade||'',uf:c.estado||'',lat:c.lat,lng:c.lng,pac:c.pacientes||0,usuarios:c.usuarios||0,plano:c.plano||'trial',ativo:c.ativo}));
+    if(document.getElementById('pfMap')){ document.getElementById('view').innerHTML=plataformaView(); plataformaMount(); }
+  }catch(e){ toast('Erro ao carregar clínicas','⚠'); }
+}
+function clinicForm(i){
+  const c=i>=0?PF_ROWS[i]:{nome:'',cidade:'',uf:'RJ',plano:'trial',whatsapp:''};
+  openModal(`<h3>${i>=0?'Editar clínica':'Nova clínica'}</h3>
+   <div class="nxm-field"><label>Nome</label><input id="cfNome" value="${c.nome||''}"></div>
+   <div class="nxm-field"><label>WhatsApp oficial</label><input id="cfWa" value="${c.whatsapp||''}" placeholder="+55 21 90000-0000"></div>
+   <div class="nxm-field"><label>Cidade</label><input id="cfCidade" value="${c.cidade||''}"></div>
+   <div class="nxm-field"><label>UF</label><input id="cfUf" value="${c.uf||''}" maxlength="2"></div>
+   <div class="nxm-field"><label>Plano</label><select id="cfPlano"><option ${c.plano==='trial'?'selected':''}>trial</option><option ${c.plano==='Pro'?'selected':''}>Pro</option></select></div>
+   <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="clinicSave(${i})">Salvar</button></div>`);
+}
+async function clinicSave(i){
+  if(!NX.real){ closeModal(); toast('Modo demonstração — entre como super-admin para gerenciar clínicas'); return; }
+  const nome=(document.getElementById('cfNome').value||'').trim();
+  const wa=(document.getElementById('cfWa').value||'').trim();
+  const cidade=(document.getElementById('cfCidade').value||'').trim();
+  const uf=(document.getElementById('cfUf').value||'').trim().toUpperCase();
+  const plano=document.getElementById('cfPlano').value;
+  if(!nome){ toast('Informe o nome da clínica','⚠'); return; }
+  try{
+    if(i>=0){ await SB.rpc('nx_admin_update_clinic',{p_clinic:PF_ROWS[i].id,p_nome:nome,p_cidade:cidade,p_estado:uf,p_whatsapp:wa,p_plano:plano,p_ativo:null}); toast('Clínica atualizada'); }
+    else { const {error}=await SB.rpc('nx_admin_create_clinic',{p_nome:nome,p_cnpj:null,p_cidade:cidade,p_estado:uf,p_whatsapp:wa,p_plano:plano}); if(error) throw error; toast('Clínica criada'); }
+    closeModal(); pfLoad();
+  }catch(e){ toast('Erro: '+(e.message||e),'⚠'); }
+}
+async function clinicInvite(i){
+  if(!NX.real){ toast('Modo demonstração'); return; }
+  try{
+    const {data:tok,error}=await SB.rpc('nx_admin_clinic_invite',{p_clinic:PF_ROWS[i].id});
+    if(error) throw error;
+    const url=location.origin+location.pathname+'?onboard='+tok;
+    openModal(`<h3>Link de primeiro acesso</h3><p style="color:var(--mute);font-size:13px;margin:6px 0 12px">Envie para <b>${PF_ROWS[i].nome}</b>. Por ele, o responsável cria o login do <b>gestor</b> da clínica. Válido por 14 dias.</p>
+      <div class="cl-inp"><code>${url}</code><button class="cl-copy" onclick="nxCopy(this.previousElementSibling.textContent,this)">Copiar</button></div>
+      <div class="nxm-actions"><button class="nxm-btn pri" onclick="closeModal()">Pronto</button></div>`);
+  }catch(e){ toast('Erro: '+(e.message||e),'⚠'); }
+}
+async function clinicToggle(i){
+  if(!NX.real){ toast('Modo demonstração'); return; }
+  const alvo=!PF_ROWS[i].ativo;
+  try{ await SB.rpc('nx_admin_update_clinic',{p_clinic:PF_ROWS[i].id,p_nome:null,p_cidade:null,p_estado:null,p_whatsapp:null,p_plano:null,p_ativo:alvo}); pfLoad(); toast(alvo?'Clínica ativada':'Clínica desativada'); }
+  catch(e){ toast('Erro','⚠'); }
+}
+// ===== primeiro acesso da clínica (link) =====
+function nxCheckOnboard(){
+  const tok=new URLSearchParams(location.search).get('onboard'); if(!tok) return;
+  const card=document.querySelector('#login .login-card'); if(!card) return;
+  const logoSrc=(card.querySelector('img')||{}).src||'';
+  document.getElementById('login').style.display='grid';
+  card.innerHTML=`<div class="logo" style="justify-content:center;margin-bottom:8px"><img src="${logoSrc}" style="height:32px"></div><div id="obBody" style="text-align:center;color:var(--mute);font-size:14px">Carregando o convite…</div>`;
+  obLoad(tok);
+}
+async function obLoad(tok){
+  const b=document.getElementById('obBody');
+  if(!SB){ b.innerHTML='<div style="color:var(--coral)">Conexão indisponível.</div>'; return; }
+  try{
+    const {data,error}=await SB.rpc('nx_onboard_public',{p_token:tok});
+    if(error||!data||!data.ok){ b.innerHTML='<div style="color:var(--coral)">Link inválido ou já utilizado.</div>'; return; }
+    b.innerHTML=`<div class="login-tag">Primeiro acesso — <b>${data.clinica}</b>.<br>Crie o login do gestor da clínica.</div>
+      <input id="obNome" class="rl-inp" placeholder="Seu nome" autocomplete="name">
+      <input id="obEmail" class="rl-inp" type="email" placeholder="E-mail" autocomplete="email">
+      <input id="obPass" class="rl-inp" type="password" placeholder="Senha (mín. 6)" autocomplete="new-password">
+      <button class="rl-btn" onclick="obRegister('${tok}')">Criar acesso do gestor</button>
+      <div class="rl-err" id="obErr"></div>`;
+  }catch(e){ b.innerHTML='<div style="color:var(--coral)">Erro ao carregar.</div>'; }
+}
+async function obRegister(tok){
+  const err=document.getElementById('obErr'); err.textContent='';
+  const nome=(document.getElementById('obNome').value||'').trim();
+  const email=(document.getElementById('obEmail').value||'').trim();
+  const pass=document.getElementById('obPass').value||'';
+  if(!nome||!email||pass.length<6){ err.textContent='Preencha tudo (senha mín. 6 caracteres).'; return; }
+  err.textContent='Criando…';
+  try{
+    const {data,error}=await SB.rpc('nx_onboard_register',{p_token:tok,p_nome:nome,p_email:email,p_password:pass});
+    if(error||!data||!data.ok){ err.textContent=(data&&data.erro)||'Falha no cadastro.'; return; }
+    await SB.auth.signInWithPassword({email,password:pass});
+    const {data:me}=await SB.rpc('nx_me');
+    NX.real=true; NX.me=me; TEAM=[];
+    const cl=(me&&me.clinics&&me.clinics[0])||null; NX.clinic=cl?cl.clinic_id:null;
+    history.replaceState(null,'',location.pathname);
+    document.getElementById('login').style.display='none';
+    enter('gestor');
+  }catch(ex){ err.textContent='Erro: '+(ex.message||ex); }
+}
 let PF_MAP=null;
 function plataformaMount(){
   const el=document.getElementById('pfMap'); if(!el)return;
@@ -852,16 +1045,17 @@ function plataformaMount(){
   try{ if(PF_MAP){ PF_MAP.remove(); PF_MAP=null; } }catch(e){}
   PF_MAP=L.map(el,{scrollWheelZoom:false,attributionControl:true}).setView([-14.5,-52],4);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:12,attribution:'© OpenStreetMap'}).addTo(PF_MAP);
-  const maxp=Math.max(...CLINICS_ALL.map(c=>c.pac));
-  CLINICS_ALL.forEach(c=>{
-    const r=8+(c.pac/maxp)*14;
+  const pts=PF_ROWS.filter(c=>c.lat&&c.lng); const maxp=Math.max(1,...pts.map(c=>c.pac||0));
+  pts.forEach(c=>{
+    const r=8+((c.pac||0)/maxp)*14;
     L.circleMarker([c.lat,c.lng],{radius:r,color:'#fff',weight:2,fillColor:c.ativo?'#29A9D0':'#9DB0B9',fillOpacity:.9})
-     .bindPopup('<b>'+c.nome+'</b><br>'+c.cidade+'/'+c.uf+'<br>'+c.pac+' pacientes · '+c.med+' médicos').addTo(PF_MAP);
+     .bindPopup('<b>'+c.nome+'</b><br>'+c.cidade+'/'+c.uf+'<br>'+(c.pac||0)+' pacientes · '+(c.usuarios||0)+' usuários').addTo(PF_MAP);
   });
   setTimeout(()=>{ try{PF_MAP.invalidateSize();}catch(e){} },250);
 }
 
 renderRoles();
+nxCheckOnboard();
 </script>
 <script id="wa-script">
 (function(){
