@@ -849,7 +849,7 @@ function plataformaView(){
       <div class="eq-bar"><b>Clínicas (${A.length})</b><button class="cl-btn pri" style="margin:0;padding:10px 15px" onclick="clinicForm(-1)">+ Nova clínica</button></div>
       <div class="wad-table-wrap" style="overflow-x:auto"><table class="eq-tbl"><thead><tr><th>Clínica</th><th>Cidade/UF</th><th>Pacientes</th><th>Usuários</th><th>Plano</th><th>Status</th><th style="text-align:right">Ações</th></tr></thead><tbody>
       ${A.map((c,i)=>`<tr><td><b>${c.nome}</b></td><td>${c.cidade||'—'}${c.uf?'/'+c.uf:''}</td><td>${(c.pac||0).toLocaleString('pt-BR')}</td><td>${c.usuarios||0}</td><td><span class="eq-badge">${c.plano}</span></td><td style="color:${c.ativo?'var(--green)':'var(--mute)'};font-weight:600">${c.ativo?'Ativa':'Inativa'}</td>
-        <td style="text-align:right;white-space:nowrap"><button class="eq-act" onclick="clinicForm(${i})">Editar</button><button class="eq-act" onclick="clinicInvite(${i})">Link de acesso</button><button class="eq-act ${c.ativo?'danger':''}" onclick="clinicToggle(${i})">${c.ativo?'Desativar':'Ativar'}</button></td></tr>`).join('')}
+        <td style="text-align:right;white-space:nowrap"><button class="eq-act" onclick="openClinicUsers(${i})">Usuários</button><button class="eq-act" onclick="clinicForm(${i})">Editar</button><button class="eq-act" onclick="clinicInvite(${i})">Link de acesso</button><button class="eq-act ${c.ativo?'danger':''}" onclick="clinicToggle(${i})">${c.ativo?'Desativar':'Ativar'}</button></td></tr>`).join('')}
       </tbody></table></div></div>
   </div>`;
 }
@@ -1026,6 +1026,61 @@ async function clinicToggle(i){
   catch(e){ toast('Erro','⚠'); }
 }
 // ===== primeiro acesso da clínica (link) =====
+const MCU={clinic:null,name:'',users:[]};
+function openClinicUsers(i){ const c=PF_ROWS[i]; if(!c||!c.id){ toast('Selecione uma clínica salva','⚠'); return; } MCU.clinic=c.id; MCU.name=c.nome; MCU.users=[]; document.getElementById('view').innerHTML=clinicUsersView(); mcuLoad(); }
+function mcuRows(){
+  if(!MCU.users.length) return '<tr><td colspan="5" style="color:var(--mute)">Carregando…</td></tr>';
+  return MCU.users.map((t,i)=>`<tr><td><b>${t.nome||'—'}</b></td><td><span class="eq-badge" style="background:${ROLES[t.role].soft};color:${ROLES[t.role].color}">${ROLES[t.role].label}</span></td><td style="color:var(--mute)">${t.email||''}</td><td style="color:${t.ativo?'var(--green)':'var(--mute)'};font-weight:600">${t.ativo?'Ativo':'Inativo'}</td>
+    <td style="text-align:right;white-space:nowrap"><button class="eq-act" onclick="mcuForm(${i})">Editar</button><button class="eq-act" onclick="mcuReset(${i})">Redefinir senha</button><button class="eq-act danger" onclick="mcuDelete(${i})">Excluir</button></td></tr>`).join('');
+}
+async function mcuLoad(){
+  if(!SB||!MCU.clinic) return;
+  try{ await SB.auth.getSession(); const {data,error}=await SB.rpc('nx_admin_users',{p_clinic:MCU.clinic}); if(error) throw error;
+    MCU.users=(data||[]).map(r=>({user_id:r.user_id,nome:r.nome,email:r.email,role:r.role,ativo:r.ativo}));
+    const b=document.getElementById('mcuBody'); if(b) b.innerHTML=mcuRows();
+  }catch(e){ const b=document.getElementById('mcuBody'); if(b) b.innerHTML='<tr><td colspan="5" style="color:var(--coral)">Erro ao carregar usuários.</td></tr>'; }
+}
+function clinicUsersView(){
+  return `<div class="wi" style="max-width:none">
+    <div style="margin-bottom:10px"><button class="eq-act" onclick="nav('plataforma')">← Voltar para clínicas</button></div>
+    <div class="page-h"><h1>Usuários · ${MCU.name}</h1><p>Cadastre o administrador (gestor), veja, edite, redefina senha e remova os acessos desta clínica.</p></div>
+    <div class="eq-bar"><b>Acessos</b><button class="cl-btn pri" style="margin:0;padding:10px 15px" onclick="mcuForm(-1)">+ Adicionar usuário</button></div>
+    <table class="eq-tbl"><thead><tr><th>Pessoa</th><th>Perfil</th><th>E-mail</th><th>Status</th><th style="text-align:right">Ações</th></tr></thead><tbody id="mcuBody">${mcuRows()}</tbody></table>
+  </div>`;
+}
+function mcuForm(i){
+  const t=i>=0?MCU.users[i]:{nome:'',email:'',role:(MCU.users.length?'recepcao':'gestor')};
+  const pwd=(i<0)?`<div class="nxm-field"><label>Senha inicial</label><input id="tfPass" type="text" placeholder="mínimo 6 caracteres"></div>`:'';
+  openModal(`<h3>${i>=0?'Editar usuário':'Adicionar usuário'}${(i<0&&!MCU.users.length)?' (administrador)':''}</h3>
+    <div class="nxm-field"><label>Nome</label><input id="tfNome" value="${t.nome||''}"></div>
+    <div class="nxm-field"><label>E-mail</label><input id="tfEmail" type="email" value="${t.email||''}" ${i>=0?'disabled':''}></div>
+    <div class="nxm-field"><label>Perfil</label><select id="tfRole">${roleOptions(t.role)}</select></div>
+    ${pwd}
+    <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="mcuSave(${i})">Salvar</button></div>`);
+}
+async function mcuSave(i){
+  const nome=(document.getElementById('tfNome').value||'').trim();
+  const email=(document.getElementById('tfEmail').value||'').trim();
+  const role=document.getElementById('tfRole').value;
+  if(!nome||!email){ toast('Preencha nome e e-mail','⚠'); return; }
+  try{
+    if(i>=0){ await SB.rpc('nx_admin_update_user',{p_user_id:MCU.users[i].user_id,p_nome:nome}); await SB.rpc('nx_admin_set_member_role',{p_clinic:MCU.clinic,p_user_id:MCU.users[i].user_id,p_role:role}); toast('Usuário atualizado'); }
+    else { const pass=(document.getElementById('tfPass').value||'').trim(); if(pass.length<6){ toast('Senha inicial mínima de 6 caracteres','⚠'); return; }
+      const {error}=await SB.rpc('nx_admin_create_user',{p_clinic:MCU.clinic,p_email:email,p_password:pass,p_nome:nome,p_role:role}); if(error) throw error; toast('Usuário criado'); }
+    closeModal(); mcuLoad();
+  }catch(e){ toast('Erro: '+(e.message||e),'⚠'); }
+}
+function mcuReset(i){
+  openModal(`<h3>Redefinir senha</h3><p style="color:var(--mute);font-size:13.5px;margin:6px 0 0">Nova senha para <b>${MCU.users[i].nome}</b>.</p>
+    <div class="nxm-field"><label>Nova senha</label><input id="tfNewPass" type="text" placeholder="mínimo 6 caracteres"></div>
+    <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="mcuDoReset(${i})">Redefinir</button></div>`);
+}
+async function mcuDoReset(i){ const pw=(document.getElementById('tfNewPass').value||'').trim(); if(pw.length<6){ toast('Senha mínima de 6 caracteres','⚠'); return; }
+  try{ const {error}=await SB.rpc('nx_admin_set_password',{p_user_id:MCU.users[i].user_id,p_password:pw}); if(error) throw error; closeModal(); toast('Senha redefinida'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+function mcuDelete(i){ const t=MCU.users[i];
+  openModal(`<h3>Excluir usuário</h3><p style="color:var(--mute);font-size:14px;margin:8px 0 0">Remover <b>${t.nome}</b> (${t.email}) desta clínica? O acesso é desativado imediatamente.</p>
+    <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn danger" onclick="mcuDoDelete(${i})">Excluir</button></div>`); }
+async function mcuDoDelete(i){ try{ const {error}=await SB.rpc('nx_admin_remove_member',{p_clinic:MCU.clinic,p_user_id:MCU.users[i].user_id}); if(error) throw error; closeModal(); mcuLoad(); toast('Usuário removido'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 function nxCheckOnboard(){
   const tok=new URLSearchParams(location.search).get('onboard'); if(!tok) return;
   const card=document.querySelector('#login .login-card'); if(!card) return;
