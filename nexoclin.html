@@ -11,6 +11,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 :root{
   --navy:#143A4E;--navy-2:#2A5566;
@@ -202,6 +204,30 @@ button{font-family:inherit}
 .pf-bar .f{display:block;height:100%;background:var(--role,var(--cyan));border-radius:6px}
 .pf-bar .v{text-align:right;font-family:var(--display);font-weight:700}
 @media(max-width:760px){.cl-grid{grid-template-columns:1fr}.cl-convite{flex-direction:column}.pf-kpis{grid-template-columns:1fr 1fr}.pf-grid{grid-template-columns:1fr}.pf-map{height:340px}}
+
+/* CRUD equipe */
+.eq-bar{display:flex;justify-content:space-between;align-items:center;margin:18px 0 10px}
+.eq-act{border:1px solid var(--line);background:#fff;color:var(--navy);border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;margin-left:6px}
+.eq-act:hover{border-color:var(--cyan);color:var(--cyan-dk)}
+.eq-act.danger{color:var(--coral)}.eq-act.danger:hover{border-color:var(--coral)}
+/* modal */
+.nx-modal{position:fixed;inset:0;background:rgba(20,58,78,.45);display:none;place-items:center;z-index:9998;padding:20px}
+.nx-modal.on{display:grid}
+.nx-modal-card{background:#fff;border-radius:16px;padding:22px 24px;max-width:430px;width:100%;box-shadow:0 30px 60px -20px rgba(0,0,0,.45)}
+.nx-modal-card h3{font-family:var(--display);font-weight:800;font-size:18px;margin:0 0 4px;color:var(--navy)}
+.nxm-field{margin:12px 0;display:flex;flex-direction:column}
+.nxm-field label{font-size:10.5px;font-weight:700;color:var(--mute);text-transform:uppercase;letter-spacing:.03em;margin-bottom:5px}
+.nxm-field input,.nxm-field select{border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;font-family:var(--body);outline:none;background:#fff}
+.nxm-field input:focus,.nxm-field select:focus{border-color:var(--role,var(--cyan))}
+.nxm-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+.nxm-btn{border:none;border-radius:10px;padding:10px 16px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--body)}
+.nxm-btn.pri{background:var(--role,var(--cyan));color:#fff}
+.nxm-btn.ghost{background:#fff;border:1px solid var(--line);color:var(--navy)}
+.nxm-btn.danger{background:var(--coral);color:#fff}
+/* mapa real */
+.pf-map{background:#EAF3F7}
+.pf-mapfb{display:grid;place-items:center;height:100%;color:var(--mute);font-size:13px}
+.leaflet-container{border-radius:14px;font:inherit}
 </style>
 <style id="wa-style">
 /* ===== Cockpit de Atendimento WhatsApp — escopo .wa- ===== */
@@ -526,6 +552,7 @@ html,body{overflow-x:hidden}
   </div>
 </div>
 
+<div id="nxModal" class="nx-modal"><div class="nx-modal-card" id="nxModalBody"></div></div>
 <script>
 const ICON={
   chat:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/></svg>',
@@ -597,22 +624,17 @@ function nav(v){
   else if(v==='relatorios'){ const sc=ROLE==='medico'?'medico':'admin'; view.innerHTML=WA.dash.view(sc); WA.dash.mount(sc); }
   else if(v==='integr'){ view.innerHTML=WA.integr.view(); WA.integr.mount(); }
   else if(v==='clinica'){ view.innerHTML=clinicaView(); }
-  else if(v==='plataforma'){ view.innerHTML=plataformaView(); }
+  else if(v==='plataforma'){ view.innerHTML=plataformaView(); plataformaMount(); }
   else if(v==='equipe'){ view.innerHTML=equipeView(); }
 }
 function equipeView(){
-  const cards=Object.entries(ROLES).map(([k,r])=>`<div class="eq-card ${k==='admin'?'admin':''}"><div class="ic">${ICON[r.ic]}</div><h4>${r.label}</h4><p>${r.desc}</p></div>`).join('');
-  const team=[
-    ['Marina Souza','Recepção','recepcao@nexoclin.com','Ativo'],
-    ['Cláudia Reis','Secretaria','secretaria@nexoclin.com','Ativo'],
-    ['Dra. Camila Ferreira','Médico','camila@nexoclin.com','Ativo'],
-    ['Dr. Rafael Antunes','Médico','rafael@nexoclin.com','Ativo'],
-    ['Admin NexoClin','Administrador','admin@nexoclin.com','Ativo'],
-  ];
-  return `<div class="wi" style="max-width:none"><div class="page-h"><h1>Equipe & acessos</h1><p>Quem acessa a plataforma e o que cada perfil pode fazer. O administrador é o acesso coringa.</p></div>
+  const cards=Object.entries(ROLES).map(([k,r])=>`<div class="eq-card"><div class="ic" style="background:${r.soft};color:${r.color}">${ICON[r.ic]}</div><h4>${r.label}</h4><p>${r.short}</p></div>`).join('');
+  return `<div class="wi" style="max-width:none"><div class="page-h"><h1>Equipe & acessos</h1><p>Gerencie os acessos da área administrativa: adicionar, editar, redefinir senha e excluir. Cada acesso é isolado por clínica.</p></div>
     <div class="eq-grid">${cards}</div>
-    <table class="eq-tbl"><thead><tr><th>Pessoa</th><th>Perfil</th><th>E-mail</th><th>Status</th></tr></thead><tbody>
-    ${team.map(t=>`<tr><td><b>${t[0]}</b></td><td><span class="eq-badge">${t[1]}</span></td><td style="color:var(--mute)">${t[2]}</td><td style="color:var(--green);font-weight:600">${t[3]}</td></tr>`).join('')}
+    <div class="eq-bar"><b>Acessos (${TEAM.length})</b><button class="cl-btn pri" style="margin:0;padding:10px 15px" onclick="teamForm(-1)">+ Adicionar acesso</button></div>
+    <table class="eq-tbl"><thead><tr><th>Pessoa</th><th>Perfil</th><th>E-mail</th><th>Status</th><th style="text-align:right">Ações</th></tr></thead><tbody>
+    ${TEAM.map((t,i)=>`<tr><td><b>${t.nome}</b></td><td><span class="eq-badge" style="background:${ROLES[t.role].soft};color:${ROLES[t.role].color}">${ROLES[t.role].label}</span></td><td style="color:var(--mute)">${t.email}</td><td style="color:${t.status==='Ativo'?'var(--green)':'var(--mute)'};font-weight:600">${t.status}</td>
+      <td style="text-align:right;white-space:nowrap"><button class="eq-act" onclick="teamForm(${i})">Editar</button><button class="eq-act" onclick="teamReset(${i})">Redefinir senha</button><button class="eq-act danger" onclick="teamDelete(${i})">Excluir</button></td></tr>`).join('')}
     </tbody></table></div>`;
 }
 
@@ -774,8 +796,8 @@ function plataformaView(){
     <div class="pf-kpis">${kpi.map(k=>`<div class="pf-kpi"><div class="n">${k[1]}</div><div class="l">${k[0]}</div></div>`).join('')}</div>
     <div class="pf-grid">
       <div class="cl-card"><div class="cl-ct">Clínicas no Brasil</div>
-        <div class="pf-map">${regions.map(r=>`<span class="pf-region" style="left:${r[1]};top:${r[2]}">${r[0]}</span>`).join('')}${markers}</div>
-        <div class="pf-legend"><span class="pf-dot on"></span> ativa &nbsp;&nbsp; <span class="pf-dot off"></span> inativa &nbsp;&nbsp;·&nbsp;&nbsp;tamanho do ponto = nº de pacientes</div>
+        <div id="pfMap" class="pf-map"></div>
+        <div class="pf-legend"><span class="pf-dot on"></span> ativa &nbsp;&nbsp; <span class="pf-dot off"></span> inativa &nbsp;&nbsp;·&nbsp;&nbsp;mapa real (OpenStreetMap) · ponto = nº de pacientes</div>
       </div>
       <div class="cl-card"><div class="cl-ct">Pacientes por estado</div>
         <div class="pf-bars">${ufa.map(([u,v])=>`<div class="pf-bar"><span>${u}</span><span class="t"><span class="f" style="width:${v/um*100}%"></span></span><span class="v">${v.toLocaleString('pt-BR')}</span></div>`).join('')}</div>
@@ -786,6 +808,57 @@ function plataformaView(){
       ${A.map(c=>`<tr><td><b>${c.nome}</b></td><td>${c.cidade}/${c.uf}</td><td>${c.pac.toLocaleString('pt-BR')}</td><td>${c.med}</td><td>${c.at}</td><td><span class="eq-badge">${c.plano}</span></td><td style="color:${c.ativo?'var(--green)':'var(--mute)'};font-weight:600">${c.ativo?'Ativa':'Inativa'}</td></tr>`).join('')}
       </tbody></table></div></div>
   </div>`;
+}
+
+
+function openModal(html){ const m=document.getElementById('nxModal'); document.getElementById('nxModalBody').innerHTML=html; m.classList.add('on'); }
+function closeModal(){ document.getElementById('nxModal').classList.remove('on'); }
+let TEAM=[
+ {nome:'Marina Souza',email:'marina@nexoclin.com',role:'recepcao',status:'Ativo'},
+ {nome:'Cláudia Reis',email:'claudia@nexoclin.com',role:'secretaria',status:'Ativo'},
+ {nome:'Dra. Camila Ferreira',email:'camila@nexoclin.com',role:'medico',status:'Ativo'},
+ {nome:'Dr. Rafael Antunes',email:'rafael@nexoclin.com',role:'medico',status:'Ativo'},
+ {nome:'Roberto Caminha',email:'roberto@nexoclin.com',role:'gestor',status:'Ativo'},
+ {nome:'Admin NexoClin',email:'admin@nexoclin.com',role:'admin',status:'Ativo'},
+];
+function roleOptions(sel){ return Object.entries(ROLES).map(([k,r])=>`<option value="${k}" ${k===sel?'selected':''}>${r.label}</option>`).join(''); }
+function teamRefresh(){ if(document.querySelector('.eq-tbl')) document.getElementById('view').innerHTML=equipeView(); }
+function teamForm(i){
+  const t=i>=0?TEAM[i]:{nome:'',email:'',role:'recepcao',status:'Ativo'};
+  openModal(`<h3>${i>=0?'Editar acesso':'Adicionar acesso'}</h3>
+    <div class="nxm-field"><label>Nome</label><input id="tfNome" value="${t.nome}"></div>
+    <div class="nxm-field"><label>E-mail</label><input id="tfEmail" type="email" value="${t.email}"></div>
+    <div class="nxm-field"><label>Perfil</label><select id="tfRole">${roleOptions(t.role)}</select></div>
+    <div class="nxm-field"><label>Status</label><select id="tfStatus"><option ${t.status==='Ativo'?'selected':''}>Ativo</option><option ${t.status==='Inativo'?'selected':''}>Inativo</option></select></div>
+    <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="teamSave(${i})">Salvar</button></div>`);
+}
+function teamSave(i){
+  const o={nome:(document.getElementById('tfNome').value||'').trim(),email:(document.getElementById('tfEmail').value||'').trim(),role:document.getElementById('tfRole').value,status:document.getElementById('tfStatus').value};
+  if(!o.nome||!o.email){ toast('Preencha nome e e-mail','⚠'); return; }
+  if(i>=0){ TEAM[i]=o; toast('Acesso atualizado'); } else { TEAM.push(o); toast('Acesso criado — convite enviado por e-mail','✉'); }
+  closeModal(); teamRefresh();
+}
+function teamReset(i){ toast('Link de redefinição de senha enviado para '+TEAM[i].email,'🔑'); }
+function teamDelete(i){
+  const t=TEAM[i];
+  openModal(`<h3>Excluir acesso</h3><p style="color:var(--mute);font-size:14px;margin:8px 0 0">Remover <b>${t.nome}</b> (${t.email})? O login é desativado imediatamente.</p>
+    <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn danger" onclick="teamDoDelete(${i})">Excluir</button></div>`);
+}
+function teamDoDelete(i){ const t=TEAM.splice(i,1)[0]; closeModal(); teamRefresh(); toast('Acesso de '+t.nome+' removido'); }
+let PF_MAP=null;
+function plataformaMount(){
+  const el=document.getElementById('pfMap'); if(!el)return;
+  if(typeof L==='undefined'){ el.innerHTML='<div class="pf-mapfb">Carregando mapa…</div>'; return; }
+  try{ if(PF_MAP){ PF_MAP.remove(); PF_MAP=null; } }catch(e){}
+  PF_MAP=L.map(el,{scrollWheelZoom:false,attributionControl:true}).setView([-14.5,-52],4);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:12,attribution:'© OpenStreetMap'}).addTo(PF_MAP);
+  const maxp=Math.max(...CLINICS_ALL.map(c=>c.pac));
+  CLINICS_ALL.forEach(c=>{
+    const r=8+(c.pac/maxp)*14;
+    L.circleMarker([c.lat,c.lng],{radius:r,color:'#fff',weight:2,fillColor:c.ativo?'#29A9D0':'#9DB0B9',fillOpacity:.9})
+     .bindPopup('<b>'+c.nome+'</b><br>'+c.cidade+'/'+c.uf+'<br>'+c.pac+' pacientes · '+c.med+' médicos').addTo(PF_MAP);
+  });
+  setTimeout(()=>{ try{PF_MAP.invalidateSize();}catch(e){} },250);
 }
 
 renderRoles();
