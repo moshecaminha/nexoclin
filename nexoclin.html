@@ -829,6 +829,7 @@ function mapXY(lat,lng){ let x=((lng+74)/40)*100; let y=((5-lat)/39)*100; return
 function plataformaView(){
   const A=PF_ROWS;
   if(NX.real && !PF_LOADED) setTimeout(pfLoad,0);
+  if(NX.real) setTimeout(saLoad,0);
   const kpi=[['Clínicas ativas',A.filter(c=>c.ativo).length],['Pacientes',A.reduce((s,c)=>s+(c.pac||0),0).toLocaleString('pt-BR')],['Usuários',A.reduce((s,c)=>s+(c.usuarios||0),0)],['Clínicas',A.length]];
   const uf={}; A.forEach(c=>{ if(c.uf) uf[c.uf]=(uf[c.uf]||0)+(c.pac||0); }); const ufa=Object.entries(uf).sort((a,b)=>b[1]-a[1]); const um=Math.max(1,...ufa.map(x=>x[1]));
   const modo = NX.real ? '' : ' <span style="color:var(--sun,#B4790B)">Modo demonstração — entre como super-admin para gerenciar.</span>';
@@ -851,6 +852,10 @@ function plataformaView(){
       ${A.map((c,i)=>`<tr><td><b>${c.nome}</b></td><td>${c.cidade||'—'}${c.uf?'/'+c.uf:''}</td><td>${(c.pac||0).toLocaleString('pt-BR')}</td><td>${c.usuarios||0}</td><td><span class="eq-badge">${c.plano}</span></td><td style="color:${c.ativo?'var(--green)':'var(--mute)'};font-weight:600">${c.ativo?'Ativa':'Inativa'}</td>
         <td style="text-align:right;white-space:nowrap"><button class="eq-act" onclick="openClinicUsers(${i})">Usuários</button><button class="eq-act" onclick="clinicForm(${i})">Editar</button><button class="eq-act" onclick="clinicInvite(${i})">Link de acesso</button><button class="eq-act ${c.ativo?'danger':''}" onclick="clinicToggle(${i})">${c.ativo?'Desativar':'Ativar'}</button></td></tr>`).join('')}
       </tbody></table></div></div>
+    <div class="cl-card cl-wide" style="margin-top:14px">
+      <div class="eq-bar"><b>Super-admins da plataforma</b><button class="cl-btn pri" style="margin:0;padding:10px 15px" onclick="saForm()">+ Adicionar super-admin</button></div>
+      <div class="wad-table-wrap" style="overflow-x:auto"><table class="eq-tbl"><thead><tr><th>Nome</th><th>E-mail</th><th style="text-align:right">Ações</th></tr></thead><tbody id="saBody"><tr><td colspan="3" style="color:var(--mute)">Carregando…</td></tr></tbody></table></div>
+    </div>
   </div>`;
 }
 
@@ -898,7 +903,7 @@ async function nxLogin(){
     const cl=(me&&me.clinics&&me.clinics[0])||null;
     NX.clinic=cl?cl.clinic_id:null;
     await loadClinicInfo();
-    const role=(me&&me.is_platform_admin)?'admin':(cl?cl.role:'recepcao');
+    const role=(me&&me.is_platform_admin)?'admin':(cl?(cl.role==='admin'?'gestor':cl.role):'recepcao');
     enter(role);
   }catch(ex){ err.textContent='Erro: '+(ex.message||ex); }
 }
@@ -908,7 +913,7 @@ function teamForm(i){
   openModal(`<h3>${i>=0?'Editar acesso':'Adicionar acesso'}</h3>
     <div class="nxm-field"><label>Nome</label><input id="tfNome" value="${t.nome}"></div>
     <div class="nxm-field"><label>E-mail</label><input id="tfEmail" type="email" value="${t.email}" ${i>=0?'disabled':''}></div>
-    <div class="nxm-field"><label>Perfil</label><select id="tfRole">${roleOptions(t.role)}</select></div>
+    <div class="nxm-field"><label>Perfil</label><select id="tfRole">${roleOptionsClinic(t.role)}</select></div>
     ${pwd}
     <div class="nxm-field"><label>Status</label><select id="tfStatus"><option ${t.status==='Ativo'?'selected':''}>Ativo</option><option ${t.status==='Inativo'?'selected':''}>Inativo</option></select></div>
     <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="teamSave(${i})">Salvar</button></div>`);
@@ -1054,7 +1059,7 @@ function mcuForm(i){
   openModal(`<h3>${i>=0?'Editar usuário':'Adicionar usuário'}${(i<0&&!MCU.users.length)?' (administrador)':''}</h3>
     <div class="nxm-field"><label>Nome</label><input id="tfNome" value="${t.nome||''}"></div>
     <div class="nxm-field"><label>E-mail</label><input id="tfEmail" type="email" value="${t.email||''}" ${i>=0?'disabled':''}></div>
-    <div class="nxm-field"><label>Perfil</label><select id="tfRole">${roleOptions(t.role)}</select></div>
+    <div class="nxm-field"><label>Perfil</label><select id="tfRole">${roleOptionsClinic(t.role)}</select></div>
     ${pwd}
     <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="mcuSave(${i})">Salvar</button></div>`);
 }
@@ -1081,6 +1086,36 @@ function mcuDelete(i){ const t=MCU.users[i];
   openModal(`<h3>Excluir usuário</h3><p style="color:var(--mute);font-size:14px;margin:8px 0 0">Remover <b>${t.nome}</b> (${t.email}) desta clínica? O acesso é desativado imediatamente.</p>
     <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn danger" onclick="mcuDoDelete(${i})">Excluir</button></div>`); }
 async function mcuDoDelete(i){ try{ const {error}=await SB.rpc('nx_admin_remove_member',{p_clinic:MCU.clinic,p_user_id:MCU.users[i].user_id}); if(error) throw error; closeModal(); mcuLoad(); toast('Usuário removido'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+function roleOptionsClinic(sel){ return Object.entries(ROLES).filter(([k])=>k!=='admin').map(([k,r])=>`<option value="${k}" ${k===sel?'selected':''}>${r.label}</option>`).join(''); }
+async function saLoad(){
+  if(!SB||!NX.real) return; const b=document.getElementById('saBody'); if(!b) return;
+  try{ await SB.auth.getSession(); const {data,error}=await SB.rpc('nx_admin_platform_admins'); if(error) throw error;
+    const arr=data||[];
+    b.innerHTML = arr.length? arr.map(a=>`<tr><td><b>${a.nome||'—'}</b></td><td style="color:var(--mute)">${a.email}</td><td style="text-align:right"><button class="eq-act danger" onclick="saRevoke('${a.user_id}','${(a.email||'').replace(/'/g,'')}')">Remover</button></td></tr>`).join('') : '<tr><td colspan="3" style="color:var(--mute)">Nenhum.</td></tr>';
+  }catch(e){ b.innerHTML='<tr><td colspan="3" style="color:var(--coral)">Erro ao carregar.</td></tr>'; }
+}
+function saForm(){
+  openModal(`<h3>Adicionar super-admin</h3><p style="color:var(--mute);font-size:12.5px;margin:4px 0 0">Se o e-mail já existir, ele é promovido. Se for novo, defina uma senha inicial.</p>
+    <div class="nxm-field"><label>Nome</label><input id="saNome"></div>
+    <div class="nxm-field"><label>E-mail</label><input id="saEmail" type="email"></div>
+    <div class="nxm-field"><label>Senha inicial (só para novo)</label><input id="saPass" type="text" placeholder="mín. 6 caracteres"></div>
+    <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="saSave()">Salvar</button></div>`);
+}
+async function saSave(){
+  const nome=(document.getElementById('saNome').value||'').trim();
+  const email=(document.getElementById('saEmail').value||'').trim();
+  const pass=(document.getElementById('saPass').value||'').trim();
+  if(!email){ toast('Informe o e-mail','⚠'); return; }
+  try{ const {data,error}=await SB.rpc('nx_admin_grant_platform_admin',{p_email:email,p_password:pass,p_nome:nome}); if(error) throw error;
+    if(data&&!data.ok){ toast(data.erro||'Erro','⚠'); return; }
+    closeModal(); saLoad(); toast('Super-admin adicionado'); }
+  catch(e){ toast('Erro: '+(e.message||e),'⚠'); }
+}
+function saRevoke(uid,email){
+  openModal(`<h3>Remover super-admin</h3><p style="color:var(--mute);font-size:14px;margin:8px 0 0">Remover o acesso de super-admin de <b>${email}</b>? A conta continua existindo — só perde a visão global da plataforma.</p>
+    <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn danger" onclick="saDoRevoke('${uid}')">Remover</button></div>`);
+}
+async function saDoRevoke(uid){ try{ const {error}=await SB.rpc('nx_admin_revoke_platform_admin',{p_user_id:uid}); if(error) throw error; closeModal(); saLoad(); toast('Super-admin removido'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 function nxCheckOnboard(){
   const tok=new URLSearchParams(location.search).get('onboard'); if(!tok) return;
   const card=document.querySelector('#login .login-card'); if(!card) return;
@@ -1150,7 +1185,7 @@ async function nxRestoreSession(){
     NX.real=true; NX.me=me; TEAM=[];
     const cl=(me.clinics&&me.clinics[0])||null; NX.clinic=cl?cl.clinic_id:null;
     await loadClinicInfo();
-    const role=me.is_platform_admin?'admin':(cl?cl.role:'recepcao');
+    const role=me.is_platform_admin?'admin':(cl?(cl.role==='admin'?'gestor':cl.role):'recepcao');
     const lg=document.getElementById('login'); if(lg) lg.style.display='none';
     enter(role);
   }catch(e){}
