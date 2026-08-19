@@ -273,6 +273,22 @@ button{font-family:inherit}
 .rc-b2{border:1px solid var(--line);background:#fff;color:var(--navy);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer}
 .rc-empty{color:var(--mute);font-size:12.5px;padding:14px;text-align:center;line-height:1.5}
 @media(max-width:980px){.rc-grid{grid-template-columns:1fr;height:auto}.rc-col{min-height:200px}}
+
+.rc-tools{display:flex;gap:6px;margin-top:8px}
+.rc-tool{width:38px;height:38px;border:1px solid var(--line);background:#fff;border-radius:10px;font-size:17px;cursor:pointer;display:grid;place-items:center}
+.rc-tool:hover{border-color:var(--role,var(--cyan))}
+.rc-tool.rec{background:#FDE4E2;border-color:var(--coral);animation:rcpulse 1s infinite}
+@keyframes rcpulse{50%{opacity:.5}}
+.rc-bub.media{padding:5px}
+.rc-media{max-width:220px;border-radius:10px;display:block}
+audio.rc-media{width:230px;max-width:100%}
+.rc-cap{font-size:12px;color:var(--navy-2,#33525F);padding:4px 6px 2px}
+.rc-stat{display:inline-block;font-size:12px;font-weight:800;border-radius:20px;padding:3px 12px}
+.rc-super{font-size:9.5px;font-weight:800;background:#F2E6C9;color:#8a6d1a;border-radius:20px;padding:2px 8px;letter-spacing:.03em;text-transform:none;margin-left:6px}
+.rc-tpl{display:block;width:100%;text-align:left;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
+.rc-tpl:hover{border-color:var(--role,var(--cyan))}
+.rc-tpl b{display:block;font-size:13px;color:var(--navy)}
+.rc-tpl span{display:block;font-size:12px;color:var(--mute);margin-top:2px}
 </style>
 <style id="wa-style">
 /* ===== Cockpit de Atendimento WhatsApp — escopo .wa- ===== */
@@ -690,7 +706,7 @@ function nav(v){
   document.getElementById('app').classList.remove('nav-open');
   renderRoleBand();
   const view=document.getElementById('view');
-  if(v==='cockpit'){ if(NX.real){ view.innerHTML=flowStepper()+rcView(); rcLoad(); } else { WA.role=ROLE; view.innerHTML=flowStepper()+WA.view(); WA.mount(); } }
+  if(v==='cockpit'){ if(NX.real){ view.innerHTML=rcView(); rcLoad(); } else { WA.role=ROLE; view.innerHTML=WA.view(); WA.mount(); } }
   else if(v==='agenda'){ if(NX.real){ view.innerHTML=emptyState('Agenda','Nenhum agendamento ainda. A agenda é preenchida conforme os atendimentos avançam.'); } else { view.innerHTML=agendaView(); } }
   else if(v==='relatorios'){ if(NX.real){ view.innerHTML=emptyState('Relatórios','Ainda sem dados. Os indicadores aparecem conforme os atendimentos acontecem.'); } else { const sc=ROLE==='medico'?'medico':'admin'; view.innerHTML=WA.dash.view(sc); WA.dash.mount(sc); } }
   else if(v==='integr'){ view.innerHTML=WA.integr.view(); WA.integr.mount(); }
@@ -1156,7 +1172,7 @@ const RISK={emergencia:['#C92A2A','Emergência'],muito_urgente:['#E8590C','Muito
 const CSTAT={nova:'Nova',em_triagem:'Em triagem',aguardando_medico:'Aguardando médico',em_atendimento:'Em atendimento',agendada:'Agendada',finalizada:'Finalizada',resolvida:'Resolvida'};
 function rcClinic(){ return NX.clinic; }
 function rcView(){
-  return `<div class="rc-help">Fluxo: <b>Paciente entra (WhatsApp/QR)</b> → <b>Recepção</b> assume e classifica → encaminha p/ <b>Secretaria</b> (agenda) ou <b>Médico</b> → Médico <b>atende e finaliza</b> → vira prontuário.</div>
+  return `<div class="rc-help">Um novo contato entra na fila como <b>“Nova”</b>. Use os botões do <b>Painel</b> à direita para <b>assumir</b>, <b>classificar a gravidade</b>, <b>encaminhar</b> e <b>encerrar</b>. O <b>status atual</b> aparece em cada atendimento.</div>
   <div class="rc-top">
     <div class="rc-filters">${[['todas','Todas'],['fila','Recepção/triagem'],['medico','Médico'],['fim','Finalizados']].map(x=>`<button class="rc-f ${RC.filter===x[0]?'on':''}" onclick="rcSetFilter('${x[0]}')">${x[1]}</button>`).join('')}</div>
     <button class="cl-btn pri" style="margin:0;padding:9px 14px" onclick="rcNewForm()">+ Novo atendimento</button>
@@ -1187,12 +1203,34 @@ async function rcOpen(id){
   try{ const {data,error}=await SB.rpc('nx_conv_get',{p_conv:id}); if(error) throw error; RC.active=data; renderRCQueue(); renderRCConversa(); renderRCPainel(); }
   catch(e){ toast('Erro ao abrir','⚠'); }
 }
+function rcBubble(m){
+  const dir=m.direction==='in'?'in':'out';
+  if(m.type==='image') return `<div class="rc-bub ${dir} media"><img class="rc-media" data-path="${m.media_url||''}" alt="foto">${m.body?`<div class="rc-cap">${m.body}</div>`:''}</div>`;
+  if(m.type==='video') return `<div class="rc-bub ${dir} media"><video class="rc-media" data-path="${m.media_url||''}" controls playsinline></video>${m.body?`<div class="rc-cap">${m.body}</div>`:''}</div>`;
+  if(m.type==='audio') return `<div class="rc-bub ${dir} media"><audio class="rc-media" data-path="${m.media_url||''}" controls></audio></div>`;
+  if(m.type==='document') return `<div class="rc-bub ${dir}">📎 <a class="rc-media" data-path="${m.media_url||''}" target="_blank">arquivo</a></div>`;
+  return `<div class="rc-bub ${dir}">${m.body||''}</div>`;
+}
+async function rcSignMedia(){
+  if(!SB) return;
+  const els=document.querySelectorAll('.rc-media[data-path]');
+  for(const el of els){ const p=el.getAttribute('data-path'); if(!p){ el.removeAttribute('data-path'); continue; }
+    try{ const {data}=await SB.storage.from('documentos').createSignedUrl(p,3600); if(data&&data.signedUrl){ if(el.tagName==='A') el.href=data.signedUrl; else el.src=data.signedUrl; el.removeAttribute('data-path'); } }catch(e){}
+  }
+}
 function renderRCConversa(){
   const el=document.getElementById('rcConversa'); if(!el) return;
   if(!RC.active){ el.innerHTML='<div class="rc-empty">Selecione um atendimento na fila.</div>'; return; }
   const msgs=RC.active.messages||[];
-  el.innerHTML=`<div class="rc-thread">${msgs.length?msgs.map(m=>`<div class="rc-bub ${m.direction==='in'?'in':'out'}">${(m.body||'')}</div>`).join(''):'<div class="rc-empty">Sem mensagens ainda.</div>'}</div>
-    <div class="rc-send"><input id="rcMsg" placeholder="Escrever mensagem ao paciente..." onkeydown="if(event.key==='Enter')rcSend()"><button class="cl-btn pri" style="margin:0;padding:10px 14px" onclick="rcSend()">Enviar</button></div>`;
+  el.innerHTML=`<div class="rc-thread">${msgs.length?msgs.map(rcBubble).join(''):'<div class="rc-empty">Sem mensagens ainda.</div>'}</div>
+    <div class="rc-tools">
+      <button class="rc-tool" onclick="rcAttach('image')" title="Foto">📷</button>
+      <button class="rc-tool" onclick="rcAttach('video')" title="Vídeo">🎬</button>
+      <button class="rc-tool" id="rcMicBtn" onclick="rcMic()" title="Áudio">🎙️</button>
+      <button class="rc-tool" onclick="rcTemplates()" title="Modelos">📋</button>
+    </div>
+    <div class="rc-send"><input id="rcMsg" placeholder="Escrever mensagem..." onkeydown="if(event.key==='Enter')rcSend()"><button class="cl-btn pri" style="margin:0;padding:10px 14px" onclick="rcSend()">Enviar</button></div>`;
+  rcSignMedia();
 }
 async function rcSend(){ const inp=document.getElementById('rcMsg'); const t=(inp&&inp.value||'').trim(); if(!t||!RC.activeId) return;
   try{ await SB.rpc('nx_conv_send',{p_conv:RC.activeId,p_body:t}); await rcOpen(RC.activeId); }catch(e){ toast('Erro ao enviar','⚠'); } }
@@ -1200,24 +1238,30 @@ function rcActions(){
   const c=RC.active&&RC.active.conv; if(!c) return ''; const st=c.status; const btns=[];
   const staff=['recepcao','secretaria','gestor','admin'].includes(ROLE);
   const medico=['medico','gestor','admin'].includes(ROLE);
-  if(st==='nova'&&staff) btns.push(`<button class="cl-btn pri" onclick="rcAdvance('em_triagem',true)">Assumir triagem</button>`);
-  if(st==='em_triagem'&&staff){ btns.push(`<button class="cl-btn pri" onclick="rcAdvance('aguardando_medico',false)">Encaminhar ao médico</button>`); btns.push(`<button class="rc-b2" onclick="rcAdvance('agendada',false)">Agendar</button>`); btns.push(`<button class="rc-b2" onclick="rcAdvance('resolvida',false)">Resolver sem médico</button>`); }
-  if(st==='agendada'&&staff) btns.push(`<button class="cl-btn pri" onclick="rcAdvance('aguardando_medico',false)">Encaminhar ao médico</button>`);
+  const done=['finalizada','resolvida'].includes(st);
+  if(st==='nova'&&staff) btns.push(`<button class="cl-btn pri" onclick="rcAdvance('em_triagem',true)">Assumir</button>`);
+  if((st==='em_triagem'||st==='agendada')&&staff){ btns.push(`<button class="cl-btn pri" onclick="rcAdvance('aguardando_medico',false)">Encaminhar ao médico</button>`); if(st==='em_triagem') btns.push(`<button class="rc-b2" onclick="rcAdvance('agendada',false)">Agendar</button>`); }
   if(st==='aguardando_medico'&&medico) btns.push(`<button class="cl-btn pri" onclick="rcAdvance('em_atendimento',true)">Iniciar atendimento</button>`);
-  if(st==='em_atendimento'&&medico) btns.push(`<button class="cl-btn pri" onclick="rcAdvance('finalizada',false)">Finalizar atendimento</button>`);
+  if(st==='em_atendimento'&&medico) btns.push(`<button class="cl-btn pri" onclick="rcFinishForm()">Concluir atendimento</button>`);
+  if(!done) btns.push(`<button class="rc-b2" onclick="rcFinishForm()">Encerrar…</button>`);
   return btns.join('');
 }
 function renderRCPainel(){
   const el=document.getElementById('rcPainel'); if(!el) return;
   if(!RC.active){ el.innerHTML='<div class="rc-empty">Selecione um atendimento para ver o painel.</div>'; return; }
   const c=RC.active.conv; const coll=RC.active.collected||[];
+  const rc=RISK[c.risk]||RISK.nao_urgente;
   const riskSel=`<select class="rc-risk" onchange="rcSetRisk(this.value)">${Object.entries(RISK).map(([k,v])=>`<option value="${k}" ${c.risk===k?'selected':''}>${v[1]}</option>`).join('')}</select>`;
   el.innerHTML=`<div class="rc-p-h">${c.paciente_nome||c.responsavel_nome||'Paciente'}</div>
-    <div class="rc-p-sub">${CSTAT[c.status]||c.status}</div>
+    <div><span class="rc-stat" style="background:${rc[0]}22;color:${rc[0]}">${CSTAT[c.status]||c.status}</span></div>
+    ${c.desfecho?`<div class="rc-p-sub" style="margin-top:6px">Desfecho: <b>${c.desfecho}</b></div>`:''}
+    <button class="rc-b2" style="width:100%;margin-top:10px" onclick="rcTriageForm()">📋 Triagem / dados do paciente</button>
     <div class="rc-p-sec">Gravidade ${riskSel}</div>
     <div class="rc-p-sec">Dados coletados</div>
     <div class="rc-coll">${coll.length?coll.map(d=>`<div class="rc-d ${d.atencao?'at':''}">${d.atencao?'⚠ ':''}<b>${d.chave}:</b> ${d.valor||''}</div>`).join(''):'<div class="rc-empty" style="padding:6px 0">Nenhum ainda.</div>'}</div>
     <button class="rc-b2" style="width:100%;margin-top:8px" onclick="rcCollectForm()">+ Registrar dado</button>
+    <div class="rc-p-sec">Documentos <span class="rc-super">Plano Super</span></div>
+    <div class="rc-acts"><button class="rc-b2" onclick="rcDocsSoon()">Receita · Atestado · Exame · Prontuário</button></div>
     <div class="rc-p-sec">Ações do fluxo</div>
     <div class="rc-acts">${rcActions()||'<span class="rc-empty" style="padding:0;text-align:left">Sem ação para o seu perfil neste estágio.</span>'}</div>`;
 }
@@ -1239,6 +1283,73 @@ async function rcNewSave(){ const n=(document.getElementById('rcNn').value||'').
   if(!n){ toast('Informe o nome','⚠'); return; }
   try{ const {data,error}=await SB.rpc('nx_conv_create',{p_clinic:rcClinic(),p_nome:n,p_telefone:t,p_mensagem:m}); if(error) throw error; closeModal(); await rcLoad(); if(data) rcOpen(data); toast('Atendimento criado — veja ele na fila'); }
   catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+function rcAttach(kind){ const inp=document.createElement('input'); inp.type='file'; inp.accept= kind==='image'?'image/*':kind==='video'?'video/*':'audio/*'; inp.onchange=async()=>{ if(inp.files&&inp.files[0]) await rcUpload(inp.files[0],kind); }; inp.click(); }
+async function rcUpload(file,kind){
+  if(!SB||!RC.activeId||!RC.clinic){ toast('Abra um atendimento primeiro','⚠'); return; }
+  toast('Enviando…','⬆️');
+  try{
+    const ext=((file.name||'').split('.').pop()||'bin').toLowerCase();
+    const path=RC.clinic+'/'+RC.activeId+'/'+Date.now()+'_'+Math.random().toString(36).slice(2,7)+'.'+ext;
+    const {error:upErr}=await SB.storage.from('documentos').upload(path,file,{contentType:file.type||undefined,upsert:false});
+    if(upErr) throw upErr;
+    await SB.rpc('nx_conv_send_media',{p_conv:RC.activeId,p_type:kind,p_path:path,p_body:''});
+    await rcOpen(RC.activeId);
+  }catch(e){ toast('Erro no envio: '+(e.message||e),'⚠'); }
+}
+let rcRec=null, rcChunks=[];
+function updateMicBtn(on){ const b=document.getElementById('rcMicBtn'); if(b){ b.textContent=on?'⏹️':'🎙️'; b.classList.toggle('rec',on); } }
+async function rcMic(){
+  if(rcRec && rcRec.state==='recording'){ rcRec.stop(); return; }
+  if(!navigator.mediaDevices||!window.MediaRecorder){ toast('Gravação não suportada neste navegador','⚠'); return; }
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    rcChunks=[]; rcRec=new MediaRecorder(stream);
+    rcRec.ondataavailable=e=>{ if(e.data&&e.data.size) rcChunks.push(e.data); };
+    rcRec.onstop=async()=>{ stream.getTracks().forEach(t=>t.stop()); const blob=new Blob(rcChunks,{type:'audio/webm'}); const file=new File([blob],'audio.webm',{type:'audio/webm'}); updateMicBtn(false); await rcUpload(file,'audio'); rcRec=null; };
+    rcRec.start(); updateMicBtn(true); toast('Gravando… toque de novo para enviar','🎙️');
+  }catch(e){ toast('Microfone indisponível','⚠'); }
+}
+const RCTEMPLATES=[
+ ['Saudação','Olá! Aqui é da clínica. Como podemos ajudar você hoje?'],
+ ['Pedir dados','Para agilizar, pode nos enviar seu nome completo, data de nascimento e o motivo do contato?'],
+ ['Confirmar consulta','Confirmando sua consulta. Podemos confirmar sua presença?'],
+ ['Orientação de chegada','Chegue com 15 minutos de antecedência e traga um documento com foto.'],
+ ['Encaminhar ao médico','Vou encaminhar seu caso ao médico. Em instantes ele fala com você.'],
+ ['Pós-atendimento','Foi um prazer te atender! Qualquer dúvida, é só chamar por aqui.'],
+ ['Reagendar','Precisamos remarcar. Quais dias e horários ficam melhores para você?'],
+];
+function rcTemplates(){ openModal(`<h3>Modelos de mensagem</h3><div style="max-height:340px;overflow:auto;margin-top:6px">${RCTEMPLATES.map((t,i)=>`<button class="rc-tpl" onclick="rcInsertTpl(${i})"><b>${t[0]}</b><span>${t[1]}</span></button>`).join('')}</div><div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Fechar</button></div>`); }
+function rcInsertTpl(i){ const inp=document.getElementById('rcMsg'); if(inp) inp.value=RCTEMPLATES[i][1]; closeModal(); const x=document.getElementById('rcMsg'); if(x) x.focus(); }
+function telFmt(el){ let v=(el.value||'').replace(/\D/g,''); if(v.startsWith('55')) v=v.slice(2); v=v.slice(0,11); let o='+55 '; if(v.length>0)o+='('+v.slice(0,2); if(v.length>=2)o+=') '; if(v.length>2)o+=v.slice(2,7); if(v.length>7)o+='-'+v.slice(7,11); el.value=o.trim(); }
+async function rcCepLookup(){ const el=document.getElementById('tgCep'); if(!el)return; const cep=(el.value||'').replace(/\D/g,''); if(cep.length!==8)return;
+  try{ const r=await fetch('https://viacep.com.br/ws/'+cep+'/json/'); const j=await r.json(); if(!j.erro){ const g=(id,v)=>{const e=document.getElementById(id); if(e&&v)e.value=v;}; g('tgEnd',j.logradouro); g('tgBairro',j.bairro); g('tgCidade',j.localidade); g('tgUf',j.uf); } }catch(e){} }
+function rcTriageTipo(){ const t=document.getElementById('tgTipo'); if(!t)return; const rw=document.getElementById('tgRespWrap'); const l=document.getElementById('tgPacL'); if(t.value==='adulto'){ if(rw)rw.style.display='none'; if(l)l.textContent='Nome do paciente'; } else { if(rw)rw.style.display=''; if(l)l.textContent='Nome do paciente (criança)'; } }
+function rcTriageForm(){ const c=(RC.active&&RC.active.conv)||{};
+  openModal(`<h3>Triagem — dados do paciente</h3>
+    <div class="nxm-field"><label>Tipo</label><select id="tgTipo" onchange="rcTriageTipo()"><option value="menor">Criança / menor (com responsável)</option><option value="adulto">Adulto (dados próprios)</option></select></div>
+    <div class="nxm-field"><label id="tgPacL">Nome do paciente (criança)</label><input id="tgPac" value="${c.paciente_nome||''}"></div>
+    <div class="nxm-field" id="tgRespWrap"><label>Nome do responsável</label><input id="tgResp" value="${c.responsavel_nome||''}"></div>
+    <div class="cl-2"><div class="nxm-field"><label>Nascimento</label><input id="tgNasc" placeholder="dd/mm/aaaa"></div><div class="nxm-field"><label>CPF</label><input id="tgCpf" placeholder="000.000.000-00" oninput="cpfCheck(this)"><div class="cl-hint" id="npCpfMsg"></div></div></div>
+    <div class="nxm-field"><label>Telefone (WhatsApp)</label><input id="tgTel" value="${c.telefone||''}" oninput="telFmt(this)" placeholder="+55 (21) 99999-9999"></div>
+    <div class="cl-2"><div class="nxm-field"><label>CEP</label><input id="tgCep" placeholder="00000-000" oninput="rcCepLookup()"></div><div class="nxm-field"><label>Cidade</label><input id="tgCidade"></div></div>
+    <div class="nxm-field"><label>Endereço</label><input id="tgEnd"></div>
+    <div class="cl-2"><div class="nxm-field"><label>Bairro</label><input id="tgBairro" value="${c.bairro||''}"></div><div class="nxm-field"><label>UF</label><input id="tgUf" value="${c.estado||''}" maxlength="2"></div></div>
+    <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="rcTriageSave()">Salvar triagem</button></div>`);
+  rcTriageTipo();
+}
+async function rcTriageSave(){ const g=id=>((document.getElementById(id)||{}).value||'').trim();
+  const tipo=g('tgTipo'); const pac=g('tgPac'); const resp=tipo==='adulto'?pac:g('tgResp');
+  if(!pac){ toast('Informe o nome do paciente','⚠'); return; }
+  try{ await SB.rpc('nx_conv_update',{p_conv:RC.activeId,p_paciente:pac,p_responsavel:resp,p_telefone:g('tgTel'),p_bairro:g('tgBairro'),p_estado:g('tgUf')});
+    const extra=[['Nascimento',g('tgNasc')],['CPF',g('tgCpf')],['CEP',g('tgCep')],['Endereço',[g('tgEnd'),g('tgCidade')].filter(Boolean).join(', ')]];
+    for(const kv of extra){ if(kv[1]) await SB.rpc('nx_conv_collect',{p_conv:RC.activeId,p_chave:kv[0],p_valor:kv[1],p_atencao:false}); }
+    closeModal(); await rcOpen(RC.activeId); toast('Triagem salva'); }
+  catch(e){ toast('Erro: '+(e.message||e),'⚠'); }
+}
+const DESFECHOS=[['Atendimento concluído','finalizada'],['Encaminhado','resolvida'],['Paciente não retornou','resolvida'],['Paciente foi embora','resolvida'],['Cancelado','resolvida']];
+function rcFinishForm(){ openModal(`<h3>Encerrar atendimento</h3><p style="color:var(--mute);font-size:12.5px;margin:2px 0 10px">Escolha o desfecho:</p>${DESFECHOS.map(dd=>`<button class="rc-b2" style="width:100%;margin-bottom:8px;text-align:left" onclick="rcFinishSave('${dd[0]}','${dd[1]}')">${dd[0]}</button>`).join('')}<div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button></div>`); }
+async function rcFinishSave(desf,status){ try{ await SB.rpc('nx_conv_finish',{p_conv:RC.activeId,p_desfecho:desf,p_status:status}); closeModal(); await rcLoad(); await rcOpen(RC.activeId); toast('Encerrado: '+desf); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+function rcDocsSoon(){ toast('Receita, atestado, exame e prontuário com assinatura digital fazem parte do Plano Super — liberado para testes em breve','📄'); }
 function nxCheckOnboard(){
   const tok=new URLSearchParams(location.search).get('onboard'); if(!tok) return;
   const card=document.querySelector('#login .login-card'); if(!card) return;
