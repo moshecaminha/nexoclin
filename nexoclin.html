@@ -1307,7 +1307,22 @@ function renderRCConversa(){
   rcSignMedia();
 }
 async function rcSend(){ const inp=document.getElementById('rcMsg'); const t=(inp&&inp.value||'').trim(); if(!t||!RC.activeId) return;
-  try{ await SB.rpc('nx_conv_send',{p_conv:RC.activeId,p_body:t}); await rcOpen(RC.activeId); }catch(e){ toast('Erro ao enviar','⚠'); } }
+  const conv=RC.active&&RC.active.conv; const to=conv&&conv.telefone; const canal=conv&&conv.canal;
+  if(inp) inp.value='';
+  let entregue=false, tentouWa=false;
+  // entrega de verdade pelo WhatsApp (Graph API via wa-send)
+  if(to){
+    tentouWa=true;
+    try{ const {data,error}=await SB.functions.invoke('wa-send',{body:{clinic_id:NX.clinic,to:to,kind:'text',text:t,conv_id:RC.activeId}});
+      if(!error && data && data.ok){ entregue=true; }
+    }catch(e){}
+  }
+  if(!entregue){
+    // fallback: registra a mensagem localmente para a equipe ver
+    try{ await SB.rpc('nx_conv_send',{p_conv:RC.activeId,p_body:t}); }catch(e){}
+    toast(tentouWa ? 'Mensagem registrada, mas NÃO foi entregue pelo WhatsApp (verifique a conexão/token e se o número é permitido na Meta).' : 'Mensagem registrada (sem número de WhatsApp nesta conversa).','⚠');
+  }
+  RC._sig=null; await rcOpen(RC.activeId); }
 function rcActions(){
   const c=RC.active&&RC.active.conv; if(!c) return ''; const st=c.status; const btns=[];
   const staff=['recepcao','secretaria','gestor','admin'].includes(ROLE);
