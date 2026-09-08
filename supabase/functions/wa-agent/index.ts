@@ -198,6 +198,15 @@ export async function agente(conv: string, texto: string): Promise<string | null
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") return new Response("method not allowed", { status: 405 });
+
+  // Esta funcao roda com verify_jwt desligado (o webhook e o cron precisam
+  // chamar sem sessao de usuario). Sem isto, qualquer um que descubra a URL
+  // conduz o bot de qualquer conversa.
+  const segredo = Deno.env.get("WA_INTERNAL_SECRET");
+  if (segredo && req.headers.get("x-nx-internal") !== segredo) {
+    return new Response("forbidden", { status: 403 });
+  }
+
   try {
     const { conversation_id, texto } = await req.json();
     if (!conversation_id || !texto) {

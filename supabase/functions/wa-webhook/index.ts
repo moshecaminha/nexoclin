@@ -141,6 +141,7 @@ async function responderBot(conv: string, texto: string, telefone: string, clini
       method: "POST",
       headers: {
         Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        "x-nx-internal": Deno.env.get("WA_INTERNAL_SECRET") ?? "",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ conversation_id: conv, texto }),

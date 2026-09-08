@@ -1328,12 +1328,63 @@ function rcView(){
 }
 function rcSetFilter(x){ RC.filter=x; renderRCQueue(); }
 function rcFilterList(){ const f=RC.filter; return RC.list.filter(c=> f==='todas'?true : f==='fila'?['nova','em_triagem'].includes(c.status) : f==='medico'?['aguardando_medico','em_atendimento'].includes(c.status) : f==='fim'?['finalizada','resolvida'].includes(c.status):true); }
+
+// ===== atualizacao automatica da fila e da conversa =====
+// Redesenha so quando algo muda: comparar assinatura evita piscar a tela e
+// evita apagar o que o atendente esta digitando no campo de mensagem.
+let RC_TIMER = null;
+
+function rcAssinaturaFila(lista){
+  return (lista||[]).map(c => c.id+':'+c.status+':'+c.risk+':'+(c.updated_at||'')).join('|');
+}
+function rcAssinaturaConversa(a){
+  const m = (a && a.messages) || [];
+  const u = m[m.length-1] || {};
+  return m.length + ':' + (u.id||'') + ':' + (u.media_url||'') + ':' + ((a&&a.conv&&a.conv.status)||'');
+}
+
+async function rcTick(){
+  if (document.hidden || !SB || !RC.clinic) return;
+  try{
+    const { data, error } = await SB.rpc('nx_conv_list', { p_clinic: RC.clinic });
+    if (error) return;
+    const lista = data || [];
+    if (rcAssinaturaFila(lista) !== rcAssinaturaFila(RC.list)){
+      RC.list = lista;
+      renderRCQueue();
+    }
+
+    if (RC.activeId){
+      const { data: a, error: e2 } = await SB.rpc('nx_conv_get', { p_conv: RC.activeId });
+      if (e2 || !a) return;
+      if (rcAssinaturaConversa(a) !== rcAssinaturaConversa(RC.active)){
+        // preserva o que estiver digitado antes de redesenhar
+        const inp = document.getElementById('rcMsg');
+        const rascunho = inp ? inp.value : '';
+        const foco = document.activeElement === inp;
+        RC.active = a;
+        renderRCConversa(); renderRCPainel();
+        const novo = document.getElementById('rcMsg');
+        if (novo && rascunho){ novo.value = rascunho; if(foco) novo.focus(); }
+      }
+    }
+  }catch(e){}
+}
+
+function rcAutoStart(){
+  if (RC_TIMER) return;
+  RC_TIMER = setInterval(rcTick, 5000);
+  // volta a olhar assim que a aba reaparece, sem esperar o proximo ciclo
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) rcTick(); });
+}
+
 async function rcLoad(){
   RC.clinic=rcClinic(); const q=()=>document.getElementById('rcQueue');
   if(!SB||!RC.clinic){ if(q())q().innerHTML='<div class="rc-empty">Entre com um usuário de clínica para operar a fila.</div>'; return; }
   try{ await SB.auth.getSession(); const {data,error}=await SB.rpc('nx_conv_list',{p_clinic:RC.clinic}); if(error) throw error;
     RC.list=data||[]; if(RC.activeId && !RC.list.find(c=>c.id===RC.activeId)){ RC.activeId=null; RC.active=null; renderRCConversa(); renderRCPainel(); }
     renderRCQueue();
+    rcAutoStart();
   }catch(e){ if(q())q().innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao carregar a fila.</div>'; }
 }
 function renderRCQueue(){
