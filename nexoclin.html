@@ -169,6 +169,9 @@ button{font-family:inherit}
 .cl-cs{font-size:12px;color:var(--mute);margin-bottom:12px}
 .cl-profile{display:flex;gap:16px}
 .cl-foto{width:72px;height:72px;border-radius:16px;background:var(--role,var(--cyan));color:#fff;display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:26px}
+.cl-foto{overflow:hidden}
+.cl-foto img{width:100%;height:100%;object-fit:cover;display:block}
+
 .cl-field{margin-bottom:10px;display:flex;flex-direction:column}
 .cl-field label{font-size:10.5px;font-weight:700;color:var(--mute);margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em}
 .cl-field input{border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;font-family:var(--body);outline:none;background:#fff}
@@ -303,6 +306,23 @@ audio.rc-media{width:230px;max-width:100%}
 .prt-a{display:flex;gap:6px;margin-top:10px}
 
 .cl-sec2{font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#1596BE;margin:16px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+/* ===== respiro nos cards da clinica ===== */
+.cl-ct{margin-bottom:7px;line-height:1.35}
+.cl-cs{font-size:12.5px;line-height:1.65;margin-bottom:14px}
+.cl-card{padding:20px}
+.cl-field{margin-bottom:14px}
+.cl-field label{margin-bottom:6px;line-height:1.4}
+.cl-sec2{margin:22px 0 12px}
+.cl-inp{padding:10px 12px}
+.cl-2{gap:12px}
+.wa-tpl{padding:12px 14px}
+.wa-tpl-h{margin-bottom:6px}
+.wa-tpl-b{line-height:1.6}
+.wa-tpl-d{margin-top:6px;line-height:1.5}
+
+/* mensagem de orientacao: distinta do texto comum, sem virar alerta */
+.wa-hint{font-style:italic;color:#1596BE;font-size:13px;line-height:1.65;margin:2px 0 14px}
+
 .eq-legend{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:16px}
 .eq-lg-t{font-weight:800;color:var(--navy);margin-bottom:10px}
 .eq-lg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
@@ -312,6 +332,16 @@ audio.rc-media{width:230px;max-width:100%}
 .eq-lg-note{margin-top:12px;font-size:12px;color:#8a6d1a;background:#FFF7E6;border:1px solid #F2E6C9;border-radius:8px;padding:8px 12px}
 
 .wa-tpls{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-top:8px}
+/* ===== contencao de largura (grade dentro de grade) ===== */
+.cl-grid>.cl-card{min-width:0}
+.cl-card{max-width:100%;overflow-wrap:anywhere}
+.wa-tpls{grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr))}
+.wa-tpl,.wa-tpl-b,.wa-tpl-h{min-width:0;overflow-wrap:anywhere}
+.cl-2{min-width:0}
+.cl-2>.cl-field{min-width:0}
+.cl-field input,.cl-field select{max-width:100%}
+.content{overflow-x:hidden}
+
 .wa-tpl{background:var(--bg,#F4F7F9);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .wa-tpl-h{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:4px}
 .wa-tpl-h b{font-size:12.5px;color:var(--navy)}
@@ -326,9 +356,6 @@ audio.rc-media{width:230px;max-width:100%}
 .canal-qr img{border-radius:8px;border:1px solid var(--line);display:block}
 .canal-info{flex:1;min-width:0}
 .canal-nome{font-weight:700;color:var(--navy);font-size:13.5px}
-
-.rc-ia-on{font-size:11.5px;color:#12996a;font-weight:700;margin-top:10px}
-.rc-ia-off{font-size:11.5px;color:#8a6d1a;font-weight:700;margin-top:10px;background:#FFF7E6;border:1px solid #F2E6C9;border-radius:8px;padding:6px 10px}
 </style>
 <style id="wa-style">
 /* ===== Cockpit de Atendimento WhatsApp — escopo .wa- ===== */
@@ -653,7 +680,7 @@ html,body{overflow-x:hidden}
   <div class="main">
     <div class="topbar">
       <div style="display:flex;align-items:center;gap:12px"><button class="menu-btn" onclick="document.getElementById('app').classList.toggle('nav-open')">☰</button><div class="pt" id="pageTitle">Atendimento</div></div>
-      <div class="right"><span class="wa-pill"><span class="d"></span> WhatsApp conectado</span></div>
+      <div class="right"><span class="wa-pill" id="waPill"><span class="d"></span> WhatsApp</span></div>
     </div>
     <div id="roleBand"></div>
     <div class="content" id="view"></div>
@@ -745,13 +772,12 @@ function renderNav(){
   document.getElementById('nav').innerHTML=NAV[ROLE].map(([v,l,ic])=>`<button class="nav-item" data-v="${v}" onclick="nav('${v}')"><span class="ic">${ICON[ic]}</span>${l}</button>`).join('');
 }
 function nav(v){
-  if(typeof rcStopPoll==='function') rcStopPoll();
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   document.getElementById('pageTitle').textContent=TITLES[v]||'';
   document.getElementById('app').classList.remove('nav-open');
   renderRoleBand();
   const view=document.getElementById('view');
-  if(v==='cockpit'){ if(NX.real){ view.innerHTML=rcView(); rcLoad(); rcStartPoll(); } else { WA.role=ROLE; view.innerHTML=WA.view(); WA.mount(); } }
+  if(v==='cockpit'){ if(NX.real){ view.innerHTML=rcView(); rcLoad(); } else { WA.role=ROLE; view.innerHTML=WA.view(); WA.mount(); } }
   else if(v==='documentos'){ if(NX.real){ view.innerHTML=documentosView(); docLoad(); } else { view.innerHTML=emptyState('Documentos','Entre com uma conta real (médico, secretaria ou gestor) para gerenciar documentos.'); } }
   else if(v==='prontuario'){ if(NX.real){ prontuario(); } else { view.innerHTML=emptyState('Prontuário','Entre com uma conta real para acessar o prontuário.'); } }
   else if(v==='agenda'){ if(NX.real){ view.innerHTML=agendaReal(); agLoad(); } else { view.innerHTML=agendaView(); } }
@@ -842,6 +868,50 @@ function agendaAction(i,act){
 
 
 const CLINIC={nome:'Consultório Dra. Camila Ferreira',cnpj:'42.113.884/0001-20',endereco:'R. Conde de Bonfim, 255 · Tijuca',cidade:'Rio de Janeiro',estado:'RJ',whatsapp:'+55 21 99812-4477',slug:'dra-camila',foto:'CF'};
+
+// ===== Foto da clinica =====
+// Vai para o bucket 'documentos', na pasta da propria clinica: a politica de
+// RLS que ja protege os anexos das conversas serve aqui sem nenhuma mudanca.
+// Guardamos o CAMINHO, nao a URL — o bucket e privado e a tela assina na hora.
+async function clFotoUpload(input){
+  const f = input.files && input.files[0];
+  input.value = '';
+  const msg = document.getElementById('clFotoMsg');
+  const diz = (txt,cor) => { if(msg){ msg.textContent=txt; msg.style.color=cor||'var(--mute)'; } };
+  if(!f) return;
+  if(f.size > 2*1024*1024){ diz('Imagem muito grande (máx. 2 MB)','#D9403A'); return; }
+
+  diz('Enviando...');
+  try{
+    const ext = (f.name.split('.').pop()||'png').toLowerCase().slice(0,5);
+    const path = NX.clinic+'/_perfil/logo_'+Date.now()+'.'+ext;
+    const { error:upErr } = await SB.storage.from('documentos')
+      .upload(path, f, { contentType: f.type||undefined, upsert:false });
+    if(upErr) throw upErr;
+
+    const { data, error } = await SB.rpc('nx_clinic_set_foto', { p_clinic:NX.clinic, p_path:path });
+    if(error) throw error;
+    if(data && data.anterior){
+      // limpa a anterior para nao acumular arquivo orfao no bucket
+      SB.storage.from('documentos').remove([data.anterior]).catch(()=>{});
+    }
+    diz('Foto atualizada','#12996A');
+    await loadClinicInfo();
+    clFotoRender();
+  }catch(e){ diz('Erro: '+(e.message||e),'#D9403A'); }
+}
+
+// A imagem e privada: precisa de URL assinada para aparecer.
+async function clFotoRender(){
+  const el = document.getElementById('clFoto');
+  const p = (NX.clinicInfo||{}).foto_url;
+  if(!el || !p) return;
+  try{
+    const { data } = await SB.storage.from('documentos').createSignedUrl(p, 3600);
+    if(data && data.signedUrl) el.innerHTML = '<img src="'+data.signedUrl+'" alt="Logo da clínica">';
+  }catch(e){}
+}
+
 function nxCopy(t,btn){ try{navigator.clipboard&&navigator.clipboard.writeText(t);}catch(e){} if(btn){const o=btn.textContent;btn.textContent='Copiado ✓';setTimeout(()=>btn.textContent=o,1400);} }
 function cpfValido(cpf){ cpf=(cpf||'').replace(/\D/g,''); if(cpf.length!==11||/^(\d)\1{10}$/.test(cpf))return false;
   let s=0; for(let i=0;i<9;i++)s+=+cpf[i]*(10-i); let d=(s*10)%11; if(d===10)d=0; if(d!==+cpf[9])return false;
@@ -859,7 +929,7 @@ function cpfCheck(el){
 function qrURL(data,size){ return 'https://api.qrserver.com/v1/create-qr-code/?size='+size+'x'+size+'&margin=8&data='+encodeURIComponent(data); }
 function clinicaView(){
   const real=NX.real&&NX.clinicInfo;
-  if(NX.real&&NX.clinic){ setTimeout(waLoad,0); setTimeout(canalLoad,0); }
+  if(NX.real&&NX.clinic){ setTimeout(waLoad,0); setTimeout(canalLoad,0); setTimeout(clFotoRender,0); }
   const I=NX.clinicInfo||{};
   const C= real ? {nome:I.nome||'',razao:I.razao_social||'',fantasia:I.nome_fantasia||'',cnpj:I.cnpj||'',cnes:I.cnes||'',email:I.email||'',whatsapp:I.telefone_whatsapp||'',cep:I.cep||'',endereco:I.endereco||'',numero:I.numero||'',complemento:I.complemento||'',bairro:I.bairro||'',cidade:I.cidade||'',estado:I.estado||'',resp:I.responsavel_tecnico||'',respCrm:I.responsavel_crm||'',slug:I.link_slug||'',foto:(I.nome||'C').replace(/[^A-Za-zÀ-ÿ ]/g,'').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()||'C'}
                 : {nome:CLINIC.nome,razao:'',fantasia:'',cnpj:CLINIC.cnpj,cnes:'',email:'',whatsapp:CLINIC.whatsapp,cep:'',endereco:CLINIC.endereco,numero:'',complemento:'',bairro:'',cidade:CLINIC.cidade,estado:CLINIC.estado,resp:'',respCrm:'',slug:CLINIC.slug,foto:CLINIC.foto};
@@ -872,7 +942,7 @@ function clinicaView(){
       <div class="cl-card">
         <div class="cl-ct">Perfil da clínica</div>
         <div class="cl-profile">
-          <div><div class="cl-foto">${C.foto}</div><button class="cl-copy" style="margin-top:8px;width:100%" onclick="toast('Upload de foto (em breve)','📷')">Trocar foto</button></div>
+          <div><div class="cl-foto" id="clFoto">${C.foto}</div><input type="file" id="clFotoFile" accept="image/png,image/jpeg,image/webp" hidden onchange="clFotoUpload(this)"><button class="cl-copy" style="margin-top:8px;width:100%" onclick="document.getElementById('clFotoFile').click()">Trocar foto</button><div class="cl-hint" id="clFotoMsg"></div></div>
           <div style="flex:1">
             <div class="cl-sec2">Identificação</div>
             <div class="cl-field"><label>Nome da clínica (exibido nos documentos)</label><input id="clNome" value="${C.nome}"></div>
@@ -893,11 +963,10 @@ function clinicaView(){
         </div>
         ${persUrl?`<div class="cl-cs" style="margin-top:14px">Endereço personalizado da clínica</div><div class="cl-inp"><code>${persUrl}</code><button class="cl-copy" onclick="nxCopy(this.previousElementSibling.textContent,this)">Copiar</button></div>`:`<div class="cl-cs" style="margin-top:14px">Defina um slug e salve para gerar o endereço personalizado (ex.: .../?c=dra-camila).</div>`}
       </div>
-      <div class="cl-card">
+      <div class="cl-card" id="qrCard">
         <div class="cl-ct">Link & QR de contato do paciente</div>
         <div class="cl-cs">Divulgue este QR/link — o paciente cai direto no WhatsApp oficial da clínica.</div>
-        ${link?`<div class="cl-qr"><img src="${qrURL(link,200)}" alt="QR de contato" width="180" height="180"></div>
-        <div class="cl-inp"><code>${link}</code><button class="cl-copy" onclick="nxCopy(this.previousElementSibling.textContent,this)">Copiar</button></div>`:`<div class="cl-cs">Cadastre o WhatsApp oficial acima para gerar o QR de contato.</div>`}
+        <div id="qrBox"><div class="cl-cs">Carregando...</div></div>
       </div>
       <div class="cl-card cl-wide">
         <div class="cl-ct">Convidar novo paciente</div>
@@ -1261,12 +1330,63 @@ function rcView(){
 }
 function rcSetFilter(x){ RC.filter=x; renderRCQueue(); }
 function rcFilterList(){ const f=RC.filter; return RC.list.filter(c=> f==='todas'?true : f==='fila'?['nova','em_triagem'].includes(c.status) : f==='medico'?['aguardando_medico','em_atendimento'].includes(c.status) : f==='fim'?['finalizada','resolvida'].includes(c.status):true); }
+
+// ===== atualizacao automatica da fila e da conversa =====
+// Redesenha so quando algo muda: comparar assinatura evita piscar a tela e
+// evita apagar o que o atendente esta digitando no campo de mensagem.
+let RC_TIMER = null;
+
+function rcAssinaturaFila(lista){
+  return (lista||[]).map(c => c.id+':'+c.status+':'+c.risk+':'+(c.updated_at||'')).join('|');
+}
+function rcAssinaturaConversa(a){
+  const m = (a && a.messages) || [];
+  const u = m[m.length-1] || {};
+  return m.length + ':' + (u.id||'') + ':' + (u.media_url||'') + ':' + ((a&&a.conv&&a.conv.status)||'');
+}
+
+async function rcTick(){
+  if (document.hidden || !SB || !RC.clinic) return;
+  try{
+    const { data, error } = await SB.rpc('nx_conv_list', { p_clinic: RC.clinic });
+    if (error) return;
+    const lista = data || [];
+    if (rcAssinaturaFila(lista) !== rcAssinaturaFila(RC.list)){
+      RC.list = lista;
+      renderRCQueue();
+    }
+
+    if (RC.activeId){
+      const { data: a, error: e2 } = await SB.rpc('nx_conv_get', { p_conv: RC.activeId });
+      if (e2 || !a) return;
+      if (rcAssinaturaConversa(a) !== rcAssinaturaConversa(RC.active)){
+        // preserva o que estiver digitado antes de redesenhar
+        const inp = document.getElementById('rcMsg');
+        const rascunho = inp ? inp.value : '';
+        const foco = document.activeElement === inp;
+        RC.active = a;
+        renderRCConversa(); renderRCPainel();
+        const novo = document.getElementById('rcMsg');
+        if (novo && rascunho){ novo.value = rascunho; if(foco) novo.focus(); }
+      }
+    }
+  }catch(e){}
+}
+
+function rcAutoStart(){
+  if (RC_TIMER) return;
+  RC_TIMER = setInterval(rcTick, 5000);
+  // volta a olhar assim que a aba reaparece, sem esperar o proximo ciclo
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) rcTick(); });
+}
+
 async function rcLoad(){
   RC.clinic=rcClinic(); const q=()=>document.getElementById('rcQueue');
   if(!SB||!RC.clinic){ if(q())q().innerHTML='<div class="rc-empty">Entre com um usuário de clínica para operar a fila.</div>'; return; }
   try{ await SB.auth.getSession(); const {data,error}=await SB.rpc('nx_conv_list',{p_clinic:RC.clinic}); if(error) throw error;
     RC.list=data||[]; if(RC.activeId && !RC.list.find(c=>c.id===RC.activeId)){ RC.activeId=null; RC.active=null; renderRCConversa(); renderRCPainel(); }
     renderRCQueue();
+    rcAutoStart();
   }catch(e){ if(q())q().innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao carregar a fila.</div>'; }
 }
 function renderRCQueue(){
@@ -1276,7 +1396,7 @@ function renderRCQueue(){
 }
 async function rcOpen(id){
   RC.activeId=id;
-  try{ const {data,error}=await SB.rpc('nx_conv_get',{p_conv:id}); if(error) throw error; RC.active=data; RC._sig=rcSig(data); renderRCQueue(); renderRCConversa(); renderRCPainel(); }
+  try{ const {data,error}=await SB.rpc('nx_conv_get',{p_conv:id}); if(error) throw error; RC.active=data; renderRCQueue(); renderRCConversa(); renderRCPainel(); }
   catch(e){ toast('Erro ao abrir','⚠'); }
 }
 function rcBubble(m){
@@ -1308,23 +1428,31 @@ function renderRCConversa(){
     <div class="rc-send"><input id="rcMsg" placeholder="Escrever mensagem..." onkeydown="if(event.key==='Enter')rcSend()"><button class="cl-btn pri" style="margin:0;padding:10px 14px" onclick="rcSend()">Enviar</button></div>`;
   rcSignMedia();
 }
-async function rcSend(){ const inp=document.getElementById('rcMsg'); const t=(inp&&inp.value||'').trim(); if(!t||!RC.activeId) return;
-  const conv=RC.active&&RC.active.conv; const to=conv&&conv.telefone; const canal=conv&&conv.canal;
-  if(inp) inp.value='';
-  let entregue=false, tentouWa=false;
-  // entrega de verdade pelo WhatsApp (Graph API via wa-send)
-  if(to){
-    tentouWa=true;
-    try{ const {data,error}=await SB.functions.invoke('wa-send',{body:{clinic_id:NX.clinic,to:to,kind:'text',text:t,conv_id:RC.activeId}});
-      if(!error && data && data.ok){ entregue=true; }
-    }catch(e){}
-  }
-  if(!entregue){
-    // fallback: registra a mensagem localmente para a equipe ver
-    try{ await SB.rpc('nx_conv_send',{p_conv:RC.activeId,p_body:t}); }catch(e){}
-    toast(tentouWa ? 'Mensagem registrada, mas NÃO foi entregue pelo WhatsApp (verifique a conexão/token e se o número é permitido na Meta).' : 'Mensagem registrada (sem número de WhatsApp nesta conversa).','⚠');
-  }
-  RC._sig=null; await rcOpen(RC.activeId); }
+// Envio pelo cockpit. Passa pela Edge Function wa-send, que fala com a Graph
+// API da Meta e so entao grava. O nx_conv_send apenas gravava no banco: a
+// mensagem aparecia na tela e o paciente nunca recebia.
+async function rcSend(){
+  const inp=document.getElementById('rcMsg');
+  const t=(inp&&inp.value||'').trim();
+  if(!t||!RC.activeId) return;
+  const antes=inp.value; inp.value=''; inp.disabled=true;
+  try{
+    const { data:sess } = await SB.auth.getSession();
+    const r = await fetch(SB_URL+'/functions/v1/wa-send',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+sess.session.access_token,'Content-Type':'application/json'},
+      body: JSON.stringify({ conversation_id:RC.activeId, text:t })
+    });
+    const d = await r.json();
+    if(!d.ok){
+      inp.value=antes;
+      if(d.erro==='janela_fechada') toast('Mais de 24h desde a ultima mensagem do paciente. Use um template.','⚠');
+      else toast('Nao enviou: '+(d.mensagem||d.erro||'')+' '+((d.meta&&d.meta.message)||''),'⚠');
+    }
+    await rcOpen(RC.activeId);
+  }catch(e){ inp.value=antes; toast('Erro ao enviar: '+(e.message||e),'⚠'); }
+  finally{ inp.disabled=false; inp.focus(); }
+}
 function rcActions(){
   const c=RC.active&&RC.active.conv; if(!c) return ''; const st=c.status; const btns=[];
   const staff=['recepcao','secretaria','gestor','admin'].includes(ROLE);
@@ -1346,7 +1474,6 @@ function renderRCPainel(){
   el.innerHTML=`<div class="rc-p-h">${c.paciente_nome||c.responsavel_nome||'Paciente'}</div>
     <div><span class="rc-stat" style="background:${rc[0]}22;color:${rc[0]}">${CSTAT[c.status]||c.status}</span></div>
     ${c.desfecho?`<div class="rc-p-sub" style="margin-top:6px">Desfecho: <b>${c.desfecho}</b></div>`:''}
-    ${(c.bot_active===false)?`<div class="rc-ia-off">🟠 IA pausada — atendimento humano</div><button class="cl-btn pri" style="width:100%;margin-top:6px" onclick="rcToggleBot(true)">▶ Retomar IA</button>`:`<div class="rc-ia-on">🟢 IA ativa neste atendimento</div><button class="rc-b2" style="width:100%;margin-top:6px" onclick="rcToggleBot(false)">⏸ Assumir (pausar IA)</button>`}
     <button class="rc-b2" style="width:100%;margin-top:10px" onclick="rcTriageForm()">📋 Triagem / dados do paciente</button>
     <div class="rc-p-sec">Gravidade ${riskSel}</div>
     <div class="rc-p-sec">Dados coletados</div>
@@ -1648,30 +1775,132 @@ async function waLoad(){
 function waRender(d,tpls){
   const box=document.getElementById('waBox'); if(!box) return;
   const st=d.status||'desconectado';
+  // A pilula do topo dizia "WhatsApp conectado" fixo no HTML, com ou sem
+  // numero. Numa clinica isso faz a recepcao responder horas sem nada sair.
+  // O QR de contato do paciente sai daqui, do numero conectado — nao do campo
+  // digitado no perfil. Sem conexao nao existe QR: um codigo impresso que leva
+  // a um numero que nao atende e pior do que nenhum codigo.
+  const qb=document.getElementById('qrBox');
+  if(qb){
+    const num=(d.display_number||'').replace(/\D/g,'');
+    if(st==='conectado' && num.length>=12){
+      const l='https://wa.me/'+num+'?text='+encodeURIComponent('Ola! Vim pelo NexoClin e gostaria de atendimento.');
+      qb.innerHTML='<div class="cl-qr"><img src="'+qrURL(l,200)+'" alt="QR de contato" width="180" height="180"></div>'
+        +'<div class="cl-inp"><code>'+l+'</code><button class="cl-copy" onclick="nxCopy(this.previousElementSibling.textContent,this)">Copiar</button></div>';
+    } else {
+      qb.innerHTML='<p class="wa-hint">Conecte o WhatsApp da cl\u00ednica no card abaixo para gerar o QR de contato.</p>';
+    }
+  }
+
+  const pill=document.getElementById('waPill');
+  if(pill){
+    const ok = st==='conectado';
+    pill.innerHTML = '<span class="d"></span> WhatsApp '+(ok?'conectado':'nao conectado');
+    pill.style.background = ok?'':'#EEF2F4';
+    pill.style.color      = ok?'':'#6b7b83';
+  }
   const color=st==='conectado'?'#12996A':st==='pendente'?'#B4790B':'#8a99a0';
   const soft=st==='conectado'?'#DCF3EA':st==='pendente'?'#FFF3D6':'#EEF2F4';
   box.innerHTML=`
-    <div style="margin-bottom:12px"><span class="rc-stat" style="background:${soft};color:${color}">${st.toUpperCase()}</span>${d.connected_at?` <span style="color:var(--mute);font-size:12px">desde ${new Date(d.connected_at).toLocaleDateString('pt-BR')}</span>`:''}</div>
-    <div class="cl-2"><div class="cl-field"><label>Número exibido</label><input id="waNum" value="${d.display_number||''}" placeholder="+55 21 90000-0000"></div><div class="cl-field"><label>Phone Number ID</label><input id="waPhone" value="${d.phone_number_id||''}" placeholder="Meta phone_number_id"></div></div>
-    <div class="cl-field"><label>WhatsApp Business Account ID (WABA)</label><input id="waWaba" value="${d.waba_id||''}" placeholder="waba_id"></div>
-    <div class="cl-2"><div class="cl-field"><label>Access Token ${d.token_mask?`<span style="color:var(--mute)">(atual ${d.token_mask})</span>`:''}</label><input id="waToken" type="password" autocomplete="off" placeholder="${d.token_mask?'deixe vazio p/ manter':'token permanente da Meta'}"></div><div class="cl-field"><label>App Secret ${d.secret_set?'<span style="color:var(--mute)">(definido)</span>':''}</label><input id="waSecret" type="password" autocomplete="off" placeholder="${d.secret_set?'deixe vazio p/ manter':'segredo do app'}"></div></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button class="cl-btn pri" style="margin:0" onclick="waSave()">Salvar conexão</button>${st!=='desconectado'?'<button class="rc-b2" onclick="waDisconnect()">Desconectar</button>':''}</div>
-    ${d.webhook_url?`<div class="cl-sec2" style="margin-top:16px">Webhook (configurar na Meta)</div>
-      <div class="cl-field"><label>Callback URL</label><div class="cl-inp"><code>${d.webhook_url}</code><button class="cl-copy" onclick="nxCopy(this.previousElementSibling.textContent,this)">Copiar</button></div></div>
-      <div class="cl-field"><label>Verify Token <button class="cl-copy" style="margin-left:6px" onclick="waRotate()">Gerar novo</button></label><div class="cl-inp"><code>${d.verify_token||'—'}</code><button class="cl-copy" onclick="nxCopy(this.previousElementSibling.textContent,this)">Copiar</button></div></div>`
-      :'<div class="cl-cs" style="margin-top:10px">Salve a conexão para gerar a URL de webhook e o verify token.</div>'}
-    ${(d.webhook_url&&st!=='desconectado')?`<div class="cl-sec2" style="margin-top:16px">Testar envio</div>
-    <div class="cl-2"><div class="cl-field"><label>Número de teste (com DDI)</label><input id="waTestTo" placeholder="5521999998888"></div><div class="cl-field" style="display:flex;align-items:flex-end"><button class="rc-b2" onclick="waTest()">Enviar mensagem de teste</button></div></div>
-    <div id="waTestOut" style="font-size:12px;color:var(--mute);margin-top:4px"></div>`:''}
+    <div style="margin-bottom:16px"><span class="rc-stat" style="background:${soft};color:${color}">${st.toUpperCase()}</span>${d.connected_at?` <span style="color:var(--mute);font-size:12px">desde ${new Date(d.connected_at).toLocaleDateString('pt-BR')}</span>`:''}</div>
+    ${st==='conectado'?`
+      <div class="cl-2">
+        <div class="cl-field"><label>N&uacute;mero</label><div class="cl-inp"><code>${d.display_number||'&mdash;'}</code></div></div>
+        <div class="cl-field"><label>Phone Number ID</label><div class="cl-inp"><code>${d.phone_number_id||'&mdash;'}</code></div></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <button class="cl-btn" style="margin:0;background:#25D366;color:#fff;border:0" onclick="waConectar()">Reconectar</button>
+        <button class="rc-b2" onclick="waDisconnect()">Desconectar</button>
+      </div>`
+    :`
+      <p class="wa-hint">Conecte o WhatsApp da cl&iacute;nica. Voc&ecirc; ser&aacute; levado ao cadastro da Meta para informar o n&uacute;mero e confirmar o c&oacute;digo por SMS.</p>
+      <button class="cl-btn pri" style="margin:0;background:#25D366;border:0;width:100%;padding:13px" onclick="waConectar()">Conectar com o WhatsApp</button>`}
+    <div id="waMsg" style="margin-top:12px"></div>
+    <details style="margin-top:14px">
+      <summary style="cursor:pointer;color:var(--mute);font-size:12.5px">Conex&atilde;o manual (avan&ccedil;ado)</summary>
+      <div class="cl-2" style="margin-top:10px"><div class="cl-field"><label>N&uacute;mero exibido</label><input id="waNum" value="${d.display_number||''}" placeholder="+55 21 90000-0000"></div><div class="cl-field"><label>Phone Number ID</label><input id="waPhone" value="${d.phone_number_id||''}" placeholder="phone_number_id"></div></div>
+      <div class="cl-field"><label>WABA ID</label><input id="waWaba" value="${d.waba_id||''}" placeholder="waba_id"></div>
+      <div class="cl-field"><label>Access Token ${d.token_mask?`<span style="color:var(--mute)">(atual ${d.token_mask})</span>`:''}</label><input id="waToken" type="password" autocomplete="off" placeholder="${d.token_mask?'deixe vazio p/ manter':'token da Meta'}"></div>
+      <button class="cl-btn" style="margin-top:8px" onclick="waSave()">Salvar manualmente</button>
+    </details>
     <div class="cl-sec2" style="margin-top:16px">Biblioteca de templates (${tpls.length})</div>
     <div class="wa-tpls">${tpls.map(t=>`<div class="wa-tpl"><div class="wa-tpl-h"><b>${t.name}</b><span class="wa-cat wa-${t.category}">${t.category}</span></div><div class="wa-tpl-b">${(t.body||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>${t.descricao?`<div class="wa-tpl-d">${t.descricao}</div>`:''}</div>`).join('')}</div>`;
 }
 async function waSave(){
   const g=id=>((document.getElementById(id)||{}).value||'').trim();
-  try{ const {data,error}=await SB.rpc('nx_wa_connect',{p_clinic:NX.clinic,p_display:g('waNum'),p_phone_id:g('waPhone'),p_waba:g('waWaba'),p_token:g('waToken'),p_secret:g('waSecret')});
-    if(error) throw error; toast('Conexão salva — '+((data&&data.status)||''),'💬'); waLoad(); }
-  catch(e){ toast('Erro: '+(e.message||e),'⚠'); }
+  try{ const {data,error}=await SB.rpc('nx_wa_connect',{p_clinic:NX.clinic,p_display:g('waNum'),p_phone_id:g('waPhone'),p_waba:g('waWaba'),p_token:g('waToken'),p_secret:''});
+    if(error) throw error; toast('Conexao salva','ok'); waLoad(); }
+  catch(e){ toast('Erro: '+(e.message||e),'!'); }
 }
+
+// ===== Conexao pelo cadastro incorporado da Meta (Embedded Signup) =====
+// O popup devolve um codigo; a Edge Function wa-signup troca por token,
+// registra o numero, assina a WABA e aponta o webhook para ca.
+const WA_FB_APP_ID = '1501308275071442';
+const WA_FB_CONFIG = '1061690539809676';
+let WA_ES = {};
+
+function waMsg(txt, cor){
+  const e=document.getElementById('waMsg'); if(!e) return;
+  e.innerHTML = txt ? `<div style="padding:10px 14px;border-radius:9px;font-size:13.5px;background:${cor==='ok'?'#E6F7F1':cor==='err'?'#FDECEB':'#EAF7FB'};color:${cor==='ok'?'#12996A':cor==='err'?'#D9403A':'#1596BE'}">${txt}</div>` : '';
+}
+
+// O SDK carrega no load da pagina. Dentro do clique, o await quebra o gesto
+// do usuario e o navegador bloqueia o popup silenciosamente.
+(function carregaFbSdk(){
+  if (document.getElementById('fb-sdk')) return;
+  window.fbAsyncInit = function(){
+    FB.init({ appId: WA_FB_APP_ID, cookie:true, xfbml:false, version:'v21.0' });
+  };
+  var js = document.createElement('script');
+  js.id = 'fb-sdk'; js.async = true; js.defer = true;
+  js.src = 'https://connect.facebook.net/pt_BR/sdk.js';
+  document.head.appendChild(js);
+})();
+
+// O popup manda WABA e numero por postMessage antes de devolver o codigo.
+window.addEventListener('message', function(ev){
+  var host; try{ host = new URL(ev.origin).hostname; }catch(e){ return; }
+  if (host.indexOf('facebook.com') === -1) return;
+  try{
+    var d = JSON.parse(ev.data);
+    if (d.type !== 'WA_EMBEDDED_SIGNUP') return;
+    if (d.data){
+      if (d.data.waba_id)         WA_ES.waba_id = d.data.waba_id;
+      if (d.data.phone_number_id) WA_ES.phone_number_id = d.data.phone_number_id;
+    }
+  }catch(e){}
+});
+
+function waConectar(){
+  if (!window.FB){ waMsg('Ainda carregando o cadastro da Meta. Tente de novo em alguns segundos.','err'); return; }
+  waMsg('Abrindo o cadastro da Meta...');
+  WA_ES = {};
+  FB.login(function(resp){
+    var a = (resp && resp.authResponse) || {};
+    if (!a.code && !a.accessToken){ waMsg('Cadastro cancelado ou sem permissao.','err'); return; }
+    waMsg('Conectando o numero... isso leva alguns segundos.');
+    waEnviarCodigo(a.code, a.accessToken);
+  }, { config_id: WA_FB_CONFIG, response_type: 'code',
+       override_default_response_type: true,
+       extras: { setup:{}, featureType:'', sessionInfoVersion:'3' } });
+}
+
+async function waEnviarCodigo(code, token){
+  try{
+    const { data:sess } = await SB.auth.getSession();
+    const r = await fetch(SB_URL+'/functions/v1/wa-signup',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+sess.session.access_token,'Content-Type':'application/json'},
+      body: JSON.stringify({ clinic_id:NX.clinic, code:code||null, token:token||null,
+        waba_id:WA_ES.waba_id, phone_number_id:WA_ES.phone_number_id })
+    });
+    const d = await r.json();
+    if (d.ok){ waMsg('Conectado: '+(d.numero||''),'ok'); waLoad(); }
+    else waMsg('Falhou: '+(d.erro||'')+' - '+JSON.stringify(d.passos||d.meta||d),'err');
+  }catch(e){ waMsg('Erro: '+(e.message||e),'err'); }
+}
+
 async function waDisconnect(){ try{ await SB.rpc('nx_wa_disconnect',{p_clinic:NX.clinic}); toast('WhatsApp desconectado'); waLoad(); }catch(e){ toast('Erro','⚠'); } }
 async function waRotate(){ try{ await SB.rpc('nx_wa_rotate_verify',{p_clinic:NX.clinic}); toast('Novo verify token gerado'); waLoad(); }catch(e){ toast('Erro','⚠'); } }
 async function waTest(){
@@ -1744,8 +1973,18 @@ function waLink(num, texto){ return 'https://wa.me/'+num+'?text='+encodeURICompo
 function qrImg(url){ return 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data='+encodeURIComponent(url); }
 async function canalLoad(){
   const box=document.getElementById('canalBox'); if(!box) return;
-  const num=(((NX.clinicInfo||{}).telefone_whatsapp)||'').replace(/\D/g,'');
-  if(!num){ box.innerHTML='<div class="cl-cs">Preencha o <b>WhatsApp oficial</b> da clínica (acima) e salve o perfil para gerar os links e QR Codes.</div>'; return; }
+  // O numero sai da conexao real com a Meta, nao do campo digitado no perfil.
+  // Distribuir QR de um numero que nao esta conectado leva o paciente a um
+  // WhatsApp que nao atende — ou ao de outra pessoa.
+  let num='';
+  try{
+    const {data:wa}=await SB.rpc('nx_wa_get',{p_clinic:NX.clinic});
+    if(wa && wa.status==='conectado') num=(wa.display_number||'').replace(/\D/g,'');
+  }catch(e){}
+  if(num.length<12){
+    box.innerHTML='<p class="wa-hint">Conecte o WhatsApp da clínica no card acima para gerar os links e QR Codes de atendimento.</p>';
+    return;
+  }
   let meds=[]; try{ const {data}=await SB.rpc('nx_clinic_medicos',{p_clinic:NX.clinic}); meds=data||[]; }catch(e){}
   const clnome=((NX.clinicInfo||{}).nome)||'a clínica';
   const clinicLink=waLink(num,'Olá! Gostaria de iniciar um atendimento na '+clnome+'.');
@@ -1763,24 +2002,6 @@ async function canalLoad(){
   } else { html+='<div class="cl-cs" style="margin-top:12px">Cadastre médicos em <b>Equipe</b> para gerar o link/QR de cada um.</div>'; }
   box.innerHTML=html;
 }
-function rcSig(d){ if(!d) return ''; const c=d.conv||{}; return (d.messages||[]).length+'|'+(d.collected||[]).length+'|'+c.status+'|'+c.risk+'|'+c.bot_active+'|'+(c.desfecho||''); }
-async function rcTick(){
-  if(!NX.real||!SB||!RC.clinic) return;
-  try{ const {data}=await SB.rpc('nx_conv_list',{p_clinic:RC.clinic}); if(data){ RC.list=data; renderRCQueue(); } }catch(e){}
-  if(RC.activeId){
-    try{ const {data}=await SB.rpc('nx_conv_get',{p_conv:RC.activeId}); if(data){
-      const sig=rcSig(data);
-      if(sig!==RC._sig){
-        const inp=document.getElementById('rcMsg'); const val=inp?inp.value:''; const foc=inp&&document.activeElement===inp;
-        RC._sig=sig; RC.active=data; renderRCConversa(); renderRCPainel();
-        const inp2=document.getElementById('rcMsg'); if(inp2){ inp2.value=val; if(foc) inp2.focus(); }
-        const th=document.querySelector('#rcConversa .rc-thread'); if(th) th.scrollTop=th.scrollHeight;
-      }
-    }}catch(e){}
-  }
-}
-function rcStartPoll(){ rcStopPoll(); try{ RC.pollTimer=setInterval(rcTick,4000); }catch(e){} }
-function rcStopPoll(){ if(RC.pollTimer){ clearInterval(RC.pollTimer); RC.pollTimer=null; } }
 async function rcToggleBot(active){ if(!RC.activeId) return;
   try{ await SB.rpc('nx_conv_set_bot',{p_conv:RC.activeId,p_active:active}); RC._sig=null; await rcOpen(RC.activeId); toast(active?'IA retomada — voltou a responder':'IA pausada — você assumiu o atendimento'); }
   catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
