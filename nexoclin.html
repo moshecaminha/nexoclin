@@ -627,6 +627,8 @@ html,body{overflow-x:hidden}
       <input id="rlPass" type="password" placeholder="Senha" class="rl-inp" autocomplete="current-password">
       <button class="rl-btn" onclick="nxLogin()">Entrar</button>
       <div class="rl-err" id="rlErr"></div>
+      <div style="text-align:center;margin-top:12px;font-size:12.5px;color:var(--mute)">É médico e ainda não tem conta?</div>
+      <button class="rl-btn" onclick="medSignupForm()" style="background:#fff;color:var(--navy);border:1px solid var(--line);margin-top:6px">Primeiro acesso — criar meu consultório</button>
     </div>
     <div class="promo">
   <div class="promo-item"><span class="pi-ic">◑</span><div><b>Prioriza o que precisa de você</b><span>Classificação de risco na fila</span></div></div>
@@ -1782,6 +1784,33 @@ function rcStopPoll(){ if(RC.pollTimer){ clearInterval(RC.pollTimer); RC.pollTim
 async function rcToggleBot(active){ if(!RC.activeId) return;
   try{ await SB.rpc('nx_conv_set_bot',{p_conv:RC.activeId,p_active:active}); RC._sig=null; await rcOpen(RC.activeId); toast(active?'IA retomada — voltou a responder':'IA pausada — você assumiu o atendimento'); }
   catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+function medSignupForm(){
+  const esp=['Clínica Médica','Pediatria','Ginecologia e Obstetrícia','Cardiologia','Dermatologia','Ortopedia e Traumatologia','Psiquiatria','Neurologia','Endocrinologia','Gastroenterologia','Oftalmologia','Otorrinolaringologia','Urologia','Pneumologia','Reumatologia','Nefrologia','Infectologia','Medicina de Família e Comunidade','Nutrologia','Geriatria','Medicina de Emergência'];
+  openModal(`<h3>Primeiro acesso — Médico</h3>
+    <p style="color:var(--mute);font-size:12.5px;margin:2px 0 12px">Crie seu consultório digital: sua conta, seus dados e o seu WhatsApp — tudo individual. Depois é só conectar o número em <b>Minha clínica → Conexão WhatsApp</b>.</p>
+    <div class="nxm-field"><label>Nome completo</label><input id="msNome" placeholder="Dra. Fulana de Tal"></div>
+    <div class="cl-2"><div class="nxm-field"><label>E-mail</label><input id="msEmail" type="email" autocomplete="off"></div><div class="nxm-field"><label>Senha</label><input id="msSenha" type="password" autocomplete="new-password" placeholder="mínimo 6 caracteres"></div></div>
+    <div class="cl-2"><div class="nxm-field"><label>Especialidade</label><input id="msEsp" list="msEspList" placeholder="ex.: Pediatria"><datalist id="msEspList">${esp.map(x=>`<option value="${x}">`).join('')}</datalist></div><div class="nxm-field"><label>CRM</label><input id="msCrm" placeholder="CRM-UF 00000"></div></div>
+    <div class="nxm-field"><label>Nome do consultório (opcional)</label><input id="msCons" placeholder="Consultório Dra. Fulana"></div>
+    <div class="nxm-field"><label>WhatsApp com DDI (opcional)</label><input id="msWa" placeholder="5521999998888"></div>
+    <div class="rl-err" id="msErr" style="min-height:16px;color:var(--coral);font-size:12.5px"></div>
+    <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="medSignupSubmit()">Criar meu acesso</button></div>`);
+}
+async function medSignupSubmit(){
+  const g=id=>((document.getElementById(id)||{}).value||'').trim();
+  const nome=g('msNome'), email=g('msEmail'), senha=((document.getElementById('msSenha')||{}).value||''), crm=g('msCrm'), esp=g('msEsp'), cons=g('msCons'), wa=g('msWa');
+  const msg=document.getElementById('msErr');
+  if(!nome||!email||senha.length<6){ if(msg)msg.textContent='Preencha nome, e-mail e senha (mínimo 6 caracteres).'; return; }
+  if(msg){ msg.style.color='var(--mute)'; msg.textContent='Criando sua conta…'; }
+  try{ const {data,error}=await SB.rpc('nx_signup_medico',{p_nome:nome,p_email:email,p_senha:senha,p_crm:crm,p_especialidade:esp,p_consultorio:cons,p_whatsapp:wa});
+    if(error) throw error;
+    if(!data||!data.ok){ if(msg){ msg.style.color='var(--coral)'; msg.textContent=(data&&data.erro)||'Não foi possível criar a conta.'; } return; }
+    closeModal();
+    const e=document.getElementById('rlEmail'), p=document.getElementById('rlPass');
+    if(e)e.value=email; if(p)p.value=senha;
+    nxLogin();
+  }catch(ex){ if(msg){ msg.style.color='var(--coral)'; msg.textContent='Erro: '+(ex.message||ex); } }
+}
 function nxCheckOnboard(){
   const tok=new URLSearchParams(location.search).get('onboard'); if(!tok) return;
   const card=document.querySelector('#login .login-card'); if(!card) return;
