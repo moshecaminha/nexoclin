@@ -733,7 +733,7 @@ function enter(role){
   app.style.setProperty('--role-soft',ROLES[role].soft);
   document.getElementById('login').style.display='none';
   app.classList.add('on');
-  const u=USER[role];
+  const u=(NX.real && NX.me && NX.me.nome) ? NX.me.nome : USER[role];
   document.getElementById('uNm').textContent=u;
   document.getElementById('uRl').textContent=ROLES[role].label;
   document.getElementById('uAv').textContent=u[0];
