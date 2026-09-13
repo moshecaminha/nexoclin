@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NexoClin — Teleconsulta</title>
+<script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+<style>
+  :root{--navy:#143A4E;--cyan:#29A9D0;--coral:#F2564C;--ok:#12996A}
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0;background:#0c1e28;color:#eaf6fb;font-family:system-ui,Inter,Arial,sans-serif;display:flex;flex-direction:column}
+  .top{background:#0e2a37;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;font-size:14px}
+  .top b{color:#fff}
+  .dot{width:9px;height:9px;border-radius:50%;background:#f2c037;display:inline-block;margin-right:7px}
+  .dot.on{background:#4ade80}
+  .stage{flex:1;position:relative;display:grid;gap:8px;padding:8px;grid-template-columns:1fr;align-content:stretch}
+  @media(min-width:760px){.stage{grid-template-columns:1fr}}
+  .remote{position:relative;background:#08161d;border-radius:14px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+  .remote video{width:100%;height:100%;object-fit:cover}
+  .remote .wait{color:#7fa7b6;font-size:15px;text-align:center;padding:24px}
+  .self{position:absolute;right:14px;bottom:90px;width:120px;height:160px;border-radius:12px;overflow:hidden;border:2px solid #29A9D0;background:#08161d;z-index:5;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+  .self video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+  .bar{display:flex;gap:14px;justify-content:center;padding:14px;background:#0e2a37}
+  .btn{width:52px;height:52px;border-radius:50%;border:0;font-size:20px;cursor:pointer;color:#fff;background:#26404c;display:grid;place-items:center}
+  .btn.off{background:#F2564C}
+  .btn.leave{background:#F2564C;width:64px;border-radius:32px;font-size:14px;font-weight:700;padding:0 18px}
+  .msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;z-index:20}
+  .msg .card{background:#0e2a37;border:1px solid #1e4e63;border-radius:16px;padding:26px;max-width:420px}
+  .msg h2{margin:0 0 8px;color:#fff;font-size:19px}
+  .msg p{color:#9fc2cf;font-size:14px;margin:6px 0}
+  .brand{font-weight:800}.brand span{color:#29A9D0}
+</style>
+</head>
+<body>
+<div class="top"><span class="brand">Nexo<span>Clin</span> · Teleconsulta</span><span id="st"><span class="dot" id="dot"></span><span id="stTxt">conectando…</span></span></div>
+<div class="stage">
+  <div class="remote" id="remote"><div class="wait" id="wait">Aguardando o outro participante entrar…</div></div>
+  <div class="self" id="self"></div>
+</div>
+<div class="bar">
+  <button class="btn" id="bMic" title="Microfone" onclick="toggleMic()">🎙️</button>
+  <button class="btn" id="bCam" title="Câmera" onclick="toggleCam()">📷</button>
+  <button class="btn leave" onclick="sair()">Sair</button>
+</div>
+<div class="msg" id="msg" style="display:none"><div class="card"><h2 id="msgT">Ops</h2><p id="msgP"></p></div></div>
+
+<script>
+  const qs=new URLSearchParams(location.search);
+  const url=qs.get('url'), token=qs.get('token'), room=qs.get('room'), nome=qs.get('nome')||'Participante';
+  let LK=window.LivekitClient||window.LiveKit; let sala=null, micOn=true, camOn=true;
+  function showMsg(t,p){ document.getElementById('msgT').textContent=t; document.getElementById('msgP').textContent=p; document.getElementById('msg').style.display='flex'; }
+  function setStatus(t,on){ document.getElementById('stTxt').textContent=t; document.getElementById('dot').classList.toggle('on',!!on); }
+  function sair(){ try{ sala&&sala.disconnect(); }catch(e){} showMsg('Chamada encerrada','Você saiu da teleconsulta. Pode fechar esta janela.'); }
+
+  async function start(){
+    if(!url||!token||!room){ showMsg('Link inválido','Este link de teleconsulta está incompleto ou expirado. Peça um novo à clínica.'); return; }
+    if(!LK){ showMsg('Não foi possível carregar o vídeo','Verifique sua conexão e tente abrir o link novamente.'); return; }
+    try{
+      sala=new LK.Room({adaptiveStream:true,dynacast:true});
+      sala.on(LK.RoomEvent.TrackSubscribed,(track,pub,part)=>{ if(track.kind==='video'||track.kind==='audio'){ const el=track.attach(); if(track.kind==='video'){ const r=document.getElementById('remote'); document.getElementById('wait').style.display='none'; el.id='remoteVid'; const old=document.getElementById('remoteVid'); if(old)old.remove(); r.appendChild(el); } else { el.style.display='none'; document.body.appendChild(el); } } });
+      sala.on(LK.RoomEvent.ParticipantDisconnected,()=>{ document.getElementById('wait').style.display='block'; document.getElementById('wait').textContent='O outro participante saiu.'; const v=document.getElementById('remoteVid'); if(v)v.remove(); });
+      sala.on(LK.RoomEvent.Disconnected,()=>setStatus('desconectado',false));
+      await sala.connect(url,token);
+      setStatus('conectado',true);
+      await sala.localParticipant.enableCameraAndMicrophone();
+      const vt=sala.localParticipant.getTrackPublication ? (sala.localParticipant.getTrackPublication(LK.Track.Source.Camera)) : null;
+      const track=vt&&vt.track; if(track){ const el=track.attach(); document.getElementById('self').appendChild(el); }
+    }catch(e){ showMsg('Não foi possível conectar','Permita o acesso à câmera e ao microfone e tente novamente. ('+(e&&e.message||e)+')'); }
+  }
+  async function toggleMic(){ if(!sala) return; micOn=!micOn; await sala.localParticipant.setMicrophoneEnabled(micOn); document.getElementById('bMic').classList.toggle('off',!micOn); }
+  async function toggleCam(){ if(!sala) return; camOn=!camOn; await sala.localParticipant.setCameraEnabled(camOn); document.getElementById('bCam').classList.toggle('off',!camOn); }
+  start();
+</script>
+</body>
+</html>
