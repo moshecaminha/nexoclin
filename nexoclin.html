@@ -765,8 +765,8 @@ const ROLES={
 };
 const USER={recepcao:'Marina Souza',secretaria:'Cláudia Reis',enfermagem:'Enf. Paula Lima',medico:'Dra. Camila Ferreira',gestor:'Roberto Caminha',admin:'Super-admin'};
 const NAV={
-  recepcao:[['cockpit','Atendimento','chat'],['relatorios','Relatórios','chart']],
-  secretaria:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['documentos','Documentos','inbox'],['relatorios','Relatórios','chart']],
+  recepcao:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['clinica','Meu consultório','building'],['relatorios','Relatórios','chart']],
+  secretaria:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['documentos','Documentos','inbox'],['clinica','Meu consultório','building'],['relatorios','Relatórios','chart']],
   enfermagem:[['cockpit','Atendimento','chat'],['documentos','Documentos','inbox'],['relatorios','Relatórios','chart']],
   medico:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['documentos','Documentos','inbox'],['valores','Valores','chart'],['relatorios','Meus indicadores','chart']],
   gestor:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['documentos','Documentos','inbox'],['valores','Valores','chart'],['clinica','Meu consultório','building'],['relatorios','Relatórios','chart'],['equipe','Equipe','users']],
@@ -2291,10 +2291,16 @@ function configView(){ return `<div class="wi" style="max-width:none"><div class
   ${valCard(`<div class="cl-ct">Endereço do site</div><div class="cl-cs">Usado para montar os links de teleconsulta enviados ao paciente (aponte para onde o site estará publicado).</div>
     <div class="nxm-field"><label>SITE_URL</label><input id="cfgSite" placeholder="https://nexoclin.app.br/"></div>
     <button class="cl-btn pri" style="padding:9px 15px" onclick="configSave('SITE_URL','cfgSite')">Salvar</button>`)}
+  ${valCard(`<div class="cl-ct">Nota fiscal (NFS-e)</div><div class="cl-cs">Emissor de nota fiscal de serviço. A nota é emitida automaticamente quando o pagamento é confirmado. Requer a conta do emissor já configurada com os dados da empresa e o código de serviço.</div>
+    <div class="cl-2"><div class="nxm-field"><label>Emissor</label><select id="cfgNfProv"><option value="enotas">eNotas</option></select></div><div class="nxm-field"><label>Ambiente</label><select id="cfgNfAmb"><option value="Homologacao">Homologação (teste)</option><option value="Producao">Produção</option></select></div></div>
+    <div class="nxm-field"><label>NF_API_KEY</label><input id="cfgNfKey" type="password"></div>
+    <div class="nxm-field"><label>NF_EMPRESA_ID</label><input id="cfgNfEmp"></div>
+    <button class="cl-btn pri" style="padding:9px 15px" onclick="configSaveNF()">Salvar nota fiscal</button>`)}
   </div>`; }
-async function configLoad(){ try{ const {data}=await SB.rpc('nx_cfg_status'); const st=data||{}; const box=document.getElementById('cfgStatus'); if(box){ const chip=(k,l)=>`<span class="chip2" style="margin:3px">${l}: <b style="color:${st[k]?'#12996a':'#F2564C'}">${st[k]?'configurado':'pendente'}</b></span>`; box.innerHTML=chip('MP_ACCESS_TOKEN','Pagamento')+chip('LIVEKIT_API_KEY','Telemedicina')+chip('SITE_URL','Site'); } }catch(e){} }
+async function configLoad(){ try{ const {data}=await SB.rpc('nx_cfg_status'); const st=data||{}; const box=document.getElementById('cfgStatus'); if(box){ const chip=(k,l)=>`<span class="chip2" style="margin:3px">${l}: <b style="color:${st[k]?'#12996a':'#F2564C'}">${st[k]?'configurado':'pendente'}</b></span>`; box.innerHTML=chip('MP_ACCESS_TOKEN','Pagamento')+chip('LIVEKIT_API_KEY','Telemedicina')+chip('NF_API_KEY','Nota fiscal')+chip('SITE_URL','Site'); } }catch(e){} }
 async function configSave(chave,inputId){ const v=(document.getElementById(inputId)||{}).value||''; if(!v){ toast('Preencha o valor','⚠'); return; } try{ await SB.rpc('nx_cfg_set',{p_chave:chave,p_valor:v}); toast('Salvo'); const e=document.getElementById(inputId); if(e)e.value=''; configLoad(); }catch(ex){ toast('Erro: '+(ex.message||ex),'⚠'); } }
 async function configSaveLK(){ const u=(document.getElementById('cfgLU')||{}).value||'',k=(document.getElementById('cfgLK')||{}).value||'',sc=(document.getElementById('cfgLS')||{}).value||''; try{ if(u)await SB.rpc('nx_cfg_set',{p_chave:'LIVEKIT_URL',p_valor:u}); if(k)await SB.rpc('nx_cfg_set',{p_chave:'LIVEKIT_API_KEY',p_valor:k}); if(sc)await SB.rpc('nx_cfg_set',{p_chave:'LIVEKIT_API_SECRET',p_valor:sc}); toast('LiveKit salvo'); ['cfgLK','cfgLS'].forEach(i=>{const e=document.getElementById(i);if(e)e.value='';}); configLoad(); }catch(ex){ toast('Erro','⚠'); } }
+async function configSaveNF(){ const g=id=>((document.getElementById(id)||{}).value||''); try{ await SB.rpc('nx_cfg_set',{p_chave:'NF_PROVIDER',p_valor:g('cfgNfProv')||'enotas'}); await SB.rpc('nx_cfg_set',{p_chave:'NF_AMBIENTE',p_valor:g('cfgNfAmb')||'Homologacao'}); if(g('cfgNfKey'))await SB.rpc('nx_cfg_set',{p_chave:'NF_API_KEY',p_valor:g('cfgNfKey')}); if(g('cfgNfEmp'))await SB.rpc('nx_cfg_set',{p_chave:'NF_EMPRESA_ID',p_valor:g('cfgNfEmp')}); toast('Nota fiscal salva'); const e=document.getElementById('cfgNfKey'); if(e)e.value=''; configLoad(); }catch(ex){ toast('Erro','⚠'); } }
 const DIAS=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 async function valAvailLoad(){ if(!SB||!NX.clinic||!NX.me) return; try{ const {data}=await SB.rpc('nx_avail_list',{p_clinic:NX.clinic,p_prof:NX.me.id}); VAL.avail=data||[]; valAvailRows(); }catch(e){} }
 function valAvailRows(){ const b=document.getElementById('valAvailBody'); if(!b) return; if(!VAL.avail||!VAL.avail.length){ b.innerHTML='<tr><td colspan="6" style="color:var(--mute)">Nenhum horário definido.</td></tr>'; return; }
