@@ -356,6 +356,15 @@ audio.rc-media{width:230px;max-width:100%}
 .canal-qr img{border-radius:8px;border:1px solid var(--line);display:block}
 .canal-info{flex:1;min-width:0}
 .canal-nome{font-weight:700;color:var(--navy);font-size:13.5px}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.kpi-v{font-family:var(--display,inherit);font-weight:800;font-size:22px;color:var(--navy)}
+.kpi-l{font-size:12px;color:var(--mute);margin-top:2px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip2{background:var(--bg,#F4F7F9);border:1px solid var(--line);border-radius:20px;padding:4px 12px;font-size:12.5px;color:#22343c}
+.cl-tab{background:#fff;border:1px solid var(--line);border-radius:20px;padding:5px 13px;font-size:12.5px;cursor:pointer;color:var(--mute)}
+.cl-tab.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 </style>
 <style id="wa-style">
 /* ===== Cockpit de Atendimento WhatsApp — escopo .wa- ===== */
@@ -716,7 +725,7 @@ const NAV={
   enfermagem:[['cockpit','Atendimento','chat'],['documentos','Documentos','inbox'],['relatorios','Relatórios','chart']],
   medico:[['cockpit','Atendimento','chat'],['documentos','Documentos','inbox'],['relatorios','Meus indicadores','chart']],
   gestor:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['documentos','Documentos','inbox'],['clinica','Minha clínica','building'],['relatorios','Relatórios','chart'],['equipe','Equipe','users']],
-  admin:[['plataforma','Plataforma','map'],['relatorios','Relatórios','chart'],['integr','Integrações','plug']],
+  admin:[['plataforma','Plataforma','map'],['relatorios','Relatórios','chart'],['crm','CRM','users'],['financeiro','Financeiro','chart'],['integr','Integrações','plug']],
 };
 const TITLES={cockpit:'Atendimento',agenda:'Agenda',clinica:'Minha clínica',plataforma:'Plataforma',relatorios:'Relatórios',integr:'Integrações',equipe:'Equipe & acessos'};
 let ROLE=null;
@@ -781,8 +790,10 @@ function nav(v){
   else if(v==='documentos'){ if(NX.real){ view.innerHTML=documentosView(); docLoad(); } else { view.innerHTML=emptyState('Documentos','Entre com uma conta real (médico, secretaria ou gestor) para gerenciar documentos.'); } }
   else if(v==='prontuario'){ if(NX.real){ prontuario(); } else { view.innerHTML=emptyState('Prontuário','Entre com uma conta real para acessar o prontuário.'); } }
   else if(v==='agenda'){ if(NX.real){ view.innerHTML=agendaReal(); agLoad(); } else { view.innerHTML=agendaView(); } }
-  else if(v==='relatorios'){ if(NX.real){ view.innerHTML=emptyState('Relatórios','Ainda sem dados. Os indicadores aparecem conforme os atendimentos acontecem.'); } else { const sc=ROLE==='medico'?'medico':'admin'; view.innerHTML=WA.dash.view(sc); WA.dash.mount(sc); } }
+  else if(v==='relatorios'){ if(NX.real){ if(ROLE==='admin'){ view.innerHTML=relAdminView(); relAdminLoad(); } else { view.innerHTML=emptyState('Relatórios','Ainda sem dados. Os indicadores aparecem conforme os atendimentos acontecem.'); } } else { const sc=ROLE==='medico'?'medico':'admin'; view.innerHTML=WA.dash.view(sc); WA.dash.mount(sc); } }
   else if(v==='integr'){ view.innerHTML=WA.integr.view(); WA.integr.mount(); }
+  else if(v==='crm'){ if(NX.real){ view.innerHTML=crmAdminView(); crmLoad(); } else { view.innerHTML=emptyState('CRM','Disponível no acesso do super-admin.'); } }
+  else if(v==='financeiro'){ if(NX.real){ view.innerHTML=finAdminView(); finLoad(); } else { view.innerHTML=emptyState('Financeiro','Disponível no acesso do super-admin.'); } }
   else if(v==='clinica'){ view.innerHTML=clinicaView(); }
   else if(v==='plataforma'){ PF_LOADED=false; view.innerHTML=plataformaView(); plataformaMount(); }
   else if(v==='equipe'){ view.innerHTML=equipeView(); }
@@ -2032,6 +2043,56 @@ async function medSignupSubmit(){
     nxLogin();
   }catch(ex){ if(msg){ msg.style.color='var(--coral)'; msg.textContent='Erro: '+(ex.message||ex); } }
 }
+function relAdminView(){ return `<div class="wi" style="max-width:none"><div class="page-h"><h1>Relatórios da plataforma</h1><p>Visão global da NexoClin.</p></div><div id="relBox"><div class="rc-empty">Carregando…</div></div></div>`; }
+async function relAdminLoad(){ const b=document.getElementById('relBox'); if(!b||!SB) return;
+  try{ const {data:s}=await SB.rpc('nx_admin_stats'); if(!s){ b.innerHTML='<div class="rc-empty">Sem dados.</div>'; return; }
+    const kpi=(l,v)=>`<div class="kpi"><div class="kpi-v">${v}</div><div class="kpi-l">${l}</div></div>`;
+    const leads=s.leads_por_status||{}; const uf=s.por_uf||[];
+    b.innerHTML=`<div class="kpis">${kpi('Clínicas',s.clinicas)}${kpi('Clínicas ativas',s.clinicas_ativas)}${kpi('Médicos',s.medicos)}${kpi('Pacientes',s.pacientes)}${kpi('Atendimentos',s.conversas)}${kpi('Em aberto',s.conversas_abertas)}${kpi('Documentos',s.documentos)}${kpi('Agendamentos',s.agendamentos)}${kpi('Leads (CRM)',s.leads)}${kpi('Novos médicos 30d',s.novos_medicos_30d)}</div>
+      <div class="cl-sec2" style="margin-top:16px">Leads por status</div><div class="chips">${Object.entries(leads).map(([k,v])=>`<span class="chip2">${k}: <b>${v}</b></span>`).join('')||'—'}</div>
+      <div class="cl-sec2" style="margin-top:16px">Clínicas por UF</div><div class="chips">${(uf||[]).map(u=>`<span class="chip2">${u.uf}: <b>${u.n}</b></span>`).join('')||'—'}</div>`;
+  }catch(e){ b.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao carregar.</div>'; } }
+
+const CRM={list:[],filtro:''};
+function crmAdminView(){ const fils=['','novo','contatado','negociando','ativo','inativo','perdido'];
+  return `<div class="wi" style="max-width:none"><div class="page-h"><h1>CRM — acompanhamento</h1><p>Todos os cadastros/leads da plataforma. Atualize o status e registre contatos.</p></div>
+  <div class="eq-bar"><div style="display:flex;gap:6px;flex-wrap:wrap">${fils.map(x=>`<button class="cl-tab ${CRM.filtro===x?'on':''}" onclick="crmFilter('${x}')">${x||'Todos'}</button>`).join('')}</div></div>
+  <table class="eq-tbl"><thead><tr><th>Nome</th><th>Contato</th><th>Especialidade</th><th>Status</th><th>Responsável</th><th style="text-align:right">Ações</th></tr></thead><tbody id="crmBody"><tr><td colspan="6" style="color:var(--mute)">Carregando…</td></tr></tbody></table></div>`; }
+async function crmLoad(){ if(!SB) return; try{ const {data}=await SB.rpc('nx_admin_crm_list',{p_status:CRM.filtro||null}); CRM.list=data||[]; const b=document.getElementById('crmBody'); if(b) b.innerHTML=crmRows(); }catch(e){ const b=document.getElementById('crmBody'); if(b) b.innerHTML='<tr><td colspan="6" style="color:var(--coral)">Erro.</td></tr>'; } }
+function crmFilter(x){ CRM.filtro=x; document.getElementById('view').innerHTML=crmAdminView(); crmLoad(); }
+function crmRows(){ if(!CRM.list.length) return '<tr><td colspan="6" style="color:var(--mute)">Nenhum lead.</td></tr>';
+  const cor={novo:'#B4790B',contatado:'#1596BE',negociando:'#6C5CE7',ativo:'#12996A',inativo:'#6b7b83',perdido:'#F2564C'};
+  return CRM.list.map((l,i)=>`<tr><td><b>${l.nome||'—'}</b>${l.crm?`<div style="color:var(--mute);font-size:11px">${l.crm}</div>`:''}</td><td style="color:var(--mute);font-size:12px">${l.email||''}${l.telefone?('<br>'+l.telefone):''}</td><td style="color:var(--mute)">${l.especialidade||'—'}</td><td style="font-weight:700;color:${cor[l.status]||'#6b7b83'}">${l.status}</td><td style="color:var(--mute)">${l.responsavel||'—'}</td><td style="text-align:right"><button class="eq-act" onclick="crmForm(${i})">Atualizar</button></td></tr>`).join(''); }
+function crmForm(i){ const l=CRM.list[i]; const sts=['novo','contatado','negociando','ativo','inativo','perdido'];
+  openModal(`<h3>${l.nome||'Lead'}</h3><p style="color:var(--mute);font-size:12.5px;margin:2px 0 10px">${l.email||''} ${l.telefone?('· '+l.telefone):''}</p>
+    <div class="nxm-field"><label>Status</label><select id="crmSt">${sts.map(x=>`<option ${l.status===x?'selected':''}>${x}</option>`).join('')}</select></div>
+    <div class="nxm-field"><label>Responsável</label><input id="crmResp" value="${l.responsavel||''}"></div>
+    <div class="nxm-field"><label>Notas</label><textarea id="crmNotas" rows="4" style="width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;font-family:var(--body)">${l.notas||''}</textarea></div>
+    <label style="font-size:12.5px;color:var(--mute);display:block;margin-top:4px"><input type="checkbox" id="crmMark"> Registrar contato agora</label>
+    <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="crmSave('${l.id}')">Salvar</button></div>`); }
+async function crmSave(id){ const g=x=>((document.getElementById(x)||{}).value||''); const mark=(document.getElementById('crmMark')||{}).checked;
+  try{ await SB.rpc('nx_admin_crm_update',{p_id:id,p_status:g('crmSt'),p_responsavel:g('crmResp'),p_notas:g('crmNotas'),p_mark_contact:!!mark}); closeModal(); crmLoad(); toast('Lead atualizado'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+
+const FIN={list:[],sum:null};
+function finAdminView(){ return `<div class="wi" style="max-width:none"><div class="page-h"><h1>Financeiro da plataforma</h1><p>Entradas e saídas do ponto de vista da NexoClin.</p></div>
+  <div id="finSum" class="kpis" style="margin-bottom:12px"></div>
+  <div class="eq-bar"><b>Lançamentos</b><button class="cl-btn pri" style="margin:0;padding:10px 15px" onclick="finForm()">+ Novo lançamento</button></div>
+  <table class="eq-tbl"><thead><tr><th>Competência</th><th>Tipo</th><th>Categoria</th><th>Descrição</th><th style="text-align:right">Valor</th></tr></thead><tbody id="finBody"><tr><td colspan="5" style="color:var(--mute)">Carregando…</td></tr></tbody></table></div>`; }
+function money(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+async function finLoad(){ if(!SB) return; try{ const [l,su]=await Promise.all([SB.rpc('nx_admin_fin_list',{p_from:null,p_to:null}),SB.rpc('nx_admin_fin_summary',{p_from:null,p_to:null})]); FIN.list=l.data||[]; FIN.sum=su.data||{};
+    const s=FIN.sum; const sumEl=document.getElementById('finSum'); if(sumEl) sumEl.innerHTML=`<div class="kpi"><div class="kpi-v" style="color:#12996a">${money(s.entradas)}</div><div class="kpi-l">Entradas</div></div><div class="kpi"><div class="kpi-v" style="color:#F2564C">${money(s.saidas)}</div><div class="kpi-l">Saídas</div></div><div class="kpi"><div class="kpi-v" style="color:${(Number(s.saldo)||0)>=0?'#143A4E':'#F2564C'}">${money(s.saldo)}</div><div class="kpi-l">Saldo</div></div>`;
+    const b=document.getElementById('finBody'); if(b) b.innerHTML=finRows();
+  }catch(e){ const b=document.getElementById('finBody'); if(b) b.innerHTML='<tr><td colspan="5" style="color:var(--coral)">Erro.</td></tr>'; } }
+function finRows(){ if(!FIN.list.length) return '<tr><td colspan="5" style="color:var(--mute)">Nenhum lançamento ainda.</td></tr>';
+  return FIN.list.map(x=>`<tr><td>${(x.competencia||'').split('-').reverse().join('/')}</td><td style="font-weight:700;color:${x.tipo==='entrada'?'#12996a':'#F2564C'}">${x.tipo}</td><td style="color:var(--mute)">${x.categoria||'—'}</td><td>${x.descricao||''}</td><td style="text-align:right;font-weight:600">${money(x.valor)}</td></tr>`).join(''); }
+function finForm(){ openModal(`<h3>Novo lançamento</h3>
+  <div class="cl-2"><div class="nxm-field"><label>Tipo</label><select id="finTipo"><option value="entrada">Entrada</option><option value="saida">Saída</option></select></div><div class="nxm-field"><label>Valor (R$)</label><input id="finValor" type="number" step="0.01" placeholder="0,00"></div></div>
+  <div class="cl-2"><div class="nxm-field"><label>Categoria</label><input id="finCat" placeholder="ex.: Plano Super, Infra"></div><div class="nxm-field"><label>Competência</label><input id="finComp" type="date"></div></div>
+  <div class="nxm-field"><label>Descrição</label><input id="finDesc"></div>
+  <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="finSave()">Lançar</button></div>`); }
+async function finSave(){ const g=x=>((document.getElementById(x)||{}).value||'');
+  const valor=parseFloat(g('finValor'))||0; if(!valor){ toast('Informe o valor','⚠'); return; }
+  try{ await SB.rpc('nx_admin_fin_add',{p_tipo:g('finTipo'),p_categoria:g('finCat'),p_descricao:g('finDesc'),p_valor:valor,p_competencia:g('finComp')||null,p_clinic:null}); closeModal(); finLoad(); toast('Lançamento registrado'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 function nxCheckOnboard(){
   const tok=new URLSearchParams(location.search).get('onboard'); if(!tok) return;
   const card=document.querySelector('#login .login-card'); if(!card) return;
