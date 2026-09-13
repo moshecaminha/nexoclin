@@ -365,6 +365,30 @@ audio.rc-media{width:230px;max-width:100%}
 .chip2{background:var(--bg,#F4F7F9);border:1px solid var(--line);border-radius:20px;padding:4px 12px;font-size:12.5px;color:#22343c}
 .cl-tab{background:#fff;border:1px solid var(--line);border-radius:20px;padding:5px 13px;font-size:12.5px;cursor:pointer;color:var(--mute)}
 .cl-tab.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+
+.sup-grid{display:grid;grid-template-columns:300px 1fr;border:1px solid var(--line);border-radius:14px;overflow:hidden;height:calc(100vh - 250px);min-height:440px;background:#fff}
+.sup-col{display:flex;flex-direction:column;min-height:0}
+.sup-col.main{border-left:1px solid var(--line)}
+.sup-hd{padding:12px 14px;font-weight:700;color:var(--navy);border-bottom:1px solid var(--line)}
+.sup-list{overflow-y:auto;flex:1}
+.sup-item{display:block;width:100%;text-align:left;background:#fff;border:0;border-bottom:1px solid var(--line);padding:11px 14px;cursor:pointer}
+.sup-item.on{background:var(--mist,#EAF4F8)}
+.sup-nm{font-weight:600;color:var(--navy);font-size:14px}
+.sup-tel{font-size:11.5px;color:var(--mute)}
+.sup-last{font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#supMain{display:flex;flex-direction:column;height:100%}
+.sup-top{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
+.sup-thread{flex:1;overflow-y:auto;padding:14px;background:#F7FAFB;display:flex;flex-direction:column;gap:8px}
+.sup-bub{max-width:72%;padding:8px 12px;border-radius:12px;font-size:14px;line-height:1.4}
+.sup-bub.in{background:#fff;border:1px solid var(--line);align-self:flex-start;border-top-left-radius:4px}
+.sup-bub.out{background:#DCF8C6;align-self:flex-end;border-top-right-radius:4px}
+.sup-comp{display:flex;gap:8px;align-items:center;padding:10px 12px;border-top:1px solid var(--line)}
+.sup-comp input#supMsg{flex:1;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:15px;outline:none}
+.sup-ic{background:var(--mist,#EAF4F8);border:1px solid var(--line);border-radius:10px;width:40px;height:40px;font-size:18px;cursor:pointer}
+.sup-ic.rec{background:#FDE7E5;border-color:var(--coral);color:var(--coral)}
+.sup-status{font-size:12px;padding:0 14px 8px;min-height:14px}
+.sup-empty{color:var(--mute);text-align:center;padding:24px}
+@media(max-width:760px){.sup-grid{grid-template-columns:1fr;height:auto}.sup-col.main{border-left:0;border-top:1px solid var(--line)}}
 </style>
 <style id="wa-style">
 /* ===== Cockpit de Atendimento WhatsApp — escopo .wa- ===== */
@@ -725,7 +749,7 @@ const NAV={
   enfermagem:[['cockpit','Atendimento','chat'],['documentos','Documentos','inbox'],['relatorios','Relatórios','chart']],
   medico:[['cockpit','Atendimento','chat'],['documentos','Documentos','inbox'],['relatorios','Meus indicadores','chart']],
   gestor:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['documentos','Documentos','inbox'],['clinica','Meu consultório','building'],['relatorios','Relatórios','chart'],['equipe','Equipe','users']],
-  admin:[['plataforma','Plataforma','map'],['relatorios','Relatórios','chart'],['crm','CRM','users'],['financeiro','Financeiro','chart'],['integr','Integrações','plug']],
+  admin:[['plataforma','Plataforma','map'],['suporte','Suporte','chat'],['relatorios','Relatórios','chart'],['crm','CRM','users'],['financeiro','Financeiro','chart'],['integr','Integrações','plug']],
 };
 const TITLES={cockpit:'Atendimento',agenda:'Agenda',clinica:'Meu consultório',plataforma:'Plataforma',relatorios:'Relatórios',integr:'Integrações',equipe:'Equipe & acessos'};
 let ROLE=null;
@@ -781,6 +805,7 @@ function renderNav(){
   document.getElementById('nav').innerHTML=NAV[ROLE].map(([v,l,ic])=>`<button class="nav-item" data-v="${v}" onclick="nav('${v}')"><span class="ic">${ICON[ic]}</span>${l}</button>`).join('');
 }
 function nav(v){
+  if(typeof supStopPoll==='function') supStopPoll();
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
   document.getElementById('pageTitle').textContent=TITLES[v]||'';
   document.getElementById('app').classList.remove('nav-open');
@@ -792,6 +817,7 @@ function nav(v){
   else if(v==='agenda'){ if(NX.real){ view.innerHTML=agendaReal(); agLoad(); } else { view.innerHTML=agendaView(); } }
   else if(v==='relatorios'){ if(NX.real){ if(ROLE==='admin'){ view.innerHTML=relAdminView(); relAdminLoad(); } else { view.innerHTML=emptyState('Relatórios','Ainda sem dados. Os indicadores aparecem conforme os atendimentos acontecem.'); } } else { const sc=ROLE==='medico'?'medico':'admin'; view.innerHTML=WA.dash.view(sc); WA.dash.mount(sc); } }
   else if(v==='integr'){ view.innerHTML=WA.integr.view(); WA.integr.mount(); }
+  else if(v==='suporte'){ if(NX.real){ view.innerHTML=supView(); supLoad(); } else { view.innerHTML=emptyState('Suporte','Disponível no acesso do super-admin.'); } }
   else if(v==='crm'){ if(NX.real){ view.innerHTML=crmAdminView(); crmLoad(); } else { view.innerHTML=emptyState('CRM','Disponível no acesso do super-admin.'); } }
   else if(v==='financeiro'){ if(NX.real){ view.innerHTML=finAdminView(); finLoad(); } else { view.innerHTML=emptyState('Financeiro','Disponível no acesso do super-admin.'); } }
   else if(v==='clinica'){ view.innerHTML=clinicaView(); }
@@ -2093,6 +2119,58 @@ function finForm(){ openModal(`<h3>Novo lançamento</h3>
 async function finSave(){ const g=x=>((document.getElementById(x)||{}).value||'');
   const valor=parseFloat(g('finValor'))||0; if(!valor){ toast('Informe o valor','⚠'); return; }
   try{ await SB.rpc('nx_admin_fin_add',{p_tipo:g('finTipo'),p_categoria:g('finCat'),p_descricao:g('finDesc'),p_valor:valor,p_competencia:g('finComp')||null,p_clinic:null}); closeModal(); finLoad(); toast('Lançamento registrado'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+const SUP={clinic:null,list:[],activeId:null,active:null,_sig:null,pollTimer:null,rec:null,chunks:[],recActive:false};
+function supView(){ return `<div class="wi" style="max-width:none"><div class="page-h"><h1>Suporte</h1><p>Conversas recebidas no WhatsApp do suporte (+55 21 92368-3569). Responda por aqui — texto, áudio, imagem ou documento.</p></div>
+  <div class="sup-grid"><div class="sup-col"><div class="sup-hd">Conversas</div><div class="sup-list" id="supList"><div class="sup-empty">Carregando…</div></div></div>
+  <div class="sup-col main"><div id="supMain"><div class="sup-empty" style="margin:auto">Selecione uma conversa à esquerda.</div></div></div></div></div>`; }
+async function supLoad(){ if(!SB) return; try{ const r=await SB.rpc('nx_sup_clinic'); SUP.clinic=r.data; const {data}=await SB.rpc('nx_sup_list'); SUP.list=data||[]; supRenderList(); supStartPoll(); }catch(e){ const l=document.getElementById('supList'); if(l) l.innerHTML='<div class="sup-empty" style="color:var(--coral)">Erro ao carregar.</div>'; } }
+function supRenderList(){ const l=document.getElementById('supList'); if(!l) return; if(!SUP.list.length){ l.innerHTML='<div class="sup-empty">Nenhuma conversa ainda.</div>'; return; }
+  l.innerHTML=SUP.list.map(c=>`<button class="sup-item ${SUP.activeId===c.id?'on':''}" onclick="supOpen('${c.id}')"><div class="sup-nm">${c.paciente_nome||c.responsavel_nome||c.telefone||'Contato'}</div><div class="sup-tel">${c.telefone||''}</div><div class="sup-last">${((c.last_msg||'')+'').slice(0,42)}</div></button>`).join(''); }
+async function supResolve(mu){ if(!mu) return null; if(/^https?:/i.test(mu)) return mu;
+  try{ const {data}=await SB.storage.from('documentos').createSignedUrl(mu,3600); if(data&&data.signedUrl) return data.signedUrl; }catch(e){}
+  try{ const r=SB.storage.from('wa-media').getPublicUrl(mu); if(r&&r.data) return r.data.publicUrl; }catch(e){}
+  return null; }
+function supSig(d){ const c=d.conv||{}; return (d.messages||[]).length+'|'+c.status+'|'+c.bot_active; }
+async function supOpen(id){ SUP.activeId=id; try{ const {data}=await SB.rpc('nx_conv_get',{p_conv:id}); if(!data) return;
+  await Promise.all((data.messages||[]).map(async m=>{ if(m.media_url) m._url=await supResolve(m.media_url); }));
+  SUP.active=data; SUP._sig=supSig(data); supRenderMain(); supRenderList(); }catch(e){ toast('Erro ao abrir a conversa','⚠'); } }
+function supRenderMain(){ const m=document.getElementById('supMain'); if(!m||!SUP.active) return; const c=SUP.active.conv||{};
+  m.innerHTML=`<div class="sup-top"><div><b>${c.paciente_nome||c.responsavel_nome||c.telefone||'Contato'}</b><span class="sup-tel"> ${c.telefone||''}</span></div><div>${(c.bot_active===false)?`<button class="rc-b2" onclick="supBot(true)">▶ Retomar IA</button>`:`<button class="rc-b2" onclick="supBot(false)">⏸ Assumir</button>`}</div></div>
+  <div class="sup-thread" id="supThread">${(SUP.active.messages||[]).map(supBubble).join('')}</div>
+  <input type="file" id="supFile" accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx" style="display:none" onchange="supAttach(this)">
+  <div class="sup-comp"><button class="sup-ic" title="Anexar imagem/documento" onclick="document.getElementById('supFile').click()">📎</button><button class="sup-ic" id="supMic" title="Gravar e enviar áudio" onclick="supRecordToggle()">🎙️</button><input id="supMsg" placeholder="Escreva uma resposta..." onkeydown="if(event.key==='Enter')supSend()"><button class="cl-btn pri" style="margin:0;padding:10px 16px" onclick="supSend()">Enviar</button></div>
+  <div class="sup-status" id="supStatus"></div>`;
+  const th=document.getElementById('supThread'); if(th) th.scrollTop=th.scrollHeight; }
+function supBubble(m){ const cls=m.direction==='in'?'in':'out'; const u=m._url||m.media_url; let inner='';
+  if(m.type==='image'&&u) inner=`<img src="${u}" style="max-width:220px;border-radius:8px;display:block">`;
+  else if(m.type==='audio'&&u) inner=`<audio controls src="${u}" style="max-width:240px"></audio>`;
+  else if(m.type==='video'&&u) inner=`<video controls src="${u}" style="max-width:240px;border-radius:8px"></video>`;
+  else if(m.type==='document'&&u) inner=`<a href="${u}" target="_blank" style="color:inherit;text-decoration:underline">📄 ${m.body||'documento'}</a>`;
+  else inner=((m.body||'')+'').replace(/</g,'&lt;');
+  return `<div class="sup-bub ${cls}">${inner}</div>`; }
+function supSetStatus(t,err){ const s=document.getElementById('supStatus'); if(s){ s.style.color=err?'var(--coral)':'var(--mute)'; s.textContent=t||''; } }
+async function supUpload(file,ext){ try{ const name='sup/'+Date.now()+'_'+Math.random().toString(36).slice(2)+(ext||('_'+((file&&file.name)||'arquivo')));
+  const {error}=await SB.storage.from('wa-media').upload(name,file,{upsert:true,contentType:(file&&file.type)||undefined}); if(error) throw error;
+  const r=SB.storage.from('wa-media').getPublicUrl(name); return r.data.publicUrl; }catch(e){ return null; } }
+async function supDeliver(payload){ supSetStatus('Enviando…'); try{ const {data,error}=await SB.functions.invoke('sup-send',{body:{clinic_id:SUP.clinic,conv_id:SUP.activeId,...payload}}); if(error) throw error;
+  if(data&&data.ok){ supSetStatus(''); SUP._sig=null; await supOpen(SUP.activeId); } else { supSetStatus('Não entregue: '+((data&&data.erro)||'verifique a conexão/token e se o número é permitido na Meta'),true); } }catch(e){ supSetStatus('Erro ao enviar.',true); } }
+async function supSend(){ const i=document.getElementById('supMsg'); const t=(i&&i.value||'').trim(); if(!t||!SUP.active) return; if(i) i.value=''; await supDeliver({kind:'text',text:t,to:SUP.active.conv.telefone}); }
+async function supAttach(input){ const fl=input.files&&input.files[0]; if(!fl||!SUP.active) return; input.value=''; const kind=(fl.type||'').startsWith('image/')?'image':((fl.type||'').startsWith('video/')?'video':'document');
+  supSetStatus('Enviando '+kind+'…'); const url=await supUpload(fl); if(!url){ supSetStatus('Falha no upload.',true); return; } await supDeliver({kind,media_url:url,filename:fl.name,to:SUP.active.conv.telefone}); }
+async function supRecordToggle(){ const mic=document.getElementById('supMic'); if(SUP.recActive){ try{ SUP.rec.stop(); }catch(e){} return; }
+  try{ const stream=await navigator.mediaDevices.getUserMedia({audio:true}); let mime='audio/ogg;codecs=opus'; if(!(window.MediaRecorder&&MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(mime))) mime='audio/webm';
+    SUP.rec=new MediaRecorder(stream,{mimeType:mime}); SUP.chunks=[]; SUP.recActive=true; if(mic){ mic.textContent='⏹'; mic.classList.add('rec'); }
+    SUP.rec.ondataavailable=e=>{ if(e.data&&e.data.size) SUP.chunks.push(e.data); };
+    SUP.rec.onstop=async()=>{ SUP.recActive=false; if(mic){ mic.textContent='🎙️'; mic.classList.remove('rec'); } stream.getTracks().forEach(t=>t.stop());
+      const blob=new Blob(SUP.chunks,{type:mime.split(';')[0]}); const ext=mime.indexOf('ogg')>=0?'.ogg':'.webm'; supSetStatus('Enviando áudio…');
+      const url=await supUpload(blob,ext); if(!url){ supSetStatus('Falha no upload do áudio.',true); return; } await supDeliver({kind:'audio',media_url:url,to:SUP.active.conv.telefone}); };
+    SUP.rec.start(); supSetStatus('Gravando… toque de novo para enviar.'); }catch(e){ supSetStatus('Não consegui acessar o microfone.',true); } }
+async function supBot(active){ try{ await SB.rpc('nx_sup_set_bot',{p_conv:SUP.activeId,p_active:active}); SUP._sig=null; await supOpen(SUP.activeId); }catch(e){ toast('Erro','⚠'); } }
+async function supTick(){ if(!NX.real||!SB) return; try{ const {data}=await SB.rpc('nx_sup_list'); if(data){ SUP.list=data; supRenderList(); } }catch(e){}
+  if(SUP.activeId&&!SUP.recActive){ try{ const {data}=await SB.rpc('nx_conv_get',{p_conv:SUP.activeId}); if(data){ const sig=supSig(data); if(sig!==SUP._sig){ const inp=document.getElementById('supMsg'); const v=inp?inp.value:'';
+    await Promise.all((data.messages||[]).map(async m=>{ if(m.media_url) m._url=await supResolve(m.media_url); })); SUP._sig=sig; SUP.active=data; supRenderMain(); const i2=document.getElementById('supMsg'); if(i2) i2.value=v; } } }catch(e){} } }
+function supStartPoll(){ supStopPoll(); try{ SUP.pollTimer=setInterval(supTick,4000); }catch(e){} }
+function supStopPoll(){ if(SUP.pollTimer){ clearInterval(SUP.pollTimer); SUP.pollTimer=null; } }
 function nxCheckOnboard(){
   const tok=new URLSearchParams(location.search).get('onboard'); if(!tok) return;
   const card=document.querySelector('#login .login-card'); if(!card) return;
