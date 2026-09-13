@@ -1221,8 +1221,8 @@ function clinicForm(i){
    <div class="nxm-field"><label>Nome</label><input id="cfNome" value="${c.nome||''}"></div>
    <div class="nxm-field"><label>CNPJ</label><input id="cfCnpj" value="${c.cnpj||''}" placeholder="00.000.000/0000-00"></div>
    <div class="nxm-field"><label>WhatsApp oficial</label><input id="cfWa" value="${c.whatsapp||''}" placeholder="+55 21 90000-0000"></div>
-   <div class="nxm-field"><label>Cidade</label><input id="cfCidade" value="${c.cidade||''}"></div>
-   <div class="nxm-field"><label>UF</label><input id="cfUf" value="${c.uf||''}" maxlength="2"></div>
+   ${addrBlock('cf',c)}
+   ${horLembBlock('cf',c)}
    <div class="nxm-field"><label>Plano</label><select id="cfPlano"><option ${c.plano==='trial'?'selected':''}>trial</option><option ${c.plano==='Pro'?'selected':''}>Pro</option></select></div>
    <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="clinicSave(${i})">Salvar</button></div>`);
 }
@@ -1231,13 +1231,18 @@ async function clinicSave(i){
   const nome=(document.getElementById('cfNome').value||'').trim();
   const cnpj=((document.getElementById('cfCnpj')||{}).value||'').trim()||null;
   const wa=(document.getElementById('cfWa').value||'').trim();
-  const cidade=(document.getElementById('cfCidade').value||'').trim();
+  const cidade=(document.getElementById('cfCid').value||'').trim();
   const uf=(document.getElementById('cfUf').value||'').trim().toUpperCase();
   const plano=document.getElementById('cfPlano').value;
+  const gv=id=>((document.getElementById(id)||{}).value||'').trim(); const gc=id=>(((document.getElementById(id)||{}).checked)===true);
+  const cep=gv('cfCep'),end=gv('cfEnd'),num=gv('cfNum'),bairro=gv('cfBairro'),hor=gv('cfHor');
+  const remC=gc('cfRemC'),rem24=gc('cfRem24'),rem2=gc('cfRem2');
   if(!nome){ toast('Informe o nome do consultório','⚠'); return; }
   try{
-    if(i>=0){ await SB.rpc('nx_admin_update_clinic',{p_clinic:PF_ROWS[i].id,p_nome:nome,p_cidade:cidade,p_estado:uf,p_whatsapp:wa,p_plano:plano,p_ativo:null}); toast('Clínica atualizada'); }
-    else { const {error}=await SB.rpc('nx_admin_create_clinic',{p_nome:nome,p_cnpj:cnpj,p_cidade:cidade,p_estado:uf,p_whatsapp:wa,p_plano:plano}); if(error) throw error; toast('Clínica criada'); }
+    let cidId;
+    if(i>=0){ await SB.rpc('nx_admin_update_clinic',{p_clinic:PF_ROWS[i].id,p_nome:nome,p_cidade:cidade,p_estado:uf,p_whatsapp:wa,p_plano:plano,p_ativo:null}); cidId=PF_ROWS[i].id; toast('Consultório atualizado'); }
+    else { const {data,error}=await SB.rpc('nx_admin_create_clinic',{p_nome:nome,p_cnpj:cnpj,p_cidade:cidade,p_estado:uf,p_whatsapp:wa,p_plano:plano}); if(error) throw error; cidId=data; toast('Consultório criado'); }
+    if(cidId){ await SB.rpc('nx_admin_clinic_extra',{p_clinic:cidId,p_cep:cep,p_logradouro:end,p_numero:num,p_bairro:bairro,p_cidade:cidade,p_estado:uf,p_horario:hor,p_rem_conf:remC,p_rem_24:rem24,p_rem_2:rem2}); }
     closeModal(); pfLoad();
   }catch(e){ toast('Erro: '+(e.message||e),'⚠'); }
 }
@@ -2042,6 +2047,23 @@ async function canalLoad(){
 async function rcToggleBot(active){ if(!RC.activeId) return;
   try{ await SB.rpc('nx_conv_set_bot',{p_conv:RC.activeId,p_active:active}); RC._sig=null; await rcOpen(RC.activeId); toast(active?'IA retomada — voltou a responder':'IA pausada — você assumiu o atendimento'); }
   catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+const UF_LIST=['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+function ufOpts(sel){ sel=(sel||'RJ'); return UF_LIST.map(u=>`<option ${u===sel?'selected':''}>${u}</option>`).join(''); }
+async function nxCidades(uf,listId){ const dl=document.getElementById(listId); if(!dl||!uf) return; try{ const r=await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados/'+uf+'/municipios'); const j=await r.json(); dl.innerHTML=(j||[]).map(m=>`<option value="${m.nome}">`).join(''); }catch(e){} }
+async function nxCep(pfx){ const el=document.getElementById(pfx+'Cep'); if(!el) return; const cep=(el.value||'').replace(/\D/g,''); if(cep.length!==8) return;
+  try{ const r=await fetch('https://viacep.com.br/ws/'+cep+'/json/'); const j=await r.json(); if(j&&!j.erro){ const st=(id,v)=>{const e=document.getElementById(id); if(e&&v!=null&&v!=='')e.value=v;};
+    st(pfx+'End',j.logradouro); st(pfx+'Bairro',j.bairro); st(pfx+'Cid',j.localidade); const uf=document.getElementById(pfx+'Uf'); if(uf&&j.uf){ uf.value=j.uf; nxCidades(j.uf,pfx+'CidList'); } } }catch(e){} }
+function addrBlock(pfx,v){ v=v||{}; return `<div class="cl-2"><div class="nxm-field"><label>CEP</label><input id="${pfx}Cep" value="${v.cep||''}" placeholder="00000-000" oninput="nxCep('${pfx}')"></div><div class="nxm-field"><label>Número</label><input id="${pfx}Num" value="${v.numero||''}"></div></div>
+  <div class="nxm-field"><label>Logradouro</label><input id="${pfx}End" value="${v.endereco||''}" placeholder="Rua / Avenida"></div>
+  <div class="cl-2"><div class="nxm-field"><label>Bairro</label><input id="${pfx}Bairro" value="${v.bairro||''}"></div><div class="nxm-field"><label>UF</label><select id="${pfx}Uf" onchange="nxCidades(this.value,'${pfx}CidList')">${ufOpts(v.estado||v.uf)}</select></div></div>
+  <div class="nxm-field"><label>Cidade</label><input id="${pfx}Cid" value="${v.cidade||''}" list="${pfx}CidList" placeholder="Digite para buscar…" onfocus="if(!this.list||!this.list.children.length)nxCidades((document.getElementById('${pfx}Uf')||{}).value||'RJ','${pfx}CidList')"><datalist id="${pfx}CidList"></datalist></div>`; }
+function horLembBlock(pfx,v){ v=v||{}; const ck=(id,on)=>`<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);margin:4px 0;cursor:pointer"><input type="checkbox" id="${id}" ${on!==false?'checked':''}> `;
+  return `<div class="nxm-field"><label>Horário de atendimento</label><input id="${pfx}Hor" value="${v.horario_atendimento||''}" placeholder="Ex.: Seg a Sex, 08:00 às 18:00"></div>
+  <div class="nxm-field"><label>Lembretes automáticos ao paciente</label><div style="background:var(--panel,#F2F8FA);border:1px solid var(--line);border-radius:10px;padding:9px 12px">
+    ${ck(pfx+'RemC',v.rem_confirmacao)}Enviar confirmação ao agendar</label>
+    ${ck(pfx+'Rem24',v.rem_24h)}Enviar lembrete 24h antes</label>
+    ${ck(pfx+'Rem2',v.rem_2h)}Enviar lembrete 2h antes</label>
+  </div></div>`; }
 function medSignupForm(){
   const esp=['Clínica Médica','Pediatria','Ginecologia e Obstetrícia','Cardiologia','Dermatologia','Ortopedia e Traumatologia','Psiquiatria','Neurologia','Endocrinologia','Gastroenterologia','Oftalmologia','Otorrinolaringologia','Urologia','Pneumologia','Reumatologia','Nefrologia','Infectologia','Medicina de Família e Comunidade','Nutrologia','Geriatria','Medicina de Emergência'];
   openModal(`<h3>Primeiro acesso — Médico</h3>
@@ -2051,6 +2073,8 @@ function medSignupForm(){
     <div class="cl-2"><div class="nxm-field"><label>Especialidade</label><input id="msEsp" list="msEspList" placeholder="ex.: Pediatria"><datalist id="msEspList">${esp.map(x=>`<option value="${x}">`).join('')}</datalist></div><div class="nxm-field"><label>CRM</label><input id="msCrm" placeholder="CRM-UF 00000"></div></div>
     <div class="nxm-field"><label>Nome do consultório (opcional)</label><input id="msCons" placeholder="Consultório Dra. Fulana"></div>
     <div class="nxm-field"><label>WhatsApp com DDI (opcional)</label><input id="msWa" placeholder="5521999998888"></div>
+    ${addrBlock('ms',{})}
+    ${horLembBlock('ms',{})}
     <div class="rl-err" id="msErr" style="min-height:16px;color:var(--coral);font-size:12.5px"></div>
     <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="medSignupSubmit()">Criar meu acesso</button></div>`);
 }
@@ -2060,7 +2084,10 @@ async function medSignupSubmit(){
   const msg=document.getElementById('msErr');
   if(!nome||!email||senha.length<6){ if(msg)msg.textContent='Preencha nome, e-mail e senha (mínimo 6 caracteres).'; return; }
   if(msg){ msg.style.color='var(--mute)'; msg.textContent='Criando sua conta…'; }
-  try{ const {data,error}=await SB.rpc('nx_signup_medico',{p_nome:nome,p_email:email,p_senha:senha,p_crm:crm,p_especialidade:esp,p_consultorio:cons,p_whatsapp:wa});
+  const gv=id=>((document.getElementById(id)||{}).value||'').trim(); const gc=id=>(((document.getElementById(id)||{}).checked)===true);
+  const cep=gv('msCep'),endr=gv('msEnd'),num=gv('msNum'),bairro=gv('msBairro'),uf=(gv('msUf')||'').toUpperCase(),cid=gv('msCid'),hor=gv('msHor');
+  const remC=gc('msRemC'),rem24=gc('msRem24'),rem2=gc('msRem2');
+  try{ const {data,error}=await SB.rpc('nx_signup_medico',{p_nome:nome,p_email:email,p_senha:senha,p_crm:crm,p_especialidade:esp,p_consultorio:cons,p_whatsapp:wa,p_cep:cep,p_logradouro:endr,p_numero:num,p_bairro:bairro,p_cidade:cid,p_estado:uf,p_horario:hor,p_rem_conf:remC,p_rem_24:rem24,p_rem_2:rem2});
     if(error) throw error;
     if(!data||!data.ok){ if(msg){ msg.style.color='var(--coral)'; msg.textContent=(data&&data.erro)||'Não foi possível criar a conta.'; } return; }
     closeModal();
