@@ -1998,11 +1998,17 @@ function agendaReal(){
     <div class="page-h"><h1>Agenda</h1><p>Agendamentos do consultório. Para consultas com telefone, a <b>confirmação</b> e os <b>lembretes</b> por WhatsApp são enviados automaticamente (24h e no dia).</p></div>
     <div class="eq-bar"><b>Consultas</b><button class="cl-btn pri" style="margin:0;padding:10px 15px" onclick="agForm()">+ Novo agendamento</button></div>
     <table class="eq-tbl"><thead><tr><th>Quando</th><th>Paciente</th><th>Profissional</th><th>Status</th><th style="text-align:right">Ações</th></tr></thead><tbody id="agBody"><tr><td colspan="5" style="color:var(--mute)">Carregando…</td></tr></tbody></table>
+    <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:18px">
+      <div class="eq-bar"><b>Horários de atendimento</b><button class="cl-btn pri" style="margin:0;padding:9px 14px" onclick="valAvailForm(-1)">+ Novo horário</button></div>
+      <div class="cl-cs">Dias e faixas em que você atende (padrão: Seg a Sáb, 08:00–18:00). É daqui que a agenda gera os horários livres para o paciente marcar. Inclua domingo se atender.</div>
+      <table class="eq-tbl"><thead><tr><th>Dia</th><th>Início</th><th>Fim</th><th>Modalidade</th><th>Slot</th><th style="text-align:right">Ações</th></tr></thead><tbody id="valAvailBody"><tr><td colspan="6" style="color:var(--mute)">Carregando…</td></tr></tbody></table>
+    </div>
   </div>`;
 }
 async function agLoad(){ AG.clinic=NX.clinic; if(!SB||!AG.clinic) return;
   try{ const {data}=await SB.rpc('nx_appt_list',{p_clinic:AG.clinic,p_from:null,p_to:null}); AG.list=data||[]; const b=document.getElementById('agBody'); if(b) b.innerHTML=agRows(); }
-  catch(e){ const b=document.getElementById('agBody'); if(b) b.innerHTML='<tr><td colspan="5" style="color:var(--coral)">Erro ao carregar.</td></tr>'; } }
+  catch(e){ const b=document.getElementById('agBody'); if(b) b.innerHTML='<tr><td colspan="5" style="color:var(--coral)">Erro ao carregar.</td></tr>'; }
+  if(typeof valAvailLoad==='function') valAvailLoad(); }
 function agFmt(iso){ try{ return new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }catch(e){ return iso||''; } }
 function agRows(){ if(!AG.list.length) return '<tr><td colspan="5" style="color:var(--mute)">Nenhum agendamento ainda.</td></tr>';
   const cor={agendada:'#B4790B',confirmada:'#12996A',cancelada:'#F2564C',realizada:'#6b7b83',faltou:'#F2564C'};
@@ -2246,14 +2252,12 @@ function valView(){ return `<div class="wi" style="max-width:none"><div class="p
     <table class="eq-tbl"><thead><tr><th>Categoria</th><th>Modalidade</th><th>Valor</th><th>Duração</th><th>Ativo</th><th style="text-align:right">Ações</th></tr></thead><tbody id="valPriceBody"><tr><td colspan="6" style="color:var(--mute)">Carregando…</td></tr></tbody></table>`)}
   ${valCard(`<div class="eq-bar"><b>Cupons de desconto</b><button class="cl-btn pri" style="margin:0;padding:9px 14px" onclick="valCoupForm(-1)">+ Novo cupom</button></div>
     <table class="eq-tbl"><thead><tr><th>Código</th><th>Desconto</th><th>Validade</th><th>Usos</th><th>Ativo</th><th style="text-align:right">Ações</th></tr></thead><tbody id="valCoupBody"><tr><td colspan="6" style="color:var(--mute)">Carregando…</td></tr></tbody></table>`)}
-  ${valCard(`<div class="eq-bar"><b>Disponibilidade da agenda</b><button class="cl-btn pri" style="margin:0;padding:9px 14px" onclick="valAvailForm(-1)">+ Novo horário</button></div><div class="cl-cs">Dias e faixas em que você atende. É daqui que a agenda gera os horários livres para o paciente.</div><table class="eq-tbl"><thead><tr><th>Dia</th><th>Início</th><th>Fim</th><th>Modalidade</th><th>Slot</th><th style="text-align:right">Ações</th></tr></thead><tbody id="valAvailBody"><tr><td colspan="6" style="color:var(--mute)">Carregando…</td></tr></tbody></table>`)}
   </div>`; }
 function valMoney(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 async function valLoad(){ if(!SB||!NX.clinic||!NX.me) return; const prof=NX.me.id;
   try{ const m=await SB.rpc('nx_doc_modalidades',{p_prof:prof}); const md=m.data||{}; const pr=document.getElementById('valPres'), tl=document.getElementById('valTel'); if(pr)pr.checked=md.presencial!==false; if(tl)tl.checked=md.telemedicina===true; }catch(e){}
   try{ const {data}=await SB.rpc('nx_price_list',{p_clinic:NX.clinic,p_prof:prof}); VAL.prices=data||[]; valPriceRows(); }catch(e){}
-  try{ const {data}=await SB.rpc('nx_coupon_list',{p_clinic:NX.clinic,p_prof:prof}); VAL.coupons=data||[]; valCoupRows(); }catch(e){}
-  valAvailLoad(); }
+  try{ const {data}=await SB.rpc('nx_coupon_list',{p_clinic:NX.clinic,p_prof:prof}); VAL.coupons=data||[]; valCoupRows(); }catch(e){} }
 async function valModSave(){ try{ await SB.rpc('nx_prof_modalidade_set',{p_clinic:NX.clinic,p_prof:NX.me.id,p_presencial:document.getElementById('valPres').checked,p_telemed:document.getElementById('valTel').checked}); toast('Modalidade salva'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 function valPriceRows(){ const b=document.getElementById('valPriceBody'); if(!b) return; if(!VAL.prices.length){ b.innerHTML='<tr><td colspan="6" style="color:var(--mute)">Nenhuma categoria ainda.</td></tr>'; return; }
   b.innerHTML=VAL.prices.map((p,i)=>`<tr><td><b>${p.categoria}</b></td><td>${p.modalidade}</td><td>${valMoney(p.valor)}</td><td>${p.duracao_min||30} min</td><td>${p.ativo?'sim':'não'}</td><td style="text-align:right"><button class="eq-act" onclick="valPriceForm(${i})">Editar</button><button class="eq-act danger" onclick="valPriceDel('${p.id}')">Excluir</button></td></tr>`).join(''); }
