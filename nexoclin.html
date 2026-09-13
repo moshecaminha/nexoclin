@@ -715,7 +715,7 @@ const ROLES={
   secretaria:{label:'Secretaria',ic:'calendar',banner:'Agenda & Secretaria',short:'Agenda, confirmações e retornos',desc:'Você agenda, confirma e organiza os retornos dos pacientes.',color:'#6C5CE7',soft:'#ECEAFD'},
   medico:{label:'Médico',ic:'steth',banner:'Consultório',short:'Atendimento clínico e documentos',desc:'Você atende os casos encaminhados, assina os documentos e conclui.',color:'#12996A',soft:'#DCF3EA'},
   enfermagem:{label:'Enfermagem',ic:'steth',banner:'Enfermagem',short:'Triagem, sinais e prontuário',desc:'Você faz a triagem, registra sinais e notas no prontuário e prepara documentos — a assinatura é do médico.',color:'#0E8F86',soft:'#D7F2EF'},
-  gestor:{label:'Gestor da clínica',ic:'building',banner:'Gestão da Clínica',short:'Perfil, equipe, agenda e onboarding',desc:'Você administra a sua clínica: perfil, equipe, QR de pacientes e resultados.',color:'#2D4EA8',soft:'#E7ECFA'},
+  gestor:{label:'Gestor do consultório',ic:'building',banner:'Gestão do Consultório',short:'Perfil, equipe, agenda e onboarding',desc:'Você administra o seu consultório: perfil, equipe, QR de pacientes e resultados.',color:'#2D4EA8',soft:'#E7ECFA'},
   admin:{label:'Super-admin',ic:'shield',banner:'Plataforma NexoClin',short:'Todas as clínicas do país',desc:'Acesso da plataforma: mapa das clínicas, integrações e gestão global.',color:'#D97A25',soft:'#FBEEDD'},
 };
 const USER={recepcao:'Marina Souza',secretaria:'Cláudia Reis',enfermagem:'Enf. Paula Lima',medico:'Dra. Camila Ferreira',gestor:'Roberto Caminha',admin:'Super-admin'};
@@ -724,10 +724,10 @@ const NAV={
   secretaria:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['documentos','Documentos','inbox'],['relatorios','Relatórios','chart']],
   enfermagem:[['cockpit','Atendimento','chat'],['documentos','Documentos','inbox'],['relatorios','Relatórios','chart']],
   medico:[['cockpit','Atendimento','chat'],['documentos','Documentos','inbox'],['relatorios','Meus indicadores','chart']],
-  gestor:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['documentos','Documentos','inbox'],['clinica','Minha clínica','building'],['relatorios','Relatórios','chart'],['equipe','Equipe','users']],
+  gestor:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['documentos','Documentos','inbox'],['clinica','Meu consultório','building'],['relatorios','Relatórios','chart'],['equipe','Equipe','users']],
   admin:[['plataforma','Plataforma','map'],['relatorios','Relatórios','chart'],['crm','CRM','users'],['financeiro','Financeiro','chart'],['integr','Integrações','plug']],
 };
-const TITLES={cockpit:'Atendimento',agenda:'Agenda',clinica:'Minha clínica',plataforma:'Plataforma',relatorios:'Relatórios',integr:'Integrações',equipe:'Equipe & acessos'};
+const TITLES={cockpit:'Atendimento',agenda:'Agenda',clinica:'Meu consultório',plataforma:'Plataforma',relatorios:'Relatórios',integr:'Integrações',equipe:'Equipe & acessos'};
 let ROLE=null;
 const SB_URL='https://kzbazzwfdagfhyxuadqp.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6YmF6endmZGFnZmh5eHVhZHFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwNTYwMjUsImV4cCI6MjEwMjYzMjAyNX0.CembztJIxu21Q2WB6BV4iCGWLkYo8xXQW7Id35b3pyM';
@@ -743,11 +743,11 @@ async function clinicSaveProfile(){
   if(NX.real){
     try{ const {data,error}=await SB.rpc('nx_clinic_update_self',{p_clinic:NX.clinic,p_nome:g('clNome'),p_whatsapp:g('clWa'),p_slug:g('clSlug'),p_razao:g('clRazao'),p_fantasia:g('clFant'),p_cnpj:g('clCnpj'),p_cnes:g('clCnes'),p_email:g('clEmail'),p_cep:g('clCep'),p_endereco:g('clEnd'),p_numero:g('clNum'),p_complemento:g('clComp'),p_bairro:g('clBairro'),p_cidade:g('clCid'),p_estado:g('clUf'),p_resp:g('clResp'),p_resp_crm:g('clRespCrm')});
       if(error) throw error; if(data&&!data.ok){ toast(data.erro||'Erro','⚠'); return; }
-      await loadClinicInfo(); document.getElementById('view').innerHTML=clinicaView(); toast('Perfil da clínica salvo'); }
+      await loadClinicInfo(); document.getElementById('view').innerHTML=clinicaView(); toast('Perfil do consultório salvo'); }
     catch(e){ toast('Erro: '+(e.message||e),'⚠'); }
     return;
   }
-  toast('Perfil da clínica salvo');
+  toast('Perfil do consultório salvo');
 }
 
 function toast(m,i){ let t=document.getElementById('nxToasts'); if(!t){t=document.createElement('div');t.id='nxToasts';t.style.cssText='position:fixed;bottom:18px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:8px';document.body.appendChild(t);} const el=document.createElement('div'); el.style.cssText='background:#143A4E;color:#fff;padding:11px 15px;border-radius:11px;font:600 13px Inter,sans-serif;box-shadow:0 12px 30px -10px rgba(20,58,78,.5);max-width:320px'; el.textContent=(i?i+' ':'✓ ')+m; t.appendChild(el); setTimeout(()=>el.remove(),3600); }
@@ -919,7 +919,7 @@ async function clFotoRender(){
   if(!el || !p) return;
   try{
     const { data } = await SB.storage.from('documentos').createSignedUrl(p, 3600);
-    if(data && data.signedUrl) el.innerHTML = '<img src="'+data.signedUrl+'" alt="Logo da clínica">';
+    if(data && data.signedUrl) el.innerHTML = '<img src="'+data.signedUrl+'" alt="Logo do consultório">';
   }catch(e){}
 }
 
@@ -948,15 +948,15 @@ function clinicaView(){
   const link= wnum ? 'https://wa.me/'+wnum+'?text='+encodeURIComponent('Olá! Vim pelo NexoClin e gostaria de atendimento.') : '';
   const persUrl= C.slug ? (location.origin+location.pathname+'?c='+C.slug) : '';
   return `<div class="cl-wrap">
-    <div class="page-h"><h1>Minha clínica</h1><p>Perfil da clínica, WhatsApp oficial, link personalizado e onboarding de pacientes por QR.</p></div>
+    <div class="page-h"><h1>Meu consultório</h1><p>Perfil do consultório, WhatsApp oficial, link personalizado e onboarding de pacientes por QR.</p></div>
     <div class="cl-grid">
       <div class="cl-card">
-        <div class="cl-ct">Perfil da clínica</div>
+        <div class="cl-ct">Perfil do consultório</div>
         <div class="cl-profile">
           <div><div class="cl-foto" id="clFoto">${C.foto}</div><input type="file" id="clFotoFile" accept="image/png,image/jpeg,image/webp" hidden onchange="clFotoUpload(this)"><button class="cl-copy" style="margin-top:8px;width:100%" onclick="document.getElementById('clFotoFile').click()">Trocar foto</button><div class="cl-hint" id="clFotoMsg"></div></div>
           <div style="flex:1">
             <div class="cl-sec2">Identificação</div>
-            <div class="cl-field"><label>Nome da clínica (exibido nos documentos)</label><input id="clNome" value="${C.nome}"></div>
+            <div class="cl-field"><label>Nome do consultório (exibido nos documentos)</label><input id="clNome" value="${C.nome}"></div>
             <div class="cl-2"><div class="cl-field"><label>Razão social</label><input id="clRazao" value="${C.razao}"></div><div class="cl-field"><label>Nome fantasia</label><input id="clFant" value="${C.fantasia}"></div></div>
             <div class="cl-2"><div class="cl-field"><label>CNPJ</label><input id="clCnpj" value="${C.cnpj}" placeholder="00.000.000/0000-00"></div><div class="cl-field"><label>CNES</label><input id="clCnes" value="${C.cnes}" placeholder="cadastro do estabelecimento"></div></div>
             <div class="cl-sec2">Responsável técnico</div>
@@ -972,11 +972,11 @@ function clinicaView(){
             <button class="cl-btn pri" onclick="clinicSaveProfile()">Salvar perfil</button>
           </div>
         </div>
-        ${persUrl?`<div class="cl-cs" style="margin-top:14px">Endereço personalizado da clínica</div><div class="cl-inp"><code>${persUrl}</code><button class="cl-copy" onclick="nxCopy(this.previousElementSibling.textContent,this)">Copiar</button></div>`:`<div class="cl-cs" style="margin-top:14px">Defina um slug e salve para gerar o endereço personalizado (ex.: .../?c=dra-camila).</div>`}
+        ${persUrl?`<div class="cl-cs" style="margin-top:14px">Endereço personalizado do consultório</div><div class="cl-inp"><code>${persUrl}</code><button class="cl-copy" onclick="nxCopy(this.previousElementSibling.textContent,this)">Copiar</button></div>`:`<div class="cl-cs" style="margin-top:14px">Defina um slug e salve para gerar o endereço personalizado (ex.: .../?c=dra-camila).</div>`}
       </div>
       <div class="cl-card" id="qrCard">
         <div class="cl-ct">Link & QR de contato do paciente</div>
-        <div class="cl-cs">Divulgue este QR/link — o paciente cai direto no WhatsApp oficial da clínica.</div>
+        <div class="cl-cs">Divulgue este QR/link — o paciente cai direto no WhatsApp oficial do consultório.</div>
         <div id="qrBox"><div class="cl-cs">Carregando...</div></div>
       </div>
       <div class="cl-card cl-wide">
@@ -996,7 +996,7 @@ function clinicaView(){
 function gerarConvite(){
   const cpfEl=document.getElementById('npCpf'); const cpf=(cpfEl.value||'').replace(/\D/g,'');
   if(cpf && !cpfValido(cpf)){ toast('CPF inválido — corrija antes de gerar','⚠'); return; }
-  const wnum=curWa(); if(!wnum){ toast('Cadastre o WhatsApp oficial da clínica primeiro','⚠'); return; }
+  const wnum=curWa(); if(!wnum){ toast('Cadastre o WhatsApp oficial do consultório primeiro','⚠'); return; }
   const token='NX'+Math.random().toString(36).slice(2,8).toUpperCase();
   const link='https://wa.me/'+wnum+'?text='+encodeURIComponent('Olá! Código de atendimento '+token+' (NexoClin)');
   document.getElementById('npResult').innerHTML=`<div class="cl-convite">
@@ -1021,7 +1021,7 @@ function plataformaView(){
   const A=PF_ROWS;
   if(NX.real && !PF_LOADED) setTimeout(pfLoad,0);
   if(NX.real) setTimeout(saLoad,0);
-  const kpi=[['Clínicas ativas',A.filter(c=>c.ativo).length],['Pacientes',A.reduce((s,c)=>s+(c.pac||0),0).toLocaleString('pt-BR')],['Usuários',A.reduce((s,c)=>s+(c.usuarios||0),0)],['Clínicas',A.length]];
+  const kpi=[['Consultórios ativas',A.filter(c=>c.ativo).length],['Pacientes',A.reduce((s,c)=>s+(c.pac||0),0).toLocaleString('pt-BR')],['Usuários',A.reduce((s,c)=>s+(c.usuarios||0),0)],['Consultórios',A.length]];
   const uf={}; A.forEach(c=>{ if(c.uf) uf[c.uf]=(uf[c.uf]||0)+(c.pac||0); }); const ufa=Object.entries(uf).sort((a,b)=>b[1]-a[1]); const um=Math.max(1,...ufa.map(x=>x[1]));
   const modo = NX.real ? '' : ' <span style="color:var(--sun,#B4790B)">Modo demonstração — entre como super-admin para gerenciar.</span>';
   return `<div class="pf-wrap">
@@ -1029,7 +1029,7 @@ function plataformaView(){
     ${(NX.real&&NX._diag)?`<div style="background:#FBEFD6;border:1px solid #F0DCA8;border-radius:10px;padding:10px 12px;font-size:12px;color:#7a5b12;margin-bottom:12px">Diagnóstico — sessão: <b>${NX._diag.sess}</b> · super-admin: <b>${NX._diag.padmin}</b> · clínicas recebidas: <b>${NX._diag.n}</b>${NX._diag.err?' · erro: <b>'+NX._diag.err+'</b>':''} <button class="eq-act" style="margin-left:8px" onclick="PF_LOADED=false;pfLoad()">Recarregar</button></div>`:''}
     <div class="pf-kpis">${kpi.map(k=>`<div class="pf-kpi"><div class="n">${k[1]}</div><div class="l">${k[0]}</div></div>`).join('')}</div>
     <div class="pf-grid">
-      <div class="cl-card"><div class="cl-ct">Clínicas no Brasil</div>
+      <div class="cl-card"><div class="cl-ct">Consultórios no Brasil</div>
         <div id="pfMap" class="pf-map"></div>
         <div class="pf-legend"><span class="pf-dot on"></span> ativa &nbsp;&nbsp; <span class="pf-dot off"></span> inativa &nbsp;&nbsp;·&nbsp;&nbsp;mapa real (OpenStreetMap)</div>
       </div>
@@ -1038,7 +1038,7 @@ function plataformaView(){
       </div>
     </div>
     <div class="cl-card cl-wide" style="margin-top:14px">
-      <div class="eq-bar"><b>Clínicas (${A.length})</b><button class="cl-btn pri" style="margin:0;padding:10px 15px" onclick="clinicForm(-1)">+ Nova clínica</button></div>
+      <div class="eq-bar"><b>Consultórios (${A.length})</b><button class="cl-btn pri" style="margin:0;padding:10px 15px" onclick="clinicForm(-1)">+ Novo consultório</button></div>
       <div class="wad-table-wrap" style="overflow-x:auto"><table class="eq-tbl"><thead><tr><th>Clínica</th><th>Cidade/UF</th><th>Pacientes</th><th>Usuários</th><th>Plano</th><th>Status</th><th style="text-align:right">Ações</th></tr></thead><tbody>
       ${A.map((c,i)=>`<tr><td><b>${c.nome}</b></td><td>${c.cidade||'—'}${c.uf?'/'+c.uf:''}</td><td>${(c.pac||0).toLocaleString('pt-BR')}</td><td>${c.usuarios||0}</td><td><span class="eq-badge">${c.plano}</span></td><td style="color:${c.ativo?'var(--green)':'var(--mute)'};font-weight:600">${c.ativo?'Ativa':'Inativa'}</td>
         <td style="text-align:right;white-space:nowrap"><button class="eq-act" onclick="openClinicUsers(${i})">Usuários</button><button class="eq-act" onclick="clinicForm(${i})">Editar</button><button class="eq-act" onclick="clinicInvite(${i})">Link de acesso</button><button class="eq-act ${c.ativo?'danger':''}" onclick="clinicToggle(${i})">${c.ativo?'Desativar':'Ativar'}</button></td></tr>`).join('')}
@@ -1191,7 +1191,7 @@ async function pfLoad(){
 }
 function clinicForm(i){
   const c=i>=0?PF_ROWS[i]:{nome:'',cidade:'',uf:'RJ',plano:'trial',whatsapp:''};
-  openModal(`<h3>${i>=0?'Editar clínica':'Nova clínica'}</h3>
+  openModal(`<h3>${i>=0?'Editar consultório':'Novo consultório'}</h3>
    <div class="nxm-field"><label>Nome</label><input id="cfNome" value="${c.nome||''}"></div>
    <div class="nxm-field"><label>CNPJ</label><input id="cfCnpj" value="${c.cnpj||''}" placeholder="00.000.000/0000-00"></div>
    <div class="nxm-field"><label>WhatsApp oficial</label><input id="cfWa" value="${c.whatsapp||''}" placeholder="+55 21 90000-0000"></div>
@@ -1208,7 +1208,7 @@ async function clinicSave(i){
   const cidade=(document.getElementById('cfCidade').value||'').trim();
   const uf=(document.getElementById('cfUf').value||'').trim().toUpperCase();
   const plano=document.getElementById('cfPlano').value;
-  if(!nome){ toast('Informe o nome da clínica','⚠'); return; }
+  if(!nome){ toast('Informe o nome do consultório','⚠'); return; }
   try{
     if(i>=0){ await SB.rpc('nx_admin_update_clinic',{p_clinic:PF_ROWS[i].id,p_nome:nome,p_cidade:cidade,p_estado:uf,p_whatsapp:wa,p_plano:plano,p_ativo:null}); toast('Clínica atualizada'); }
     else { const {error}=await SB.rpc('nx_admin_create_clinic',{p_nome:nome,p_cnpj:cnpj,p_cidade:cidade,p_estado:uf,p_whatsapp:wa,p_plano:plano}); if(error) throw error; toast('Clínica criada'); }
@@ -1221,7 +1221,7 @@ async function clinicInvite(i){
     const {data:tok,error}=await SB.rpc('nx_admin_clinic_invite',{p_clinic:PF_ROWS[i].id});
     if(error) throw error;
     const url=location.origin+location.pathname+'?onboard='+tok;
-    openModal(`<h3>Link de primeiro acesso</h3><p style="color:var(--mute);font-size:13px;margin:6px 0 12px">Envie para <b>${PF_ROWS[i].nome}</b>. Por ele, o responsável cria o login do <b>gestor</b> da clínica. Válido por 14 dias.</p>
+    openModal(`<h3>Link de primeiro acesso</h3><p style="color:var(--mute);font-size:13px;margin:6px 0 12px">Envie para <b>${PF_ROWS[i].nome}</b>. Por ele, o responsável cria o login do <b>gestor</b> do consultório. Válido por 14 dias.</p>
       <div class="cl-inp"><code>${url}</code><button class="cl-copy" onclick="nxCopy(this.previousElementSibling.textContent,this)">Copiar</button></div>
       <div class="nxm-actions"><button class="nxm-btn pri" onclick="closeModal()">Pronto</button></div>`);
   }catch(e){ toast('Erro: '+(e.message||e),'⚠'); }
@@ -1232,7 +1232,7 @@ async function clinicToggle(i){
   try{ await SB.rpc('nx_admin_update_clinic',{p_clinic:PF_ROWS[i].id,p_nome:null,p_cidade:null,p_estado:null,p_whatsapp:null,p_plano:null,p_ativo:alvo}); pfLoad(); toast(alvo?'Clínica ativada':'Clínica desativada'); }
   catch(e){ toast('Erro','⚠'); }
 }
-// ===== primeiro acesso da clínica (link) =====
+// ===== primeiro acesso do consultório (link) =====
 const MCU={clinic:null,name:'',users:[]};
 function openClinicUsers(i){ const c=PF_ROWS[i]; if(!c||!c.id){ toast('Selecione uma clínica salva','⚠'); return; } MCU.clinic=c.id; MCU.name=c.nome; MCU.users=[]; document.getElementById('view').innerHTML=clinicUsersView(); mcuLoad(); }
 function mcuRows(){
@@ -1541,7 +1541,7 @@ async function rcMic(){
   }catch(e){ toast('Microfone indisponível','⚠'); }
 }
 const RCTEMPLATES=[
- ['Saudação','Olá! Aqui é da clínica. Como podemos ajudar você hoje?'],
+ ['Saudação','Olá! Aqui é do consultório. Como podemos ajudar você hoje?'],
  ['Pedir dados','Para agilizar, pode nos enviar seu nome completo, data de nascimento e o motivo do contato?'],
  ['Confirmar consulta','Confirmando sua consulta. Podemos confirmar sua presença?'],
  ['Orientação de chegada','Chegue com 15 minutos de antecedência e traga um documento com foto.'],
@@ -1775,7 +1775,7 @@ function rolesLegend(){
 }
 async function clCepLookup(){ const el=document.getElementById('clCep'); if(!el)return; const cep=(el.value||'').replace(/\D/g,''); if(cep.length!==8)return; try{ const r=await fetch('https://viacep.com.br/ws/'+cep+'/json/'); const j=await r.json(); if(!j.erro){ const s2=(id,v)=>{const e=document.getElementById(id); if(e&&v)e.value=v;}; s2('clEnd',j.logradouro); s2('clBairro',j.bairro); s2('clCid',j.localidade); s2('clUf',j.uf); } }catch(e){} }
 function waCardShell(){ return `<div class="cl-ct">Conexão WhatsApp <span class="rc-super">Meta Cloud API</span></div>
-  <div class="cl-cs">Conecte o número oficial da clínica (WhatsApp Business Cloud API) para receber e enviar mensagens automaticamente. Apenas o gestor gerencia esta conexão.</div>
+  <div class="cl-cs">Conecte o número oficial do consultório (WhatsApp Business Cloud API) para receber e enviar mensagens automaticamente. Apenas o gestor gerencia esta conexão.</div>
   <div id="waBox" style="margin-top:10px"><div class="rc-empty">Carregando…</div></div>`; }
 async function waLoad(){
   const box=document.getElementById('waBox'); if(!box||!SB||!NX.clinic) return;
@@ -1941,7 +1941,7 @@ async function rcSaveProntuario(){ const cid=((document.getElementById('rsCidInp
 const AG={clinic:null,list:[]};
 function agendaReal(){
   return `<div class="wi" style="max-width:none">
-    <div class="page-h"><h1>Agenda</h1><p>Agendamentos da clínica. Para consultas com telefone, a <b>confirmação</b> e os <b>lembretes</b> por WhatsApp são enviados automaticamente (24h e no dia).</p></div>
+    <div class="page-h"><h1>Agenda</h1><p>Agendamentos do consultório. Para consultas com telefone, a <b>confirmação</b> e os <b>lembretes</b> por WhatsApp são enviados automaticamente (24h e no dia).</p></div>
     <div class="eq-bar"><b>Consultas</b><button class="cl-btn pri" style="margin:0;padding:10px 15px" onclick="agForm()">+ Novo agendamento</button></div>
     <table class="eq-tbl"><thead><tr><th>Quando</th><th>Paciente</th><th>Profissional</th><th>Status</th><th style="text-align:right">Ações</th></tr></thead><tbody id="agBody"><tr><td colspan="5" style="color:var(--mute)">Carregando…</td></tr></tbody></table>
   </div>`;
@@ -1978,7 +1978,7 @@ async function agSave(){ const g=id=>((document.getElementById(id)||{}).value||'
   catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 async function agStatus(id,st){ try{ await SB.rpc('nx_appt_set_status',{p_appt:id,p_status:st}); agLoad(); toast('Status: '+st); }catch(e){ toast('Erro','⚠'); } }
 function canalCardShell(){ return `<div class="cl-ct">Canais de atendimento <span class="rc-super">WhatsApp</span></div>
-  <div class="cl-cs">Link e QR Code para o paciente iniciar o atendimento pelo WhatsApp da clínica. Cada médico tem um link próprio (mesmo número, com mensagem que já identifica o profissional).</div>
+  <div class="cl-cs">Link e QR Code para o paciente iniciar o atendimento pelo WhatsApp do consultório. Cada médico tem um link próprio (mesmo número, com mensagem que já identifica o profissional).</div>
   <div id="canalBox" style="margin-top:10px"><div class="rc-empty">Carregando…</div></div>`; }
 function waLink(num, texto){ return 'https://wa.me/'+num+'?text='+encodeURIComponent(texto); }
 function qrImg(url){ return 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data='+encodeURIComponent(url); }
@@ -1993,7 +1993,7 @@ async function canalLoad(){
     if(wa && wa.status==='conectado') num=(wa.display_number||'').replace(/\D/g,'');
   }catch(e){}
   if(num.length<12){
-    box.innerHTML='<p class="wa-hint">Conecte o WhatsApp da clínica no card acima para gerar os links e QR Codes de atendimento.</p>';
+    box.innerHTML='<p class="wa-hint">Conecte o WhatsApp do consultório no card acima para gerar os links e QR Codes de atendimento.</p>';
     return;
   }
   let meds=[]; try{ const {data}=await SB.rpc('nx_clinic_medicos',{p_clinic:NX.clinic}); meds=data||[]; }catch(e){}
@@ -2019,7 +2019,7 @@ async function rcToggleBot(active){ if(!RC.activeId) return;
 function medSignupForm(){
   const esp=['Clínica Médica','Pediatria','Ginecologia e Obstetrícia','Cardiologia','Dermatologia','Ortopedia e Traumatologia','Psiquiatria','Neurologia','Endocrinologia','Gastroenterologia','Oftalmologia','Otorrinolaringologia','Urologia','Pneumologia','Reumatologia','Nefrologia','Infectologia','Medicina de Família e Comunidade','Nutrologia','Geriatria','Medicina de Emergência'];
   openModal(`<h3>Primeiro acesso — Médico</h3>
-    <p style="color:var(--mute);font-size:12.5px;margin:2px 0 12px">Crie seu consultório digital: sua conta, seus dados e o seu WhatsApp — tudo individual. Depois é só conectar o número em <b>Minha clínica → Conexão WhatsApp</b>.</p>
+    <p style="color:var(--mute);font-size:12.5px;margin:2px 0 12px">Crie seu consultório digital: sua conta, seus dados e o seu WhatsApp — tudo individual. Depois é só conectar o número em <b>Meu consultório → Conexão WhatsApp</b>.</p>
     <div class="nxm-field"><label>Nome completo</label><input id="msNome" placeholder="Dra. Fulana de Tal"></div>
     <div class="cl-2"><div class="nxm-field"><label>E-mail</label><input id="msEmail" type="email" autocomplete="off"></div><div class="nxm-field"><label>Senha</label><input id="msSenha" type="password" autocomplete="new-password" placeholder="mínimo 6 caracteres"></div></div>
     <div class="cl-2"><div class="nxm-field"><label>Especialidade</label><input id="msEsp" list="msEspList" placeholder="ex.: Pediatria"><datalist id="msEspList">${esp.map(x=>`<option value="${x}">`).join('')}</datalist></div><div class="nxm-field"><label>CRM</label><input id="msCrm" placeholder="CRM-UF 00000"></div></div>
@@ -2048,9 +2048,9 @@ async function relAdminLoad(){ const b=document.getElementById('relBox'); if(!b|
   try{ const {data:s}=await SB.rpc('nx_admin_stats'); if(!s){ b.innerHTML='<div class="rc-empty">Sem dados.</div>'; return; }
     const kpi=(l,v)=>`<div class="kpi"><div class="kpi-v">${v}</div><div class="kpi-l">${l}</div></div>`;
     const leads=s.leads_por_status||{}; const uf=s.por_uf||[];
-    b.innerHTML=`<div class="kpis">${kpi('Clínicas',s.clinicas)}${kpi('Clínicas ativas',s.clinicas_ativas)}${kpi('Médicos',s.medicos)}${kpi('Pacientes',s.pacientes)}${kpi('Atendimentos',s.conversas)}${kpi('Em aberto',s.conversas_abertas)}${kpi('Documentos',s.documentos)}${kpi('Agendamentos',s.agendamentos)}${kpi('Leads (CRM)',s.leads)}${kpi('Novos médicos 30d',s.novos_medicos_30d)}</div>
+    b.innerHTML=`<div class="kpis">${kpi('Consultórios',s.clinicas)}${kpi('Consultórios ativas',s.clinicas_ativas)}${kpi('Médicos',s.medicos)}${kpi('Pacientes',s.pacientes)}${kpi('Atendimentos',s.conversas)}${kpi('Em aberto',s.conversas_abertas)}${kpi('Documentos',s.documentos)}${kpi('Agendamentos',s.agendamentos)}${kpi('Leads (CRM)',s.leads)}${kpi('Novos médicos 30d',s.novos_medicos_30d)}</div>
       <div class="cl-sec2" style="margin-top:16px">Leads por status</div><div class="chips">${Object.entries(leads).map(([k,v])=>`<span class="chip2">${k}: <b>${v}</b></span>`).join('')||'—'}</div>
-      <div class="cl-sec2" style="margin-top:16px">Clínicas por UF</div><div class="chips">${(uf||[]).map(u=>`<span class="chip2">${u.uf}: <b>${u.n}</b></span>`).join('')||'—'}</div>`;
+      <div class="cl-sec2" style="margin-top:16px">Consultórios por UF</div><div class="chips">${(uf||[]).map(u=>`<span class="chip2">${u.uf}: <b>${u.n}</b></span>`).join('')||'—'}</div>`;
   }catch(e){ b.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao carregar.</div>'; } }
 
 const CRM={list:[],filtro:''};
@@ -2107,7 +2107,7 @@ async function obLoad(tok){
   try{
     const {data,error}=await SB.rpc('nx_onboard_public',{p_token:tok});
     if(error||!data||!data.ok){ b.innerHTML='<div style="color:var(--coral)">Link inválido ou já utilizado.</div>'; return; }
-    b.innerHTML=`<div class="login-tag">Primeiro acesso — <b>${data.clinica}</b>.<br>Crie o login do gestor da clínica.</div>
+    b.innerHTML=`<div class="login-tag">Primeiro acesso — <b>${data.clinica}</b>.<br>Crie o login do gestor do consultório.</div>
       <input id="obNome" class="rl-inp" placeholder="Seu nome" autocomplete="name">
       <input id="obEmail" class="rl-inp" type="email" placeholder="E-mail" autocomplete="email">
       <input id="obPass" class="rl-inp" type="password" placeholder="Senha (mín. 6)" autocomplete="new-password">
@@ -2608,7 +2608,7 @@ WA.dash={f:{period:90,prof:'todos',uf:'todos',scope:'admin'}};
 WA.dash.view=function(scope){
   WA.dash.f.scope=scope||'admin';
   WA.dash.f.prof = scope==='medico' ? 'Dra. Camila Ferreira' : 'todos';
-  const title = scope==='medico' ? 'Meus indicadores' : 'Painel de indicadores da clínica';
+  const title = scope==='medico' ? 'Meus indicadores' : 'Painel de indicadores do consultório';
   const sub = scope==='medico' ? 'Sua produção a partir dos atendimentos via WhatsApp · '+esc(WA.dash.f.prof) : 'Tudo o que o atendimento via WhatsApp gera, em números — filtre e exporte.';
   return `<div class="wad">
     <div class="wad-head">
@@ -2660,7 +2660,7 @@ function render(){
     ['Medicações prescritas',kMed,'itens em receitas',false],
     ['Encaminhamentos',kEnc,'para especialistas',false],
     ['Pacientes com febre',kFev,Math.round(kFev/kAt*100)+'% dos atendimentos',true],
-    ['1ª resposta média',sla+' min','SLA da clínica < 5 min',false],
+    ['1ª resposta média',sla+' min','SLA do consultório < 5 min',false],
   ];
   let h=`<div class="wad-kpis">${kpis.map(k=>`<div class="wad-kpi ${k[3]?'alert':''}"><div class="lab">${k[0]}</div><div class="val">${k[1]}</div><div class="sub">${k[2]}</div></div>`).join('')}</div>`;
 

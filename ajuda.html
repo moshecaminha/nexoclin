@@ -103,7 +103,7 @@
 <section class="hero sec">
   <div class="wrap">
     <div class="lab">Central de Ajuda</div>
-    <h1 class="hh">Vamos configurar sua clínica com calma, um passo de cada vez.</h1>
+    <h1 class="hh">Vamos configurar seu consultório com calma, um passo de cada vez.</h1>
     <p class="lead">Aqui você encontra o passo a passo para abrir sua conta, conectar o WhatsApp na API oficial da Meta e usar o dia a dia da plataforma. Se travar em algo, é só chamar nosso suporte.</p>
     <a class="btn btn-navy" href="#tour">Começar o tour</a>
     <div class="toc">
@@ -124,7 +124,7 @@
       <div class="step"><div class="n">1</div><div><h4>Acesse e clique em "Primeiro acesso"</h4><p>Na tela de entrada, escolha "Primeiro acesso, criar meu consultório". É o cadastro do médico.</p></div></div>
       <div class="step"><div class="n">2</div><div><h4>Preencha seus dados</h4><p>Nome, e-mail, senha, especialidade e CRM. O CRM e a especialidade entram no timbre e na assinatura dos seus documentos.</p></div></div>
       <div class="step"><div class="n">3</div><div><h4>Confirme</h4><p>Sua conta e seu consultório são criados na hora, e você já entra logado, com acesso total.</p></div></div>
-      <div class="step"><div class="n">4</div><div><h4>Complete o perfil da clínica</h4><p>Em "Minha clínica", preencha razão social, CNPJ, CNES, endereço e responsável técnico. Esses dados aparecem nas receitas e atestados.</p></div></div>
+      <div class="step"><div class="n">4</div><div><h4>Complete o perfil do consultório</h4><p>Em "Meu consultório", preencha razão social, CNPJ, CNES, endereço e responsável técnico. Esses dados aparecem nas receitas e atestados.</p></div></div>
     </div>
     <div class="tip"><b>Sem pressa.</b> Você pode começar a explorar antes de conectar o WhatsApp. O modo de demonstração ajuda a conhecer as telas.</div>
   </div>
@@ -137,10 +137,10 @@
     <div class="steps">
       <div class="step"><div class="n">1</div><div><h4>Tenha um número comercial</h4><p>Um número que não esteja em uso no aplicativo WhatsApp comum, e uma conta no Meta for Developers com a WhatsApp Business Platform.</p></div></div>
       <div class="step"><div class="n">2</div><div><h4>Pegue os dados na Meta</h4><p>Na configuração da API, copie o Phone Number ID, o WABA ID, o Access Token permanente e o App Secret.</p></div></div>
-      <div class="step"><div class="n">3</div><div><h4>Cole na plataforma</h4><p>Vá em "Minha clínica", card "Conexão WhatsApp", cole esses quatro dados e salve.</p></div></div>
+      <div class="step"><div class="n">3</div><div><h4>Cole na plataforma</h4><p>Vá em "Meu consultório", card "Conexão WhatsApp", cole esses quatro dados e salve.</p></div></div>
       <div class="step"><div class="n">4</div><div><h4>Configure o webhook</h4><p>Copie a Callback URL e o Verify Token que aparecem na tela e cole na Meta, assinando o campo "messages".</p></div></div>
       <div class="step"><div class="n">5</div><div><h4>Aprove os templates</h4><p>Cadastre e aprove na Meta os modelos de mensagem (confirmação, lembrete, etc.). Eles são necessários para os disparos automáticos.</p></div></div>
-      <div class="step"><div class="n">6</div><div><h4>Faça um teste</h4><p>Use "Enviar mensagem de teste" no mesmo card. Se chegar, está conectado, e seus pacientes já podem falar com a clínica.</p></div></div>
+      <div class="step"><div class="n">6</div><div><h4>Faça um teste</h4><p>Use "Enviar mensagem de teste" no mesmo card. Se chegar, está conectado, e seus pacientes já podem falar com o consultório.</p></div></div>
     </div>
     <div class="tip"><b>Ficou em dúvida em algum passo da Meta?</b> Nosso suporte acompanha a conexão com você em uma conversa. Toque em "Falar com o suporte".</div>
   </div>
@@ -156,7 +156,7 @@
       <div class="step"><div class="n">3</div><div><h4>Documentos com assinatura válida</h4><p>Crie receita, atestado, exame ou prontuário. O médico assina digitalmente (ICP-Brasil) e o paciente recebe por um link seguro.</p></div></div>
       <div class="step"><div class="n">4</div><div><h4>Prontuário automático</h4><p>A conversa vira registro. Com um clique, o resumo da triagem é salvo no prontuário do paciente.</p></div></div>
       <div class="step"><div class="n">5</div><div><h4>Agenda com lembretes</h4><p>Crie os agendamentos. A confirmação e os lembretes saem automaticamente pelo WhatsApp.</p></div></div>
-      <div class="step"><div class="n">6</div><div><h4>Equipe e canais</h4><p>Convide recepção, secretaria, enfermagem e médicos, cada um com o seu acesso. E compartilhe o link e o QR da clínica (e de cada médico) para os pacientes iniciarem o contato.</p></div></div>
+      <div class="step"><div class="n">6</div><div><h4>Equipe e canais</h4><p>Convide recepção, secretaria, enfermagem e médicos, cada um com o seu acesso. E compartilhe o link e o QR do consultório (e de cada médico) para os pacientes iniciarem o contato.</p></div></div>
     </div>
   </div>
 </section>
@@ -214,7 +214,7 @@
   // Base de conhecimento (chat + FAQ)
   const KB=[
     {q:'Como abro minha conta?',k:['conta','cadastro','abrir','primeiro acesso','criar'],a:'Na tela de entrada, clique em "Primeiro acesso, criar meu consultório", preencha nome, e-mail, senha, especialidade e CRM, e confirme. Sua conta e seu consultório são criados na hora e você já entra logado.'},
-    {q:'Como conecto o WhatsApp?',k:['whatsapp','conectar','api','numero','número','meta','cloud'],a:'Em "Minha clínica", card "Conexão WhatsApp", cole o Phone Number ID, WABA ID, Access Token e App Secret (obtidos na Meta). Salve, copie a Callback URL e o Verify Token, configure o webhook na Meta assinando "messages" e faça o teste de envio.'},
+    {q:'Como conecto o WhatsApp?',k:['whatsapp','conectar','api','numero','número','meta','cloud'],a:'Em "Meu consultório", card "Conexão WhatsApp", cole o Phone Number ID, WABA ID, Access Token e App Secret (obtidos na Meta). Salve, copie a Callback URL e o Verify Token, configure o webhook na Meta assinando "messages" e faça o teste de envio.'},
     {q:'Posso usar meu número atual?',k:['numero atual','meu numero','mesmo numero','trocar numero'],a:'O número precisa entrar na WhatsApp Business Platform (Cloud API). Se ele estiver em uso no aplicativo WhatsApp comum, será preciso migrá-lo ou usar um número comercial dedicado. Nosso suporte orienta a melhor opção para o seu caso.'},
     {q:'A IA dá diagnóstico?',k:['diagnostico','diagnóstico','ia decide','substitui'],a:'Não. O NexoClin organiza, prioriza e registra o atendimento. A classificação de risco é uma ferramenta de apoio, sempre revisável por um profissional. O diagnóstico e a decisão são sempre do médico.'},
     {q:'Como funciona a triagem?',k:['triagem','risco','classifica','manchester','prioridade'],a:'O assistente acolhe o paciente, coleta o essencial e classifica o risco, inspirado na lógica de triagem das urgências (Protocolo de Manchester). O urgente vai para o topo da fila, e o caso é encaminhado ao médico.'},
@@ -223,8 +223,8 @@
     {q:'Como funciona o prontuário?',k:['prontuario','prontuário','registro','historico','histórico'],a:'A conversa e a triagem viram registro. No painel do atendimento, o botão "Resumo p/ prontuário" gera um resumo que você salva no prontuário do paciente com um clique.'},
     {q:'Como crio agendamentos e lembretes?',k:['agenda','agendar','lembrete','confirmacao','confirmação','marcar'],a:'No menu "Agenda", clique em "Novo agendamento" e informe paciente, WhatsApp, profissional, data e hora. A confirmação e os lembretes (24h antes e no dia) são enviados automaticamente.'},
     {q:'Como adiciono minha equipe?',k:['equipe','usuario','usuário','recepcao','recepção','secretaria','enfermagem','papeis','papéis','acesso'],a:'No menu "Equipe", clique em "Adicionar acesso". Você define o perfil: recepção, secretaria, enfermagem, médico ou gestor. Só o médico (e o gestor, quando for médico) assina documentos.'},
-    {q:'Como o paciente inicia o atendimento?',k:['link','qr','qrcode','paciente inicia','divulgar'],a:'Em "Minha clínica", no card "Canais de atendimento", você encontra o link e o QR Code da clínica e de cada médico. Divulgue esse QR e o paciente cai direto no WhatsApp oficial da clínica.'},
-    {q:'É seguro? E a LGPD?',k:['seguro','seguranca','segurança','lgpd','dados','privacidade'],a:'Sim. Dado de saúde é dado sensível pelo Art. 11 da LGPD; o consentimento é registrado e o acesso é isolado por clínica. Todo tráfego é por HTTPS/TLS e as senhas ficam em bcrypt.'},
+    {q:'Como o paciente inicia o atendimento?',k:['link','qr','qrcode','paciente inicia','divulgar'],a:'Em "Meu consultório", no card "Canais de atendimento", você encontra o link e o QR Code do consultório e de cada médico. Divulgue esse QR e o paciente cai direto no WhatsApp oficial do consultório.'},
+    {q:'É seguro? E a LGPD?',k:['seguro','seguranca','segurança','lgpd','dados','privacidade'],a:'Sim. Dado de saúde é dado sensível pelo Art. 11 da LGPD; o consentimento é registrado e o acesso é isolado por consultório. Todo tráfego é por HTTPS/TLS e as senhas ficam em bcrypt.'},
     {q:'Os templates precisam ser aprovados na Meta?',k:['template','modelo','aprovar','aprovacao','aprovação','disparo'],a:'Sim. Para enviar mensagens fora da janela de 24 horas (confirmações, lembretes, campanhas), os modelos precisam ser aprovados na Meta. Dentro da janela de 24h, a conversa é livre.'},
     {q:'Quanto custa?',k:['preco','preço','custa','plano','valor','assinatura','gratis','grátis'],a:'Estamos em fase de piloto. Deixe seu contato no acesso antecipado do site que a equipe fala com você sobre planos e ativação. O suporte tira essa dúvida em detalhe.'}
   ];
