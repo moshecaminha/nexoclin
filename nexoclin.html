@@ -389,6 +389,27 @@ audio.rc-media{width:230px;max-width:100%}
 .sup-status{font-size:12px;padding:0 14px 8px;min-height:14px}
 .sup-empty{color:var(--mute);text-align:center;padding:24px}
 @media(max-width:760px){.sup-grid{grid-template-columns:1fr;height:auto}.sup-col.main{border-left:0;border-top:1px solid var(--line)}}
+
+.kb{display:flex;gap:12px;overflow-x:auto;padding-bottom:10px;align-items:flex-start}
+.kb-col{min-width:240px;max-width:262px;flex:0 0 auto;background:var(--panel,#F2F8FA);border:1px solid var(--line);border-radius:12px}
+.kb-col.over{outline:2px dashed var(--cyan);outline-offset:-2px}
+.kb-h{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;font-weight:700;color:var(--navy);font-size:13.5px;border-radius:12px 12px 0 0;background:#fff}
+.kb-n{background:var(--mist,#EAF4F8);color:var(--cyan-d);border-radius:20px;padding:1px 9px;font-size:12px}
+.kb-body{padding:8px;min-height:60px;display:flex;flex-direction:column;gap:8px}
+.kb-empty{color:var(--mute);font-size:12px;text-align:center;padding:10px}
+.kb-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px;cursor:grab;box-shadow:0 1px 2px rgba(20,58,78,.05)}
+.kb-card:active{cursor:grabbing}
+.kb-top{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.kb-av{width:28px;height:28px;border-radius:50%;background:var(--navy);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
+.kb-nm{font-weight:600;color:var(--navy);font-size:13.5px;line-height:1.2}
+.kb-sub{font-size:11px;color:var(--mute)}
+.kb-contact{font-size:11.5px;color:var(--mute);margin-bottom:6px;word-break:break-word}
+.kb-note{font-size:11.5px;color:var(--ink);background:var(--mist,#EAF4F8);border-radius:8px;padding:5px 8px;margin-bottom:6px}
+.kb-foot{display:flex;gap:6px;align-items:center}
+.kb-cin{flex:1;border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:12px;outline:none}
+.kb-cin:focus{border-color:var(--cyan)}
+.kb-edit{background:var(--mist,#EAF4F8);border:1px solid var(--line);border-radius:8px;width:30px;cursor:pointer;color:var(--navy)}
+.kb-meta{font-size:10.5px;color:var(--mute);margin-top:6px}
 </style>
 <style id="wa-style">
 /* ===== Cockpit de Atendimento WhatsApp — escopo .wa- ===== */
@@ -2109,16 +2130,30 @@ async function relAdminLoad(){ const b=document.getElementById('relBox'); if(!b|
   }catch(e){ b.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao carregar.</div>'; } }
 
 const CRM={list:[],filtro:''};
-function crmAdminView(){ const fils=['','novo','contatado','negociando','ativo','inativo','perdido'];
-  return `<div class="wi" style="max-width:none"><div class="page-h"><h1>CRM — acompanhamento</h1><p>Todos os cadastros/leads da plataforma. Atualize o status e registre contatos.</p></div>
-  <div class="eq-bar"><div style="display:flex;gap:6px;flex-wrap:wrap">${fils.map(x=>`<button class="cl-tab ${CRM.filtro===x?'on':''}" onclick="crmFilter('${x}')">${x||'Todos'}</button>`).join('')}</div></div>
-  <table class="eq-tbl"><thead><tr><th>Nome</th><th>Contato</th><th>Especialidade</th><th>Status</th><th>Responsável</th><th style="text-align:right">Ações</th></tr></thead><tbody id="crmBody"><tr><td colspan="6" style="color:var(--mute)">Carregando…</td></tr></tbody></table></div>`; }
-async function crmLoad(){ if(!SB) return; try{ const {data}=await SB.rpc('nx_admin_crm_list',{p_status:CRM.filtro||null}); CRM.list=data||[]; const b=document.getElementById('crmBody'); if(b) b.innerHTML=crmRows(); }catch(e){ const b=document.getElementById('crmBody'); if(b) b.innerHTML='<tr><td colspan="6" style="color:var(--coral)">Erro.</td></tr>'; } }
-function crmFilter(x){ CRM.filtro=x; document.getElementById('view').innerHTML=crmAdminView(); crmLoad(); }
-function crmRows(){ if(!CRM.list.length) return '<tr><td colspan="6" style="color:var(--mute)">Nenhum lead.</td></tr>';
-  const cor={novo:'#B4790B',contatado:'#1596BE',negociando:'#6C5CE7',ativo:'#12996A',inativo:'#6b7b83',perdido:'#F2564C'};
-  return CRM.list.map((l,i)=>`<tr><td><b>${l.nome||'—'}</b>${l.crm?`<div style="color:var(--mute);font-size:11px">${l.crm}</div>`:''}</td><td style="color:var(--mute);font-size:12px">${l.email||''}${l.telefone?('<br>'+l.telefone):''}</td><td style="color:var(--mute)">${l.especialidade||'—'}</td><td style="font-weight:700;color:${cor[l.status]||'#6b7b83'}">${l.status}</td><td style="color:var(--mute)">${l.responsavel||'—'}</td><td style="text-align:right"><button class="eq-act" onclick="crmForm(${i})">Atualizar</button></td></tr>`).join(''); }
-function crmForm(i){ const l=CRM.list[i]; const sts=['novo','contatado','negociando','ativo','inativo','perdido'];
+const CRM_STAGES=[['novo','Novo','#B4790B'],['contatado','Contatado','#1596BE'],['negociando','Negociando','#6C5CE7'],['ativo','Ativo','#12996A'],['inativo','Inativo','#6b7b83'],['perdido','Perdido','#F2564C']];
+function crmAdminView(){ return `<div class="wi" style="max-width:none"><div class="page-h"><h1>CRM — pipeline</h1><p>Arraste os cards entre as etapas. Comente rápido e veja o resumo sem precisar abrir.</p></div>
+  <div class="kb" id="crmBoard"><div class="rc-empty">Carregando…</div></div></div>`; }
+async function crmLoad(){ if(!SB) return; try{ const {data}=await SB.rpc('nx_admin_crm_board'); CRM.list=data||[]; crmBoardRender(); }catch(e){ const b=document.getElementById('crmBoard'); if(b) b.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao carregar.</div>'; } }
+function crmBoardRender(){ const b=document.getElementById('crmBoard'); if(!b) return;
+  b.innerHTML=CRM_STAGES.map(([st,label,cor])=>{ const items=(CRM.list||[]).filter(l=>l.status===st);
+    return `<div class="kb-col" data-st="${st}" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="crmDrop(event,'${st}')">
+      <div class="kb-h" style="border-top:3px solid ${cor}"><span>${label}</span><span class="kb-n">${items.length}</span></div>
+      <div class="kb-body">${items.map(crmCard).join('')||'<div class="kb-empty">—</div>'}</div></div>`; }).join(''); }
+function crmCard(l){ const first=((l.nome||'?').trim().charAt(0)||'?').toUpperCase();
+  return `<div class="kb-card" draggable="true" ondragstart="crmDrag(event,'${l.id}')">
+    <div class="kb-top"><div class="kb-av">${first}</div><div><div class="kb-nm">${l.nome||'—'}</div><div class="kb-sub">${l.especialidade||l.origem||''}</div></div></div>
+    <div class="kb-contact">${l.email||''}${l.telefone?(' · '+l.telefone):''}</div>
+    ${l.ultima_nota?`<div class="kb-note">💬 ${(''+l.ultima_nota).slice(0,90).replace(/</g,'&lt;')}</div>`:''}
+    <div class="kb-foot"><input class="kb-cin" placeholder="+ comentário" onkeydown="if(event.key==='Enter')crmNoteAdd('${l.id}',this)"><button class="kb-edit" title="Abrir" onclick="crmForm('${l.id}')">⋯</button></div>
+    ${(l.notas_total||l.responsavel)?`<div class="kb-meta">${l.notas_total?(l.notas_total+' comentário(s)'):''}${(l.notas_total&&l.responsavel)?' · ':''}${l.responsavel||''}</div>`:''}
+  </div>`; }
+function crmDrag(e,id){ e.dataTransfer.setData('id',id); e.dataTransfer.effectAllowed='move'; }
+async function crmDrop(e,st){ e.preventDefault(); document.querySelectorAll('.kb-col').forEach(c=>c.classList.remove('over')); const id=e.dataTransfer.getData('id'); if(!id) return;
+  const l=(CRM.list||[]).find(x=>x.id===id); if(l){ l.status=st; crmBoardRender(); }
+  try{ await SB.rpc('nx_admin_crm_move',{p_lead:id,p_status:st}); toast('Movido para '+st); }catch(err){ toast('Erro ao mover','⚠'); crmLoad(); } }
+async function crmNoteAdd(id,el){ const v=(el.value||'').trim(); if(!v) return; el.value='';
+  try{ await SB.rpc('nx_admin_crm_note_add',{p_lead:id,p_texto:v}); const l=(CRM.list||[]).find(x=>x.id===id); if(l){ l.ultima_nota=v; l.notas_total=(l.notas_total||0)+1; crmBoardRender(); } toast('Comentário adicionado'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+function crmForm(id){ const l=(CRM.list||[]).find(x=>x.id===id)||{}; const sts=['novo','contatado','negociando','ativo','inativo','perdido'];
   openModal(`<h3>${l.nome||'Lead'}</h3><p style="color:var(--mute);font-size:12.5px;margin:2px 0 10px">${l.email||''} ${l.telefone?('· '+l.telefone):''}</p>
     <div class="nxm-field"><label>Status</label><select id="crmSt">${sts.map(x=>`<option ${l.status===x?'selected':''}>${x}</option>`).join('')}</select></div>
     <div class="nxm-field"><label>Responsável</label><input id="crmResp" value="${l.responsavel||''}"></div>
