@@ -410,6 +410,10 @@ audio.rc-media{width:230px;max-width:100%}
 .kb-cin:focus{border-color:var(--cyan)}
 .kb-edit{background:var(--mist,#EAF4F8);border:1px solid var(--line);border-radius:8px;width:30px;cursor:pointer;color:var(--navy)}
 .kb-meta{font-size:10.5px;color:var(--mute);margin-top:6px}
+
+.mod-pill{display:inline-block;font-size:12px;font-weight:700;border-radius:20px;padding:3px 11px;white-space:nowrap;letter-spacing:.1px}
+.mod-pres{background:#E1F1F8;color:#146F8E;border:1px solid #C7E6F1}
+.mod-tele{background:#EEE7FC;color:#5B4BD6;border:1px solid #DCD2F7}
 </style>
 <style id="wa-style">
 /* ===== Cockpit de Atendimento WhatsApp — escopo .wa- ===== */
@@ -2254,13 +2258,14 @@ function valView(){ return `<div class="wi" style="max-width:none"><div class="p
     <table class="eq-tbl"><thead><tr><th>Código</th><th>Desconto</th><th>Validade</th><th>Usos</th><th>Ativo</th><th style="text-align:right">Ações</th></tr></thead><tbody id="valCoupBody"><tr><td colspan="6" style="color:var(--mute)">Carregando…</td></tr></tbody></table>`)}
   </div>`; }
 function valMoney(v){ return 'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function modBadge(m){ m=(m||'presencial'); return m==='telemedicina' ? '<span class="mod-pill mod-tele">🎥 Telemedicina</span>' : '<span class="mod-pill mod-pres">🏥 Presencial</span>'; }
 async function valLoad(){ if(!SB||!NX.clinic||!NX.me) return; const prof=NX.me.id;
   try{ const m=await SB.rpc('nx_doc_modalidades',{p_prof:prof}); const md=m.data||{}; const pr=document.getElementById('valPres'), tl=document.getElementById('valTel'); if(pr)pr.checked=md.presencial!==false; if(tl)tl.checked=md.telemedicina===true; }catch(e){}
   try{ const {data}=await SB.rpc('nx_price_list',{p_clinic:NX.clinic,p_prof:prof}); VAL.prices=data||[]; valPriceRows(); }catch(e){}
   try{ const {data}=await SB.rpc('nx_coupon_list',{p_clinic:NX.clinic,p_prof:prof}); VAL.coupons=data||[]; valCoupRows(); }catch(e){} }
 async function valModSave(){ try{ await SB.rpc('nx_prof_modalidade_set',{p_clinic:NX.clinic,p_prof:NX.me.id,p_presencial:document.getElementById('valPres').checked,p_telemed:document.getElementById('valTel').checked}); toast('Modalidade salva'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 function valPriceRows(){ const b=document.getElementById('valPriceBody'); if(!b) return; if(!VAL.prices.length){ b.innerHTML='<tr><td colspan="6" style="color:var(--mute)">Nenhuma categoria ainda.</td></tr>'; return; }
-  b.innerHTML=VAL.prices.map((p,i)=>`<tr><td><b>${p.categoria}</b></td><td>${p.modalidade}</td><td>${valMoney(p.valor)}</td><td>${p.duracao_min||30} min</td><td>${p.ativo?'sim':'não'}</td><td style="text-align:right"><button class="eq-act" onclick="valPriceForm(${i})">Editar</button><button class="eq-act danger" onclick="valPriceDel('${p.id}')">Excluir</button></td></tr>`).join(''); }
+  b.innerHTML=VAL.prices.map((p,i)=>`<tr><td><b>${p.categoria}</b></td><td>${modBadge(p.modalidade)}</td><td>${valMoney(p.valor)}</td><td>${p.duracao_min||30} min</td><td>${p.ativo?'sim':'não'}</td><td style="text-align:right"><button class="eq-act" onclick="valPriceForm(${i})">Editar</button><button class="eq-act danger" onclick="valPriceDel('${p.id}')">Excluir</button></td></tr>`).join(''); }
 function valPriceForm(i){ const p=i>=0?VAL.prices[i]:{categoria:'',modalidade:'presencial',valor:'',duracao_min:30,ativo:true};
   openModal(`<h3>${i>=0?'Editar categoria':'Nova categoria'}</h3>
     <div class="nxm-field"><label>Categoria</label><input id="vpCat" value="${p.categoria||''}" placeholder="Ex.: Consulta, Retorno, Primeira consulta"></div>
@@ -2308,7 +2313,7 @@ async function configSaveNF(){ const g=id=>((document.getElementById(id)||{}).va
 const DIAS=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 async function valAvailLoad(){ if(!SB||!NX.clinic||!NX.me) return; try{ const {data}=await SB.rpc('nx_avail_list',{p_clinic:NX.clinic,p_prof:NX.me.id}); VAL.avail=data||[]; valAvailRows(); }catch(e){} }
 function valAvailRows(){ const b=document.getElementById('valAvailBody'); if(!b) return; if(!VAL.avail||!VAL.avail.length){ b.innerHTML='<tr><td colspan="6" style="color:var(--mute)">Nenhum horário definido.</td></tr>'; return; }
-  b.innerHTML=VAL.avail.map((a,i)=>`<tr><td>${DIAS[a.dia_semana]||a.dia_semana}</td><td>${(''+(a.hora_inicio||'')).slice(0,5)}</td><td>${(''+(a.hora_fim||'')).slice(0,5)}</td><td>${a.modalidade}</td><td>${a.slot_min}min</td><td style="text-align:right"><button class="eq-act" onclick="valAvailForm(${i})">Editar</button><button class="eq-act danger" onclick="valAvailDel('${a.id}')">Excluir</button></td></tr>`).join(''); }
+  b.innerHTML=VAL.avail.map((a,i)=>`<tr><td>${DIAS[a.dia_semana]||a.dia_semana}</td><td>${(''+(a.hora_inicio||'')).slice(0,5)}</td><td>${(''+(a.hora_fim||'')).slice(0,5)}</td><td>${modBadge(a.modalidade)}</td><td>${a.slot_min}min</td><td style="text-align:right"><button class="eq-act" onclick="valAvailForm(${i})">Editar</button><button class="eq-act danger" onclick="valAvailDel('${a.id}')">Excluir</button></td></tr>`).join(''); }
 function valAvailForm(i){ const a=i>=0?VAL.avail[i]:{dia_semana:1,hora_inicio:'08:00',hora_fim:'18:00',modalidade:'presencial',slot_min:30};
   openModal(`<h3>${i>=0?'Editar horário':'Novo horário'}</h3>
     <div class="cl-2"><div class="nxm-field"><label>Dia da semana</label><select id="avDia">${DIAS.map((d,k)=>`<option value="${k}" ${a.dia_semana===k?'selected':''}>${d}</option>`).join('')}</select></div><div class="nxm-field"><label>Modalidade</label><select id="avMod"><option value="presencial" ${a.modalidade==='presencial'?'selected':''}>Presencial</option><option value="telemedicina" ${a.modalidade==='telemedicina'?'selected':''}>Telemedicina</option></select></div></div>
