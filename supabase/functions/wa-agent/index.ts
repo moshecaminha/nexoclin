@@ -4,7 +4,7 @@
 // Ordem de decisao, da mais dura para a mais livre:
 //   1. confirmacao de presenca          (vale mesmo com a IA calada)
 //   2. bandeira vermelha                (vale SEMPRE, inclusive com humano)
-//   3. IA calada -> para aqui
+//   3. humano pausou ou assumiu -> para aqui (so um humano desliga a IA)
 //   4. agendamento, preco, cupom, modalidade, remarcacao  (banco, sem modelo)
 //   5. triagem com o modelo
 // O modelo nunca informa horario, valor nem reserva: isso vem do banco. E so
@@ -95,7 +95,14 @@ voltar a falar de sintoma, continue acolhendo e perguntando.
 Quando tiver o suficiente, avise que encaminhou para a equipe, diga o que esperar,
 e marque encaminhar_humano = true e tipo_encaminhamento = "clinico".
 Se a pessoa pedir para falar com alguém, use tipo_encaminhamento = "pedido_humano".
-Nos demais casos, tipo_encaminhamento = "nenhum".`;
+Nos demais casos, tipo_encaminhamento = "nenhum".
+
+# Depois de encaminhar ou agendar
+Você continua respondendo até alguém da equipe assumir a conversa.
+- Não recomece a triagem e não repita que encaminhou.
+- Responda dúvidas, acolha e anote em "dados" qualquer informação nova.
+- Se surgir sintoma novo ou piora, suba o risco.
+- Nunca diga que alguém da equipe já está conversando com a pessoa.`;
 
 // Structured output: o modelo e obrigado a devolver exatamente este formato.
 const FORMATO = {
@@ -181,6 +188,12 @@ async function doSistema(conv: string, texto: string, estado: string | null): Pr
   return null;
 }
 
+// O que a IA precisa saber do andamento para nao recomecar a triagem.
+const SITUACAO: Record<string, string> = {
+  aguardando_medico: "já encaminhado para a equipe, aguardando o médico",
+  agendada: "consulta já agendada",
+};
+
 /** Decide e responde. Devolve o texto a enviar, ou null se o bot deve calar. */
 export async function agente(conv: string, texto: string): Promise<string | null> {
   const t = texto.toLowerCase();
@@ -199,9 +212,9 @@ export async function agente(conv: string, texto: string): Promise<string | null
     .select("bot_state, paciente_idade").eq("id", conv).single();
   if (!conversa) return null;
 
-  // 2) Bandeira vermelha. Roda ANTES da checagem de IA ativa: depois de uma
-  //    transferencia a IA cala, mas "ele esta convulsionando" nao pode cair
-  //    no vazio enquanto ninguem da equipe assumiu.
+  // 2) Bandeira vermelha. Roda ANTES da checagem de IA ativa: mesmo com a IA
+  //    pausada por alguem da equipe, "ele esta convulsionando" recebe o aviso
+  //    do SAMU.
   const { data: meses } = await sb.rpc("nx_idade_meses", { p: conversa.paciente_idade ?? null });
   const { data: bandeira } = await sb.rpc("nx_wa_has_redflag", { t, p_meses: meses ?? null });
   if (bandeira === true) {
@@ -216,7 +229,8 @@ export async function agente(conv: string, texto: string): Promise<string | null
     return ultima?.body === MSG_EMERGENCIA ? null : MSG_EMERGENCIA;
   }
 
-  // 3) IA calada: humano assumiu ou a triagem clinica foi encaminhada
+  // 3) So um humano cala a IA: pausou no cockpit ou assumiu o atendimento.
+  //    Encaminhar e agendar nao calam.
   const { data: ctx } = await sb.rpc("nx_agent_contexto", { p_conv: conv });
   if (!ctx || ctx.ativo === false) return null;
 
@@ -240,7 +254,8 @@ export async function agente(conv: string, texto: string): Promise<string | null
     `Clínica: ${ctx.clinica ?? "—"}\n` +
     `Paciente já identificado: ${ctx.paciente_nome ?? "ainda não"}\n` +
     `Idade: ${ctx.paciente_idade ?? "ainda não"}\n` +
-    `Já coletado: ${JSON.stringify(ctx.coletado ?? {})}`;
+    `Já coletado: ${JSON.stringify(ctx.coletado ?? {})}\n` +
+    `Situação: ${SITUACAO[ctx.status ?? ""] ?? "em triagem"}`;
 
   const r = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -277,8 +292,8 @@ export async function agente(conv: string, texto: string): Promise<string | null
   const atual = ctx.risco ?? "nao_urgente";
   const risco = (PESO[saida.risco] ?? 1) >= (PESO[atual] ?? 1) ? saida.risco : atual;
 
-  // Administrativo (valor, confirmar horario) avisa a equipe mas nao cala a
-  // IA: a pessoa pode voltar a falar do sintoma logo em seguida.
+  // Encaminhar nunca desliga a IA (so um humano desliga). Administrativo
+  // (valor, confirmar horario) nem move a fila: so pede atencao da equipe.
   const administrativo = saida.tipo_encaminhamento === "administrativo" && risco !== "emergencia";
   await sb.rpc("nx_agent_aplicar", {
     p_conv: conv, p_risco: risco,
