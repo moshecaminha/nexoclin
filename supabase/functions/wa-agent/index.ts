@@ -1,7 +1,13 @@
 // supabase/functions/wa-agent/index.ts
-// Agente de triagem pediatrica (OpenAI).
-// MAS mantem um piso deterministico: as bandeiras vermelhas por palavra-chave
-// rodam ANTES do modelo e, se disparam, o modelo nem e consultado. O agente so
+// Agente de triagem pediatrica (OpenAI), com o sistema na frente.
+//
+// Ordem de decisao, da mais dura para a mais livre:
+//   1. confirmacao de presenca          (vale mesmo com a IA calada)
+//   2. bandeira vermelha                (vale SEMPRE, inclusive com humano)
+//   3. IA calada -> para aqui
+//   4. agendamento, preco, cupom, modalidade, remarcacao  (banco, sem modelo)
+//   5. triagem com o modelo
+// O modelo nunca informa horario, valor nem reserva: isso vem do banco. E so
 // pode SUBIR a gravidade, nunca baixar.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -77,9 +83,19 @@ Só inclua uma chave quando tiver a informação. Não invente.
 Classifique de forma conservadora — na dúvida, suba o nível.
 emergencia | muito_urgente | urgente | pouco_urgente | nao_urgente
 
+# Agenda, valores e reservas
+Horários, valores, cupons e reservas são respondidos pelo sistema, não por você.
+- Nunca diga que um horário está reservado, marcado ou confirmado.
+- Nunca informe valor de consulta.
+Se a pessoa pedir isso, diga que vai pedir para a equipe confirmar e marque
+tipo_encaminhamento = "administrativo". Isso NÃO encerra a triagem: se ela
+voltar a falar de sintoma, continue acolhendo e perguntando.
+
 # Encerramento
 Quando tiver o suficiente, avise que encaminhou para a equipe, diga o que esperar,
-e marque encaminhar_humano = true.`;
+e marque encaminhar_humano = true e tipo_encaminhamento = "clinico".
+Se a pessoa pedir para falar com alguém, use tipo_encaminhamento = "pedido_humano".
+Nos demais casos, tipo_encaminhamento = "nenhum".`;
 
 // Structured output: o modelo e obrigado a devolver exatamente este formato.
 const FORMATO = {
@@ -111,8 +127,12 @@ const FORMATO = {
           enum: ["emergencia", "muito_urgente", "urgente", "pouco_urgente", "nao_urgente"],
         },
         encaminhar_humano: { type: "boolean" },
+        tipo_encaminhamento: {
+          type: "string",
+          enum: ["nenhum", "clinico", "administrativo", "pedido_humano"],
+        },
       },
-      required: ["resposta", "dados", "risco", "encaminhar_humano"],
+      required: ["resposta", "dados", "risco", "encaminhar_humano", "tipo_encaminhamento"],
     },
   },
 };
@@ -122,22 +142,89 @@ const MSG_EMERGENCIA =
   "Por favor, ligue *agora* para o SAMU *192* ou vá ao pronto-socorro mais próximo.\n\n" +
   "Já estou avisando a equipe da clínica. 💙";
 
+// Gatilhos da camada do sistema. Estreitos de proposito: "ha quanto tempo" e
+// "horario do remedio" sao triagem, nao preco nem agenda.
+const RE_DIRETA =
+  /(pre[çc]o|valor da consulta|quanto (custa|[ée]|fica|sai)|honor[áa]rio|cupom|desconto|remarc|desmarc|cancelar|teleconsulta|telemedicin|por v[ií]deo|online|presencial)/;
+const RE_AGENDAR =
+  /(agendar|marcar (uma )?consulta|quero marcar|hor[áa]rios? (livres?|dispon[íi]ve(l|is))|tem vaga)/;
+
+// Cara de resposta a cada passo do agendamento. Se a mae voltou a falar do
+// sintoma no meio ("39 de febre"), a triagem responde e o passo fica onde esta.
+const RESPONDE_PASSO: Record<string, RegExp> = {
+  ag_mod: /(tele|v[ií]deo|online|presencial|^\s*[12]\s*$)/,
+  ag_dia: /(amanh|hoje|segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado|domingo|\b\d{1,2}\/\d{1,2}\b|\bdia \d{1,2}\b)/,
+  ag_slot: /^\D{0,12}\d{1,2}\D{0,12}$/,
+};
+
+/** Agenda, preco, cupom, modalidade e remarcacao: responde o banco, nao o modelo. */
+async function doSistema(conv: string, texto: string, estado: string | null): Promise<string | null> {
+  const t = texto.toLowerCase();
+
+  const passo = estado ? RESPONDE_PASSO[estado] : undefined;
+  if (passo) {
+    if (!passo.test(t)) return null;
+    // sem medico definido nao ha agenda de onde tirar horario
+    const { data: prof } = await sb.rpc("nx_conv_doctor", { p_conv: conv });
+    if (!prof) return null;
+    const { data } = await sb.rpc("nx_book_step", { p_conv: conv, p_text: texto });
+    return data ?? null;
+  }
+
+  if (!RE_DIRETA.test(t) && !RE_AGENDAR.test(t)) return null;
+  const { data: ai } = await sb.rpc("nx_ai_answer", { p_conv: conv, p_texto: texto });
+  if (ai?.matched && ai.intent !== "agenda") return ai.answer ?? null;
+  if (ai?.intent === "agenda" || RE_AGENDAR.test(t)) {
+    const { data } = await sb.rpc("nx_book_start", { p_conv: conv });
+    return data ?? null;
+  }
+  return null;
+}
+
 /** Decide e responde. Devolve o texto a enviar, ou null se o bot deve calar. */
 export async function agente(conv: string, texto: string): Promise<string | null> {
-  const { data: ctx } = await sb.rpc("nx_agent_contexto", { p_conv: conv });
-  if (!ctx || ctx.ativo === false) return null;
+  const t = texto.toLowerCase();
 
-  // ---- piso deterministico: roda ANTES do modelo e vence sozinho ----
-  const { data: bandeira } = await sb.rpc("nx_wa_has_redflag", {
-    t: texto.toLowerCase(), p_meses: ctx.meses ?? null,
-  });
+  // 1) Confirmacao de presenca. Vale com a IA calada: depois de agendar a
+  //    conversa fica "agendada", e quem so responde "confirmo" precisa de retorno.
+  if (/confirm/.test(t) && !/(remarc|desmarc|cancel|n[ãa]o)/.test(t)) {
+    const { data: cf } = await sb.rpc("nx_appt_confirmar_paciente", { p_conv: conv });
+    if (cf?.ok) {
+      return `Perfeito! Sua consulta de ${cf.quando} está confirmada. ✅ Até lá! ` +
+        "Se precisar remarcar ou cancelar, é só me avisar por aqui.";
+    }
+  }
+
+  const { data: conversa } = await sb.from("conversations")
+    .select("bot_state, paciente_idade").eq("id", conv).single();
+  if (!conversa) return null;
+
+  // 2) Bandeira vermelha. Roda ANTES da checagem de IA ativa: depois de uma
+  //    transferencia a IA cala, mas "ele esta convulsionando" nao pode cair
+  //    no vazio enquanto ninguem da equipe assumiu.
+  const { data: meses } = await sb.rpc("nx_idade_meses", { p: conversa.paciente_idade ?? null });
+  const { data: bandeira } = await sb.rpc("nx_wa_has_redflag", { t, p_meses: meses ?? null });
   if (bandeira === true) {
     await sb.rpc("nx_agent_aplicar", {
       p_conv: conv, p_risco: "emergencia", p_encaminhar: true,
       p_dados: [{ chave: "red_flags", valor: texto.slice(0, 160), atencao: true }],
     });
-    return MSG_EMERGENCIA;
+    // ja mandou o alerta e ninguem falou depois: nao repete a cada mensagem
+    const { data: ultima } = await sb.from("messages").select("body")
+      .eq("conversation_id", conv).eq("direction", "out")
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    return ultima?.body === MSG_EMERGENCIA ? null : MSG_EMERGENCIA;
   }
+
+  // 3) IA calada: humano assumiu ou a triagem clinica foi encaminhada
+  const { data: ctx } = await sb.rpc("nx_agent_contexto", { p_conv: conv });
+  if (!ctx || ctx.ativo === false) return null;
+
+  // 4) Sistema
+  const sistema = await doSistema(conv, texto, conversa.bot_state ?? null);
+  if (sistema) return sistema;
+
+  // 5) Triagem com o modelo
 
   const chave = Deno.env.get("OPENAI_API_KEY");
   if (!chave) { console.error("agente: OPENAI_API_KEY ausente"); return null; }
@@ -175,7 +262,10 @@ export async function agente(conv: string, texto: string): Promise<string | null
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { console.error("agente: OpenAI recusou", JSON.stringify(j?.error ?? j)); return null; }
 
-  let saida: { resposta: string; dados: any[]; risco: string; encaminhar_humano: boolean };
+  let saida: {
+    resposta: string; dados: any[]; risco: string;
+    encaminhar_humano: boolean; tipo_encaminhamento?: string;
+  };
   try {
     saida = JSON.parse(j.choices?.[0]?.message?.content ?? "{}");
   } catch {
@@ -187,10 +277,14 @@ export async function agente(conv: string, texto: string): Promise<string | null
   const atual = ctx.risco ?? "nao_urgente";
   const risco = (PESO[saida.risco] ?? 1) >= (PESO[atual] ?? 1) ? saida.risco : atual;
 
+  // Administrativo (valor, confirmar horario) avisa a equipe mas nao cala a
+  // IA: a pessoa pode voltar a falar do sintoma logo em seguida.
+  const administrativo = saida.tipo_encaminhamento === "administrativo" && risco !== "emergencia";
   await sb.rpc("nx_agent_aplicar", {
     p_conv: conv, p_risco: risco,
-    p_encaminhar: saida.encaminhar_humano || risco === "emergencia",
+    p_encaminhar: saida.encaminhar_humano || administrativo || risco === "emergencia",
     p_dados: saida.dados ?? [],
+    p_manter_bot: administrativo,
   });
 
   return saida.resposta;
