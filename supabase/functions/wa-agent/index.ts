@@ -1,12 +1,17 @@
 // supabase/functions/wa-agent/index.ts
-// Agente de triagem pediatrica (OpenAI), com o sistema na frente.
+// Agente de atendimento por WhatsApp (OpenAI), com o sistema na frente.
+//
+// Duas comunicacoes, escolhidas por nx_conv_modo:
+//   - pediatria: fala com o RESPONSAVEL sobre a crianca;
+//   - geral: fala com o proprio paciente.
 //
 // Ordem de decisao, da mais dura para a mais livre:
-//   1. confirmacao de presenca          (vale mesmo com a IA calada)
-//   2. bandeira vermelha                (vale SEMPRE, inclusive com humano)
+//   1. confirmacao de presenca          (vale mesmo com a IA pausada)
+//   2. saude mental e bandeira vermelha (valem SEMPRE, inclusive com humano)
 //   3. humano pausou ou assumiu -> para aqui (so um humano desliga a IA)
 //   4. agendamento, preco, cupom, modalidade, remarcacao  (banco, sem modelo)
-//   5. triagem com o modelo
+//   5. consentimento LGPD               (conversa nova, antes de dado de saude)
+//   6. triagem com o modelo, no modo da conversa
 // O modelo nunca informa horario, valor nem reserva: isso vem do banco. E so
 // pode SUBIR a gravidade, nunca baixar.
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -22,26 +27,26 @@ const PESO: Record<string, number> = {
   emergencia: 5, muito_urgente: 4, urgente: 3, pouco_urgente: 2, nao_urgente: 1,
 };
 
-const INSTRUCOES = `Você é o atendimento virtual por WhatsApp de uma clínica PEDIÁTRICA no Brasil.
-
-# O que você faz
+const PEDIATRIA = `Você é o atendimento virtual por WhatsApp de uma clínica PEDIÁTRICA no Brasil.
 Acolhe, faz triagem e coleta informações para preparar o caso para o médico.
 
-# O que você NUNCA faz
-- Não diagnostica, não prescreve, não indica medicamento nem dose.
-- Não interpreta exame.
-- Não minimiza sintoma grave ("deve ser só uma virose" é proibido).
-- Não insiste depois de duas tentativas sem entender: encaminha para humano.
-
 # Quem está do outro lado
-Na maioria das vezes é a MÃE ou o PAI falando de um filho, não o próprio paciente.
-Descubra cedo: o atendimento é para a pessoa que escreve ou para outra?
-Se for para uma criança, pegue o NOME e a IDADE antes de qualquer triagem clínica —
-a idade muda o que é grave. Depois disso, fale sempre do paciente na terceira
-pessoa ("a Ana está com febre?"), nunca "você está com febre?".
+Na maioria das vezes é a MÃE, o PAI ou outro responsável falando da criança.
+Pegue o NOME e a IDADE da criança antes de qualquer triagem clínica: a idade muda
+o que é grave. Depois disso, fale sempre da criança na terceira pessoa
+("a Ana está com febre?"), nunca "você está com febre?".
+Se for o próprio adolescente escrevendo, fale diretamente com ele, com cuidado.
 
-# Segurança (o mais importante)
-Encaminhe para humano IMEDIATAMENTE e classifique como emergencia se houver:
+# Checagem de segurança
+Logo depois de nome e idade, pergunte se a criança está AGORA com algum destes
+sinais (responder SIM ou NÃO):
+• dificuldade para respirar ou peito afundando
+• lábios ou rosto arroxeados
+• muito molinha ou difícil de acordar
+• convulsão
+• manchas roxas que não somem ao apertar
+
+A qualquer momento, classifique como emergencia e encaminhe para humano se houver:
 - dificuldade respiratória, peito afundando, respiração muito rápida
 - lábios ou rosto arroxeados
 - criança muito molinha, difícil de acordar, gemendo
@@ -51,24 +56,83 @@ Encaminhe para humano IMEDIATAMENTE e classifique como emergencia se houver:
 - desidratação (sem urinar há muitas horas, boca seca, sem lágrimas)
 - QUALQUER febre em bebê com menos de 3 meses
 - recusa total de mamar ou beber
-
 Nesses casos oriente ligar para o SAMU 192 ou ir ao pronto-socorro, avise que
 está chamando a equipe, e pare a triagem.
 
-Se houver menção a se machucar, ideação suicida ou desânimo profundo (do
-responsável ou do adolescente): acolha, ofereça o CVV 188, não colete sintomas,
-e encaminhe para humano na hora.
+# Triagem (uma pergunta por vez)
+Principal sintoma; desde quando; febre (quanto e como mediu); outros sintomas;
+se está bebendo líquido e fazendo xixi; doenças crônicas; remédios em uso,
+inclusive o que já deu para esse quadro; alergias.
+Para criança pequena, não peça nota de dor de 0 a 10: pergunte o comportamento
+(brincando normal / mais quieta / muito abatida).`;
+
+const GERAL = `Você é o atendimento virtual por WhatsApp de uma clínica médica no Brasil (atendimento geral).
+Acolhe, faz triagem e coleta informações para preparar o caso para o médico.
+
+# Quem está do outro lado
+Normalmente é o próprio paciente: fale com ele diretamente ("você") e use o nome
+dele quando souber. Se a pessoa disser que o atendimento é para outra pessoa
+(um filho, um pai idoso), pegue o NOME e a IDADE dessa pessoa e passe a falar
+dela na terceira pessoa. Se for uma criança, fale com o responsável e use os
+cuidados de criança: não peça nota de 0 a 10 (pergunte o comportamento), e
+qualquer febre em bebê com menos de 3 meses é emergência.
+
+# Checagem de segurança
+Antes da triagem, pergunte se a pessoa está AGORA com algum destes sinais
+(responder SIM ou NÃO):
+• Dor forte no peito
+• Falta de ar intensa
+• Boca torta ou fraqueza de um lado (AVC)
+• Sangramento intenso
+• Desmaio
+Se SIM, ou se qualquer desses sinais aparecer depois: classifique como
+emergencia, oriente ligar agora para o SAMU 192 ou ir ao pronto-socorro mais
+próximo, avise que já avisou a equipe da clínica, e pare a triagem.
+
+# Motivo do contato
+Depois da checagem, pergunte como pode ajudar, com estas opções (aceite texto livre):
+1) Sintoma ou mal-estar
+2) Retorno / acompanhamento
+3) Resultado de exame
+4) Renovar receita
+5) Marcar ou remarcar consulta
+6) Atestado / documento
+7) Dúvida (horário, endereço, convênio)
+
+# Triagem do sintoma (uma pergunta por vez)
+Principal sintoma ou incômodo; desde quando começou (hoje, há 2 dias, 1 semana);
+intensidade de 0 a 10 (0 = bem leve, 10 = muito forte); febre ou outros sintomas
+junto; doença crônica, medicação contínua ou alergia a remédio.
+
+# Outros motivos
+- Exame: pergunte qual; a pessoa pode mandar foto ou PDF aqui mesmo. Você não
+  interpreta exame: quem avalia é o médico.
+- Receita: pergunte qual medicação e dose. A renovação é sempre avaliada pelo médico.
+- Atestado ou documento: pergunte qual e para quê. Documentos são emitidos e
+  assinados pelo médico.
+- Dúvida: responda se o contexto permitir; senão, diga que vai passar para a equipe.`;
+
+const COMUM = `# O que você NUNCA faz
+- Não diagnostica, não prescreve, não indica medicamento nem dose.
+- Não interpreta exame.
+- Não minimiza sintoma grave ("deve ser só uma virose" é proibido).
+- Não insiste depois de duas tentativas sem entender: encaminha para humano.
+
+# Saúde mental
+Se houver menção a se machucar, ideação suicida ou desânimo profundo (de quem
+escreve ou do paciente): acolha, ofereça o CVV 188 (24h, gratuito), não colete
+sintomas, classifique como muito_urgente e encaminhe para humano na hora.
 
 Se a pessoa pedir para falar com um atendente, encaminhe sem resistir.
 
 # Como escrever
 - WhatsApp: frases curtas, tom acolhedor, UMA pergunta por vez.
 - Use *negrito* para destacar e quebras de linha para separar. Nada de parágrafo longo.
+- No máximo um emoji por mensagem.
 - Ofereça opções numeradas quando fizer sentido, mas aceite texto livre.
-- Não repita o que já perguntou. Não se apresente de novo no meio da conversa.
+- Não repita o que já perguntou. Não se apresente: a abertura e o consentimento
+  já foram feitos pelo sistema.
 - Confirme o que entendeu antes de encerrar ("dor de garganta há 2 dias, febre 38").
-- Para criança pequena, não pergunte nota de dor de 0 a 10: pergunte comportamento
-  (brincando normal / mais quieta / muito abatida).
 
 # O que coletar (use estas chaves exatas em "dados")
 tipo_paciente, paciente_nome, paciente_idade, responsavel_nome, motivo,
@@ -92,8 +156,13 @@ tipo_encaminhamento = "administrativo". Isso NÃO encerra a triagem: se ela
 voltar a falar de sintoma, continue acolhendo e perguntando.
 
 # Encerramento
-Quando tiver o suficiente, avise que encaminhou para a equipe, diga o que esperar,
-e marque encaminhar_humano = true e tipo_encaminhamento = "clinico".
+Quando tiver o suficiente: agradeça, diga que registrou tudo e organizou as
+informações para o médico, lembre que se algo piorar deve procurar o
+pronto-socorro ou ligar 192, e termine oferecendo o próximo passo com exatamente:
+"Posso já verificar horários para a consulta?
+1) Sim, quero agendar
+2) Prefiro aguardar o retorno da equipe"
+Marque encaminhar_humano = true e tipo_encaminhamento = "clinico".
 Se a pessoa pedir para falar com alguém, use tipo_encaminhamento = "pedido_humano".
 Nos demais casos, tipo_encaminhamento = "nenhum".
 
@@ -149,6 +218,51 @@ const MSG_EMERGENCIA =
   "Por favor, ligue *agora* para o SAMU *192* ou vá ao pronto-socorro mais próximo.\n\n" +
   "Já estou avisando a equipe da clínica. 💙";
 
+const MSG_SAUDE_MENTAL: Record<string, string> = {
+  geral:
+    "Sinto muito que você esteja passando por isso, e obrigado por compartilhar. " +
+    "Você não está sozinho(a). 💙\n\n" +
+    "Se estiver pensando em se machucar, ligue *agora* para o *CVV 188* (24h, gratuito) " +
+    "ou fale com alguém de confiança.\n\n" +
+    "Já estou chamando uma pessoa da nossa equipe para falar com você.",
+  pediatria:
+    "Obrigado por contar. Isso é importante, e vocês não estão sozinhos. 💙\n\n" +
+    "Se houver risco de alguém se machucar agora, ligue para o *CVV 188* (24h, gratuito) " +
+    "ou para o *SAMU 192*, e não deixe a pessoa sozinha.\n\n" +
+    "Já estou chamando uma pessoa da nossa equipe para falar com vocês.",
+};
+
+// Ideacao suicida e automutilacao. Sem negacao de proposito: na duvida, acolhe.
+// "Se machucar" e "se cortou" ficam de fora: em pediatria costumam ser acidente
+// ("medo de ele se machucar na escola"); o que pega e o habito ("tem se cortado").
+const RE_SAUDE_MENTAL =
+  /(suic[ií]d|me matar|se matar|me machucar|tirar (a )?(minha|sua) (pr[óo]pria )?vida|acabar com (a )?(minha|sua) vida|quero morrer|n[ãa]o (aguento|quero) mais viver|me cortar|me cortando|se cortando|tem se cortado|automutila)/;
+
+// ---- consentimento LGPD ----
+const MARCA_CONSENTIMENTO = "podemos começar?";
+const RE_SIM =
+  /^\s*(1\b|1️⃣|sim\b|s\b|pode\b|claro\b|ok\b|okay\b|vamos\b|bora\b|aceito\b|concordo\b|autorizo\b)/;
+const RE_PESSOA =
+  /(^\s*(2\b|2️⃣)|atendente|falar com (uma )?pessoa|falar com algu[ée]m|humano)/;
+
+function abertura(modo: string, clinica: string | null): string {
+  const nome = clinica ? `*${clinica}*` : "clínica";
+  const quem = modo === "pediatria" ? "o atendimento" : "o seu atendimento";
+  const lgpd = modo === "pediatria"
+    ? "_Os dados são usados só para o cuidado (LGPD)._"
+    : "_Seus dados são usados só para o seu cuidado (LGPD)._";
+  return `Olá! 👋 Você chegou ao atendimento virtual da ${nome}.\n` +
+    `Vou fazer algumas perguntinhas rápidas para já preparar ${quem} com o médico. ` +
+    `Podemos começar?\n\n1️⃣ Sim, pode seguir\n2️⃣ Prefiro falar com uma pessoa\n\n${lgpd}`;
+}
+const MSG_CONFIRMA =
+  "Só para confirmar, podemos começar? Responda *1* para seguir ou *2* para falar com uma pessoa.";
+const MSG_CHAMA_EQUIPE =
+  "Sem problema! Vou chamar alguém da equipe para continuar com você por aqui. 🙂";
+const MSG_AGUARDA =
+  "Já avisei a equipe, e alguém vai continuar com você por aqui. " +
+  "Se preferir seguir comigo, é só responder *1*.";
+
 // Gatilhos da camada do sistema. Estreitos de proposito: "ha quanto tempo" e
 // "horario do remedio" sao triagem, nao preco nem agenda.
 const RE_DIRETA =
@@ -164,8 +278,14 @@ const RESPONDE_PASSO: Record<string, RegExp> = {
   ag_slot: /^\D{0,12}\d{1,2}\D{0,12}$/,
 };
 
+// Respostas numericas as opcoes que a propria IA ofereceu e que levam a agenda.
+const RE_SO_1 = /^\s*(1\b|1️⃣|sim\b)/;
+const RE_SO_5 = /^\s*(5|5️⃣)\s*[).]?\s*$/;
+
 /** Agenda, preco, cupom, modalidade e remarcacao: responde o banco, nao o modelo. */
-async function doSistema(conv: string, texto: string, estado: string | null): Promise<string | null> {
+async function doSistema(
+  conv: string, texto: string, estado: string | null, ultimaIA: string,
+): Promise<string | null> {
   const t = texto.toLowerCase();
 
   const passo = estado ? RESPONDE_PASSO[estado] : undefined;
@@ -175,6 +295,14 @@ async function doSistema(conv: string, texto: string, estado: string | null): Pr
     const { data: prof } = await sb.rpc("nx_conv_doctor", { p_conv: conv });
     if (!prof) return null;
     const { data } = await sb.rpc("nx_book_step", { p_conv: conv, p_text: texto });
+    return data ?? null;
+  }
+
+  const u = ultimaIA.toLowerCase();
+  const escolheuAgenda = (u.includes("verificar horários") && RE_SO_1.test(t)) ||
+    (u.includes("5) marcar") && RE_SO_5.test(t));
+  if (escolheuAgenda) {
+    const { data } = await sb.rpc("nx_book_start", { p_conv: conv });
     return data ?? null;
   }
 
@@ -188,18 +316,54 @@ async function doSistema(conv: string, texto: string, estado: string | null): Pr
   return null;
 }
 
+/**
+ * Consentimento LGPD. Devolve o texto a enviar, null para calar, ou undefined
+ * quando a pessoa acabou de aceitar e a triagem pode seguir.
+ */
+async function consentimento(
+  conv: string, t: string, ctx: any, falasIA: string[],
+): Promise<string | null | undefined> {
+  const pedidos = falasIA.filter((b) => b.toLowerCase().includes(MARCA_CONSENTIMENTO)).length;
+  if (pedidos === 0) return abertura(ctx.modo ?? "geral", ctx.clinica ?? null);
+
+  if (RE_SIM.test(t)) {
+    await sb.rpc("nx_agent_consentir", { p_conv: conv });
+    return undefined;
+  }
+
+  const ultima = falasIA[falasIA.length - 1] ?? "";
+  const recusou = "consentimento_recusado" in (ctx.coletado ?? {});
+  const chamarEquipe = async (motivo: string) => {
+    if (!recusou) {
+      await sb.rpc("nx_agent_aplicar", {
+        p_conv: conv, p_risco: "", p_encaminhar: true,
+        p_dados: [{ chave: "consentimento_recusado", valor: motivo, atencao: true }],
+      });
+    }
+    return ultima === MSG_CHAMA_EQUIPE ? null : MSG_CHAMA_EQUIPE;
+  };
+
+  if (RE_PESSOA.test(t)) return chamarEquipe("pediu para falar com uma pessoa");
+  if (recusou) return ultima === MSG_AGUARDA ? null : MSG_AGUARDA;
+  if (pedidos < 2) return MSG_CONFIRMA;
+  return chamarEquipe("não respondeu ao consentimento");
+}
+
 // O que a IA precisa saber do andamento para nao recomecar a triagem.
 const SITUACAO: Record<string, string> = {
   aguardando_medico: "já encaminhado para a equipe, aguardando o médico",
   agendada: "consulta já agendada",
 };
 
+// Chaves que nao sao triagem: nao contam para decidir se ha triagem em andamento.
+const FORA_DA_TRIAGEM = new Set(["encaminhamento", "consentimento", "consentimento_recusado"]);
+
 /** Decide e responde. Devolve o texto a enviar, ou null se o bot deve calar. */
 export async function agente(conv: string, texto: string): Promise<string | null> {
   const t = texto.toLowerCase();
 
-  // 1) Confirmacao de presenca. Vale com a IA calada: depois de agendar a
-  //    conversa fica "agendada", e quem so responde "confirmo" precisa de retorno.
+  // 1) Confirmacao de presenca. Vale com a IA pausada: quem so responde
+  //    "confirmo" a um lembrete precisa de retorno.
   if (/confirm/.test(t) && !/(remarc|desmarc|cancel|n[ãa]o)/.test(t)) {
     const { data: cf } = await sb.rpc("nx_appt_confirmar_paciente", { p_conv: conv });
     if (cf?.ok) {
@@ -212,9 +376,26 @@ export async function agente(conv: string, texto: string): Promise<string | null
     .select("bot_state, paciente_idade").eq("id", conv).single();
   if (!conversa) return null;
 
-  // 2) Bandeira vermelha. Roda ANTES da checagem de IA ativa: mesmo com a IA
-  //    pausada por alguem da equipe, "ele esta convulsionando" recebe o aviso
-  //    do SAMU.
+  // 2) Saude mental e bandeira vermelha. Rodam ANTES da checagem de IA ativa:
+  //    mesmo com a IA pausada por alguem da equipe, o aviso sai.
+  const alertaRepetido = async (msg: string) => {
+    const { data: ultima } = await sb.from("messages").select("body")
+      .eq("conversation_id", conv).eq("direction", "out")
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    // ja mandou o alerta e ninguem falou depois: nao repete a cada mensagem
+    return ultima?.body === msg;
+  };
+
+  if (RE_SAUDE_MENTAL.test(t)) {
+    const { data: modo } = await sb.rpc("nx_conv_modo", { p_conv: conv });
+    const msg = MSG_SAUDE_MENTAL[modo === "pediatria" ? "pediatria" : "geral"];
+    await sb.rpc("nx_agent_aplicar", {
+      p_conv: conv, p_risco: "muito_urgente", p_encaminhar: true,
+      p_dados: [{ chave: "red_flags", valor: "saúde mental: " + texto.slice(0, 140), atencao: true }],
+    });
+    return (await alertaRepetido(msg)) ? null : msg;
+  }
+
   const { data: meses } = await sb.rpc("nx_idade_meses", { p: conversa.paciente_idade ?? null });
   const { data: bandeira } = await sb.rpc("nx_wa_has_redflag", { t, p_meses: meses ?? null });
   if (bandeira === true) {
@@ -222,11 +403,7 @@ export async function agente(conv: string, texto: string): Promise<string | null
       p_conv: conv, p_risco: "emergencia", p_encaminhar: true,
       p_dados: [{ chave: "red_flags", valor: texto.slice(0, 160), atencao: true }],
     });
-    // ja mandou o alerta e ninguem falou depois: nao repete a cada mensagem
-    const { data: ultima } = await sb.from("messages").select("body")
-      .eq("conversation_id", conv).eq("direction", "out")
-      .order("created_at", { ascending: false }).limit(1).maybeSingle();
-    return ultima?.body === MSG_EMERGENCIA ? null : MSG_EMERGENCIA;
+    return (await alertaRepetido(MSG_EMERGENCIA)) ? null : MSG_EMERGENCIA;
   }
 
   // 3) So um humano cala a IA: pausou no cockpit ou assumiu o atendimento.
@@ -234,12 +411,25 @@ export async function agente(conv: string, texto: string): Promise<string | null
   const { data: ctx } = await sb.rpc("nx_agent_contexto", { p_conv: conv });
   if (!ctx || ctx.ativo === false) return null;
 
+  const falasIA: string[] = (ctx.historico ?? [])
+    .filter((m: any) => m.direction === "out")
+    .map((m: any) => String(m.body ?? ""));
+  const ultimaIA = falasIA[falasIA.length - 1] ?? "";
+
   // 4) Sistema
-  const sistema = await doSistema(conv, texto, conversa.bot_state ?? null);
+  const sistema = await doSistema(conv, texto, conversa.bot_state ?? null, ultimaIA);
   if (sistema) return sistema;
 
-  // 5) Triagem com o modelo
+  // 5) Consentimento LGPD antes de coletar dado de saude. Conversa com triagem
+  //    ja em andamento antes desta regra nao recebe a pergunta no meio.
+  const triagemEmAndamento = Object.keys(ctx.coletado ?? {}).some((k) => !FORA_DA_TRIAGEM.has(k));
+  const jaPediu = falasIA.some((b) => b.toLowerCase().includes(MARCA_CONSENTIMENTO));
+  if (!ctx.consentiu && (jaPediu || !triagemEmAndamento)) {
+    const c = await consentimento(conv, t, ctx, falasIA);
+    if (c !== undefined) return c;
+  }
 
+  // 6) Triagem com o modelo, no modo da conversa
   const chave = Deno.env.get("OPENAI_API_KEY");
   if (!chave) { console.error("agente: OPENAI_API_KEY ausente"); return null; }
 
@@ -249,6 +439,8 @@ export async function agente(conv: string, texto: string): Promise<string | null
       content: String(m.body ?? ""),
     }))
     .filter((m: any) => m.content.length > 0);
+
+  const instrucoes = (ctx.modo === "pediatria" ? PEDIATRIA : GERAL) + "\n\n" + COMUM;
 
   const contexto =
     `Clínica: ${ctx.clinica ?? "—"}\n` +
@@ -266,7 +458,7 @@ export async function agente(conv: string, texto: string): Promise<string | null
       max_tokens: 800,
       response_format: FORMATO,
       messages: [
-        { role: "system", content: INSTRUCOES },
+        { role: "system", content: instrucoes },
         { role: "system", content: contexto },
         ...historico,
         { role: "user", content: texto },
