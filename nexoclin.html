@@ -1531,6 +1531,7 @@ function rcActions(){
   if((st==='em_triagem'||st==='agendada')&&staff){ btns.push(`<button class="cl-btn pri" onclick="rcAdvance('aguardando_medico',false)">Encaminhar ao médico</button>`); if(st==='em_triagem') btns.push(`<button class="rc-b2" onclick="rcAdvance('agendada',false)">Agendar</button>`); }
   if(st==='aguardando_medico'&&medico) btns.push(`<button class="cl-btn pri" onclick="rcAdvance('em_atendimento',true)">Iniciar atendimento</button>`);
   if(st==='em_atendimento'&&medico) btns.push(`<button class="cl-btn pri" onclick="rcFinishForm()">Concluir atendimento</button>`);
+  if((st==='aguardando_medico'||st==='em_atendimento')&&medico){ btns.push(`<button class="cl-btn pri" style="background:#146F8E" onclick="rcRoute(\'presencial\')">📅 Encaminhar p/ agendamento presencial</button>`); btns.push(`<button class="cl-btn pri" style="background:#5B4BD6" onclick="rcRoute(\'telemedicina\')">🎥 Agendar telemedicina (pré-pago)</button>`); }
   if(!done) btns.push(`<button class="rc-b2" onclick="rcFinishForm()">Encerrar…</button>`);
   return btns.join('');
 }
@@ -1555,6 +1556,12 @@ function renderRCPainel(){
     <div class="rc-acts">${rcActions()||'<span class="rc-empty" style="padding:0;text-align:left">Sem ação para o seu perfil neste estágio.</span>'}</div>`;
 }
 async function rcAdvance(status,assignMe){ try{ await SB.rpc('nx_conv_advance',{p_conv:RC.activeId,p_status:status,p_risk:null,p_assign_me:!!assignMe}); await rcLoad(); await rcOpen(RC.activeId); toast('Atendimento atualizado'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+async function rcRoute(modal){ if(!RC.activeId) return; const c=RC.active&&RC.active.conv; const to=c&&c.telefone;
+  try{ const {data,error}=await SB.rpc('nx_conv_route',{p_conv:RC.activeId,p_modalidade:modal}); if(error) throw error;
+    if(to && data){ try{ await SB.functions.invoke('wa-send',{body:{clinic_id:NX.clinic,to:to,kind:'text',text:data,conv_id:RC.activeId}}); }catch(_e){} }
+    toast(modal==='telemedicina'?'Telemedicina: paciente convidado a agendar (pré-pago) 🎥':'Presencial: paciente convidado a agendar 📅');
+    RC._sig=null; await rcLoad(); await rcOpen(RC.activeId);
+  }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 async function rcSetRisk(risk){ try{ await SB.rpc('nx_conv_advance',{p_conv:RC.activeId,p_status:null,p_risk:risk,p_assign_me:false}); await rcLoad(); }catch(e){} }
 function rcCollectForm(){ openModal(`<h3>Registrar dado clínico</h3>
     <div class="nxm-field"><label>Campo</label><input id="rcCk" placeholder="Ex.: Queixa, Alergia, Temperatura"></div>
