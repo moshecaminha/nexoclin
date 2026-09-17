@@ -414,6 +414,27 @@ audio.rc-media{width:230px;max-width:100%}
 .mod-pill{display:inline-block;font-size:12px;font-weight:700;border-radius:20px;padding:3px 11px;white-space:nowrap;letter-spacing:.1px}
 .mod-pres{background:#E1F1F8;color:#146F8E;border:1px solid #C7E6F1}
 .mod-tele{background:#EEE7FC;color:#5B4BD6;border:1px solid #DCD2F7}
+
+.pt-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
+.pt-kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px}
+.pt-kpi-n{font-family:Lato,inherit;font-weight:800;font-size:26px;color:var(--navy)}
+.pt-kpi-l{font-size:12.5px;color:var(--mute);margin-top:2px}
+.pt-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+.pt-h{font-family:Lato,inherit;font-weight:800;color:var(--navy);font-size:14.5px;margin:10px 0 8px}
+.pt-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--mist)}
+.pt-row:last-child{border-bottom:0}
+.pt-prow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px;border-radius:10px;cursor:pointer}
+.pt-prow:hover{background:var(--mist)}
+.pt-top{display:flex;align-items:center;gap:14px;margin-bottom:12px}
+.pt-back{background:var(--mist);border:1px solid var(--line);border-radius:9px;padding:8px 12px;cursor:pointer;color:var(--navy);font-weight:600;font-size:13px}
+.pt-pnome{font-family:Lato,inherit;font-weight:800;color:var(--navy);font-size:19px}
+.pt-psub{font-size:12.5px;color:var(--mute)}
+.pt-tabs{display:flex;gap:6px;overflow-x:auto;border-bottom:1px solid var(--line);margin-bottom:14px;padding-bottom:0}
+.pt-tab{flex:none;background:none;border:0;border-bottom:2px solid transparent;padding:9px 12px;cursor:pointer;color:var(--mute);font-size:13.5px;font-weight:600;white-space:nowrap}
+.pt-tab.on{color:var(--navy);border-bottom-color:var(--cyan)}
+.pt-soap{border:1px solid var(--line);border-radius:10px;padding:11px 13px;margin-bottom:10px;font-size:13.5px;line-height:1.55}
+.pt-soap-h{font-size:12px;color:var(--mute);font-weight:700;margin-bottom:5px;overflow:hidden}
+.pt-soap b{color:var(--navy)}
 </style>
 <style id="wa-style">
 /* ===== Cockpit de Atendimento WhatsApp — escopo .wa- ===== */
@@ -772,8 +793,8 @@ const NAV={
   recepcao:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['clinica','Meu consultório','building'],['relatorios','Relatórios','chart']],
   secretaria:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['documentos','Documentos','inbox'],['clinica','Meu consultório','building'],['relatorios','Relatórios','chart']],
   enfermagem:[['cockpit','Atendimento','chat'],['documentos','Documentos','inbox'],['relatorios','Relatórios','chart']],
-  medico:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['documentos','Documentos','inbox'],['valores','Valores','chart'],['perfil','Perfil do consultório','steth'],['relatorios','Meus indicadores','chart']],
-  gestor:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['documentos','Documentos','inbox'],['valores','Valores','chart'],['perfil','Perfil do consultório','steth'],['clinica','Meu consultório','building'],['relatorios','Relatórios','chart'],['equipe','Equipe','users']],
+  medico:[['inicio','Início','map'],['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['pacientes','Pacientes','users'],['documentos','Documentos','inbox'],['bulas','Bulas','inbox'],['valores','Valores','chart'],['perfil','Perfil do consultório','steth'],['relatorios','Meus indicadores','chart']],
+  gestor:[['inicio','Início','map'],['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['pacientes','Pacientes','users'],['documentos','Documentos','inbox'],['bulas','Bulas','inbox'],['valores','Valores','chart'],['perfil','Perfil do consultório','steth'],['clinica','Meu consultório','building'],['relatorios','Relatórios','chart'],['equipe','Equipe','users']],
   admin:[['plataforma','Plataforma','map'],['suporte','Suporte','chat'],['crm','CRM','users'],['financeiro','Financeiro','chart'],['config','Config','shield'],['integr','Integrações','plug']],
 };
 const TITLES={cockpit:'Atendimento',agenda:'Agenda',clinica:'Meu consultório',plataforma:'Plataforma',relatorios:'Relatórios',integr:'Integrações',equipe:'Equipe & acessos'};
@@ -840,6 +861,9 @@ function nav(v){
   else if(v==='documentos'){ if(NX.real){ view.innerHTML=documentosView(); docLoad(); } else { view.innerHTML=emptyState('Documentos','Entre com uma conta real (médico, secretaria ou gestor) para gerenciar documentos.'); } }
   else if(v==='valores'){ if(NX.real){ view.innerHTML=valView(); valLoad(); } else { view.innerHTML=emptyState('Valores','Entre com uma conta real para configurar valores e cupons.'); } }
   else if(v==='perfil'){ if(NX.real){ view.innerHTML=perfilView(); perfilLoad(); } else { view.innerHTML=emptyState('Perfil do consultório','Entre com uma conta real para configurar o perfil.'); } }
+  else if(v==='inicio'){ if(NX.real){ view.innerHTML=dashView(); dashLoad(); } else { view.innerHTML=emptyState('Início','Entre com uma conta real para ver o painel.'); } }
+  else if(v==='pacientes'){ if(NX.real){ view.innerHTML=pacView(); pacLoad(); } else { view.innerHTML=emptyState('Pacientes','Entre com uma conta real para ver os prontuários.'); } }
+  else if(v==='bulas'){ if(NX.real){ view.innerHTML=bulaView(); bulaLoad(); } else { view.innerHTML=emptyState('Bulas','Entre com uma conta real.'); } }
   else if(v==='prontuario'){ if(NX.real){ prontuario(); } else { view.innerHTML=emptyState('Prontuário','Entre com uma conta real para acessar o prontuário.'); } }
   else if(v==='agenda'){ if(NX.real){ view.innerHTML=agendaReal(); agLoad(); } else { view.innerHTML=agendaView(); } }
   else if(v==='relatorios'){ if(NX.real){ if(ROLE==='admin'){ view.innerHTML=relAdminView(); relAdminLoad(); } else { view.innerHTML=emptyState('Relatórios','Ainda sem dados. Os indicadores aparecem conforme os atendimentos acontecem.'); } } else { const sc=ROLE==='medico'?'medico':'admin'; view.innerHTML=WA.dash.view(sc); WA.dash.mount(sc); } }
@@ -2400,6 +2424,111 @@ async function perfilSave(){ const g=id=>((document.getElementById(id)||{}).valu
     aceita_convenio:gc('pfConv'),instrucoes_nf:g('pfNf'),retorno_permite:gc('pfRet'),retorno_regra:g('pfRetRegra'),retorno_modalidade:g('pfRetMod'),tolerancia_atraso:parseInt(g('pfAtraso'))||15};
   try{ await SB.rpc('nx_clinic_full_set',{p_clinic:NX.clinic,p_prof:(NX.me&&NX.me.id)||null,p:j}); toast('Perfil salvo'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 async function perfilMsgSave(chave){ const t=((document.getElementById('msg_'+chave)||{}).value||''); try{ await SB.rpc('nx_clinic_msg_set',{p_clinic:NX.clinic,p_chave:chave,p_texto:t}); toast('Mensagem salva'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+/* ===== PRONTUÁRIO / DASHBOARD / PACIENTES / BULAS ===== */
+const PRONT={patient:null,data:null,tab:'ident',nome:''};
+const PT_TABS=[['ident','Identificação'],['nasc','Nascimento & Pré-natal'],['cresc','Crescimento'],['vac','Vacinação'],['dev','Desenvolvimento'],['ant','Antecedentes'],['evo','Evolução']];
+const SEC_LABEL={antropometria:'Nova medida',vacinas:'Nova vacina',marcos:'Novo marco',antecedentes:'Novo antecedente',evolucao:'Nova evolução (SOAP)'};
+function ptCard(inner){ return `<div class="pt-card">${inner}</div>`; }
+function ptTodayStr(){ return new Date().toISOString().slice(0,10); }
+function ptFmtd(x){ if(!x) return ''; const d=(''+x).slice(0,10).split('-'); return d.length===3?`${d[2]}/${d[1]}/${d[0]}`:x; }
+function ptFmtdt(x){ if(!x) return ''; try{ return new Date(x).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){ return ptFmtd(x); } }
+function ptIdadeStr(dn){ if(!dn) return ''; const d=new Date(dn), now=new Date(); let a=now.getFullYear()-d.getFullYear(); let m=now.getMonth()-d.getMonth(); if(now.getDate()<d.getDate())m--; if(m<0){a--;m+=12;} if(a<2){ return (a*12+m)+' meses'; } return a+' anos'; }
+// DASHBOARD
+function dashView(){ return `<div class="wi" style="max-width:none"><div class="page-h"><h1>Início</h1><p>Visão geral do consultório.</p></div><div id="dashBox"><div class="rc-empty">Carregando…</div></div></div>`; }
+async function dashLoad(){ const b=document.getElementById('dashBox'); if(!b||!SB||!NX.clinic) return;
+  try{ const {data}=await SB.rpc('nx_dash',{p_clinic:NX.clinic}); const d=data||{};
+    const kpi=(v,l)=>`<div class="pt-kpi"><div class="pt-kpi-n">${v||0}</div><div class="pt-kpi-l">${l}</div></div>`;
+    const prox=(d.proximos||[]).map(p=>`<div class="pt-row"><span><b>${p.paciente||'—'}</b></span><span style="color:var(--mute);font-size:13px">${p.quando} · ${p.modalidade||''}</span></div>`).join('')||'<div class="rc-empty" style="padding:8px 0">Sem próximos agendamentos.</div>';
+    b.innerHTML=`<div class="pt-kpis">${kpi(d.pacientes,'Pacientes')}${kpi(d.consultas_hoje,'Consultas hoje')}${kpi(d.agendados_semana,'Agendados (7 dias)')}${kpi(d.aguardando,'Aguardando médico')}${kpi(d.em_triagem,'Em triagem')}${kpi(d.aniversariantes_mes,'Aniversariantes do mês')}</div>
+      ${ptCard(`<div class="pt-h">Próximos agendamentos</div>${prox}`)}`;
+  }catch(e){ b.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao carregar.</div>'; } }
+// PACIENTES
+function pacView(){ return `<div class="wi" style="max-width:none"><div class="page-h"><h1>Pacientes</h1><p>Prontuário e histórico completo de cada paciente — desde a gestação.</p></div>
+  <div class="eq-bar"><input id="pacQ" placeholder="Buscar por nome…" oninput="pacLoad()" style="flex:1;border:1px solid var(--line);border-radius:10px;padding:9px 12px;outline:none"><button class="cl-btn pri" style="margin:0" onclick="pacNew()">+ Novo paciente</button></div>
+  <div id="pacArea"><div class="rc-empty">Carregando…</div></div></div>`; }
+async function pacLoad(){ PRONT.patient=null; const a=document.getElementById('pacArea'); if(!a||!SB||!NX.clinic) return;
+  const q=((document.getElementById('pacQ')||{}).value||'');
+  try{ const {data}=await SB.rpc('nx_pacientes_list',{p_clinic:NX.clinic,p_q:q}); const list=data||[]; PRONT.list=list;
+    a.innerHTML=list.length?`<div class="pt-card" style="padding:6px">${list.map(p=>`<div class="pt-prow" onclick="prontOpen('${p.id}')"><div><b>${p.nome||'—'}</b><div style="font-size:12px;color:var(--mute)">${p.telefone||''}${p.data_nascimento?(' · '+ptIdadeStr(p.data_nascimento)):''}</div></div><span style="color:var(--cyan-d);font-size:13px;white-space:nowrap">Abrir →</span></div>`).join('')}</div>`:'<div class="rc-empty">Nenhum paciente ainda. Clique em "+ Novo paciente".</div>';
+  }catch(e){ a.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao carregar.</div>'; } }
+function pacNew(){ openModal(`<h3>Novo paciente</h3><div class="nxm-field"><label>Nome</label><input id="pnNome"></div><div class="cl-2"><div class="nxm-field"><label>Telefone</label><input id="pnTel"></div><div class="nxm-field"><label>CPF (opcional)</label><input id="pnCpf"></div></div><div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="pacNewSave()">Criar</button></div>`); }
+async function pacNewSave(){ const g=id=>((document.getElementById(id)||{}).value||'').trim(); const nm=g('pnNome'); if(!nm){ toast('Informe o nome','⚠'); return; }
+  try{ const {data,error}=await SB.rpc('nx_patient_create',{p_clinic:NX.clinic,p_nome:nm,p_cpf:g('pnCpf')||null,p_telefone:g('pnTel')||null}); if(error) throw error; closeModal(); prontOpen(data,nm); toast('Paciente criado'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+// PRONTUÁRIO
+function prontOpen(pid,nome){ PRONT.patient=pid; PRONT.nome=nome||(((PRONT.list||[]).find(x=>x.id===pid)||{}).nome)||''; PRONT.tab='ident'; const a=document.getElementById('pacArea'); if(a) a.innerHTML='<div class="rc-empty">Abrindo prontuário…</div>'; prontLoad(); }
+async function prontLoad(){ try{ const {data}=await SB.rpc('nx_pt_get',{p_patient:PRONT.patient}); PRONT.data=data||{}; prontRender(); }catch(e){ const a=document.getElementById('pacArea'); if(a) a.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao abrir prontuário.</div>'; } }
+function prontRender(){ const a=document.getElementById('pacArea'); if(!a) return; const d=PRONT.data||{}; const p=d.paciente||{}; const f=d.ficha||{};
+  a.innerHTML=`<div class="pt-top"><button class="pt-back" onclick="pacLoad()">← Pacientes</button>
+    <div class="pt-pid"><div class="pt-pnome">${p.nome||PRONT.nome||'Paciente'}</div><div class="pt-psub">${f.sexo?('Sexo: '+f.sexo+' · '):''}${f.data_nascimento?(ptIdadeStr(f.data_nascimento)+' · '):''}${f.tipo_sanguineo?('Sangue '+f.tipo_sanguineo):''}</div></div></div>
+    <div class="pt-tabs">${PT_TABS.map(([k,l])=>`<button class="pt-tab ${PRONT.tab===k?'on':''}" onclick="prontTab('${k}')">${l}</button>`).join('')}</div>
+    <div id="prontBody"></div>`;
+  prontBody(); }
+function prontTab(t){ PRONT.tab=t; prontRender(); }
+function prontBody(){ const b=document.getElementById('prontBody'); if(!b) return; const d=PRONT.data||{}; const t=PRONT.tab;
+  if(t==='ident') b.innerHTML=ptIdent(d.ficha||{});
+  else if(t==='nasc') b.innerHTML=ptNasc(d.nascimento||{});
+  else if(t==='cresc') b.innerHTML=ptCresc(d.antropometria||[]);
+  else if(t==='vac') b.innerHTML=ptVac(d.vacinas||[]);
+  else if(t==='dev') b.innerHTML=ptDev(d.marcos||[]);
+  else if(t==='ant') b.innerHTML=ptAnt(d.antecedentes||[]);
+  else if(t==='evo') b.innerHTML=ptEvo(d.evolucao||[]); }
+function ptIdent(f){ return ptCard(`<div class="pt-h">Identificação</div>
+  <div class="cl-2">${pfFld('Sexo','ptSexo',f.sexo)}${pfFld('Data de nascimento','ptDN',f.data_nascimento,'AAAA-MM-DD')}</div>
+  <div class="cl-2">${pfFld('CPF','ptCpf',f.cpf)}${pfFld('Tipo sanguíneo','ptSang',f.tipo_sanguineo)}</div>
+  <div class="cl-2">${pfFld('Nome da mãe','ptMae',f.mae_nome)}${pfFld('Nome do pai','ptPai',f.pai_nome)}</div>
+  <div class="cl-2">${pfFld('Responsável','ptResp',f.responsavel)}${pfFld('Contato','ptCont',f.contato)}</div>
+  ${pfFld('Convênio','ptConv',f.convenio)}${pfTxa('Observações','ptObs',f.obs,2)}
+  <button class="cl-btn pri" style="padding:9px 15px" onclick="ptFichaSave()">Salvar identificação</button>`); }
+async function ptFichaSave(){ const g=id=>((document.getElementById(id)||{}).value||'').trim(); const j={sexo:g('ptSexo'),data_nascimento:g('ptDN'),cpf:g('ptCpf'),tipo_sanguineo:g('ptSang'),mae_nome:g('ptMae'),pai_nome:g('ptPai'),responsavel:g('ptResp'),contato:g('ptCont'),convenio:g('ptConv'),obs:g('ptObs')}; try{ await SB.rpc('nx_pt_ficha_set',{p_patient:PRONT.patient,p:j}); toast('Identificação salva'); prontLoad(); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+function ptNasc(n){ return ptCard(`<div class="pt-h">Pré-natal e gestação</div>
+  <div class="cl-2">${pfFld('Idade gestacional (sem)','ntGest',n.gestacao_semanas)}${pfFld('Tipo de parto','ntParto',n.tipo_parto)}</div>
+  ${pfFld('Consultas de pré-natal','ntPn',n.prenatal_consultas)}${pfTxa('Intercorrências na gestação','ntInter',n.intercorrencias_gestacao,2)}
+  <div class="pt-h" style="margin-top:14px">Nascimento</div>
+  <div class="cl-2">${pfFld('Peso (kg)','ntPeso',n.peso_nasc)}${pfFld('Comprimento (cm)','ntComp',n.comprimento_nasc)}</div>
+  <div class="cl-2">${pfFld('Perímetro cefálico (cm)','ntPc',n.pc_nasc)}${pfFld(' ','ntx',' ')}</div>
+  <div class="cl-2">${pfFld('Apgar 1º min','ntAp1',n.apgar1)}${pfFld('Apgar 5º min','ntAp5',n.apgar5)}</div>
+  <div class="pt-h" style="margin-top:14px">Triagens neonatais</div>
+  <div class="cl-2">${pfFld('Teste do pezinho','ntPez',n.teste_pezinho)}${pfFld('Teste da orelhinha','ntOre',n.teste_orelhinha)}</div>
+  <div class="cl-2">${pfFld('Teste do olhinho','ntOlho',n.teste_olhinho)}${pfFld('Teste do coraçãozinho','ntCor',n.teste_coracaozinho)}</div>
+  ${pfFld('Teste da linguinha','ntLing',n.teste_linguinha)}${pfTxa('Observações','ntObs',n.obs,2)}
+  <button class="cl-btn pri" style="padding:9px 15px" onclick="ptNascSave()">Salvar nascimento</button>`); }
+async function ptNascSave(){ const g=id=>((document.getElementById(id)||{}).value||'').trim(); const j={gestacao_semanas:g('ntGest'),tipo_parto:g('ntParto'),prenatal_consultas:g('ntPn'),intercorrencias_gestacao:g('ntInter'),peso_nasc:g('ntPeso'),comprimento_nasc:g('ntComp'),pc_nasc:g('ntPc'),apgar1:g('ntAp1'),apgar5:g('ntAp5'),teste_pezinho:g('ntPez'),teste_orelhinha:g('ntOre'),teste_olhinho:g('ntOlho'),teste_coracaozinho:g('ntCor'),teste_linguinha:g('ntLing'),obs:g('ntObs')}; try{ await SB.rpc('nx_pt_nasc_set',{p_patient:PRONT.patient,p:j}); toast('Nascimento salvo'); prontLoad(); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+function ptCresc(rows){ const r=(rows||[]).map(a=>{ const imc=(a.peso&&a.altura)?(a.peso/Math.pow(a.altura/100,2)).toFixed(1):''; return `<tr><td>${ptFmtd(a.data)}</td><td>${a.peso||''} kg</td><td>${a.altura||''} cm</td><td>${a.pc||''}</td><td>${imc}</td><td style="text-align:right"><button class="eq-act danger" onclick="ptDel('antropometria','${a.id}')">×</button></td></tr>`; }).join('');
+  return ptCard(`<div class="eq-bar"><b>Crescimento (antropometria)</b><button class="cl-btn pri" style="margin:0;padding:8px 13px" onclick="ptAddForm('antropometria')">+ Medida</button></div><table class="eq-tbl"><thead><tr><th>Data</th><th>Peso</th><th>Altura</th><th>PC</th><th>IMC</th><th></th></tr></thead><tbody>${r||'<tr><td colspan="6" style="color:var(--mute)">Sem medidas registradas.</td></tr>'}</tbody></table><div class="cl-cs">Curvas de percentil OMS entram na próxima etapa.</div>`); }
+function ptVac(rows){ const r=(rows||[]).map(v=>`<tr><td>${v.vacina||''}</td><td>${v.dose||''}</td><td>${ptFmtd(v.data_aplicacao)}</td><td>${v.lote||''}</td><td style="text-align:right"><button class="eq-act danger" onclick="ptDel('vacinas','${v.id}')">×</button></td></tr>`).join('');
+  return ptCard(`<div class="eq-bar"><b>Vacinação</b><button class="cl-btn pri" style="margin:0;padding:8px 13px" onclick="ptAddForm('vacinas')">+ Vacina</button></div><table class="eq-tbl"><thead><tr><th>Vacina</th><th>Dose</th><th>Data</th><th>Lote</th><th></th></tr></thead><tbody>${r||'<tr><td colspan="5" style="color:var(--mute)">Sem vacinas registradas.</td></tr>'}</tbody></table>`); }
+function ptDev(rows){ const r=(rows||[]).map(m=>`<tr><td>${m.marco||''}</td><td>${m.idade_esperada||''}</td><td>${ptFmtd(m.data)}</td><td>${m.atingido?'✓':'—'}</td><td style="text-align:right"><button class="eq-act danger" onclick="ptDel('marcos','${m.id}')">×</button></td></tr>`).join('');
+  return ptCard(`<div class="eq-bar"><b>Desenvolvimento (marcos)</b><button class="cl-btn pri" style="margin:0;padding:8px 13px" onclick="ptAddForm('marcos')">+ Marco</button></div><table class="eq-tbl"><thead><tr><th>Marco</th><th>Idade esperada</th><th>Data</th><th>Atingido</th><th></th></tr></thead><tbody>${r||'<tr><td colspan="5" style="color:var(--mute)">Sem marcos registrados.</td></tr>'}</tbody></table>`); }
+function ptAnt(rows){ const grp=t=>(rows||[]).filter(a=>a.tipo===t).map(a=>`<div class="pt-row"><span>${a.descricao||''}</span><button class="eq-act danger" onclick="ptDel('antecedentes','${a.id}')">×</button></div>`).join('')||'<div style="color:var(--mute);font-size:13px;padding:4px 0">—</div>';
+  return ptCard(`<div class="eq-bar"><b>Antecedentes</b><button class="cl-btn pri" style="margin:0;padding:8px 13px" onclick="ptAddForm('antecedentes')">+ Item</button></div>
+   <div class="pt-h">Pessoais</div>${grp('pessoal')}<div class="pt-h">Familiares</div>${grp('familiar')}<div class="pt-h" style="color:#c0392b">Alergias</div>${grp('alergia')}<div class="pt-h">Medicação contínua</div>${grp('medicacao')}`); }
+function ptEvo(rows){ const r=(rows||[]).map(e=>`<div class="pt-soap"><div class="pt-soap-h">${ptFmtdt(e.data)}${e.profissional?(' · '+e.profissional):''}${e.cid?(' · CID '+e.cid):''}<button class="eq-act danger" style="float:right" onclick="ptDel('evolucao','${e.id}')">×</button></div>${e.subjetivo?`<div><b>S:</b> ${e.subjetivo}</div>`:''}${e.objetivo?`<div><b>O:</b> ${e.objetivo}</div>`:''}${e.avaliacao?`<div><b>A:</b> ${e.avaliacao}</div>`:''}${e.plano?`<div><b>P:</b> ${e.plano}</div>`:''}</div>`).join('');
+  return ptCard(`<div class="eq-bar"><b>Evolução (SOAP)</b><button class="cl-btn pri" style="margin:0;padding:8px 13px" onclick="ptAddForm('evolucao')">+ Nota</button></div>${r||'<div class="rc-empty" style="padding:8px 0">Sem evoluções registradas.</div>'}`); }
+function ptAddForm(secao){ let body='';
+  if(secao==='antropometria') body=`<div class="cl-2">${pfFld('Data','adData',ptTodayStr())}${pfFld('Peso (kg)','adPeso')}</div><div class="cl-2">${pfFld('Altura (cm)','adAltura')}${pfFld('PC (cm)','adPc')}</div>`;
+  else if(secao==='vacinas') body=`${pfFld('Vacina','adVac')}<div class="cl-2">${pfFld('Dose','adDose')}${pfFld('Data','adDataV',ptTodayStr())}</div>${pfFld('Lote','adLote')}`;
+  else if(secao==='marcos') body=`${pfFld('Marco','adMarco')}<div class="cl-2">${pfFld('Idade esperada','adIdade')}${pfFld('Data','adDataM',ptTodayStr())}</div>`;
+  else if(secao==='antecedentes') body=`<div class="nxm-field"><label>Tipo</label><select id="adTipo"><option value="pessoal">Pessoal</option><option value="familiar">Familiar</option><option value="alergia">Alergia</option><option value="medicacao">Medicação contínua</option></select></div>${pfTxa('Descrição','adDesc','',2)}`;
+  else if(secao==='evolucao') body=`${pfTxa('Subjetivo (queixa/história)','adS','',2)}${pfTxa('Objetivo (exame)','adO','',2)}${pfTxa('Avaliação (hipótese)','adA','',2)}${pfTxa('Plano (conduta)','adP','',2)}${pfFld('CID','adCid')}`;
+  openModal(`<h3>${SEC_LABEL[secao]||'Novo'}</h3>${body}<div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="ptAddSave('${secao}')">Salvar</button></div>`); }
+async function ptAddSave(secao){ const g=id=>((document.getElementById(id)||{}).value||'').trim(); let j={};
+  if(secao==='antropometria') j={data:g('adData'),peso:g('adPeso'),altura:g('adAltura'),pc:g('adPc')};
+  else if(secao==='vacinas') j={vacina:g('adVac'),dose:g('adDose'),data_aplicacao:g('adDataV'),lote:g('adLote')};
+  else if(secao==='marcos') j={marco:g('adMarco'),idade_esperada:g('adIdade'),data:g('adDataM')};
+  else if(secao==='antecedentes') j={tipo:g('adTipo'),descricao:g('adDesc')};
+  else if(secao==='evolucao') j={subjetivo:g('adS'),objetivo:g('adO'),avaliacao:g('adA'),plano:g('adP'),cid:g('adCid'),profissional:(NX.me&&NX.me.nome)||''};
+  try{ await SB.rpc('nx_pt_row_add',{p_patient:PRONT.patient,p_secao:secao,p:j}); closeModal(); prontLoad(); toast('Registro adicionado'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+async function ptDel(secao,id){ if(!confirm('Excluir este registro?')) return; try{ await SB.rpc('nx_pt_row_del',{p_secao:secao,p_id:id}); prontLoad(); }catch(e){ toast('Erro','⚠'); } }
+// BULAS
+function bulaView(){ return `<div class="wi" style="max-width:none"><div class="page-h"><h1>Bulas</h1><p>Biblioteca de bulas salvas para consulta rápida.</p></div>
+  <div class="eq-bar"><input id="bulaQ" placeholder="Buscar por nome ou princípio ativo…" oninput="bulaLoad()" style="flex:1;border:1px solid var(--line);border-radius:10px;padding:9px 12px;outline:none"><button class="cl-btn pri" style="margin:0" onclick="bulaAddForm()">+ Bula</button></div>
+  <div id="bulaBox"><div class="rc-empty">Carregando…</div></div></div>`; }
+async function bulaLoad(){ const b=document.getElementById('bulaBox'); if(!b||!SB||!NX.clinic) return; const q=((document.getElementById('bulaQ')||{}).value||'');
+  try{ const {data}=await SB.rpc('nx_bula_list',{p_clinic:NX.clinic,p_q:q}); const list=data||[];
+    b.innerHTML=list.length?list.map(x=>ptCard(`<div class="pt-h">${x.nome||''} ${x.principio_ativo?`<span style="font-weight:400;color:var(--mute);font-size:13px">· ${x.principio_ativo}</span>`:''}</div>${x.indicacao?`<div style="font-size:13.5px"><b>Indicação:</b> ${x.indicacao}</div>`:''}${x.posologia?`<div style="font-size:13.5px"><b>Posologia:</b> ${x.posologia}</div>`:''}${x.texto?`<div style="font-size:13px;color:var(--mute);margin-top:4px">${x.texto}</div>`:''}${x.url?`<a href="${x.url}" target="_blank" style="font-size:13px;color:var(--cyan-d)">Bula completa →</a>`:''}`)).join(''):'<div class="rc-empty">Nenhuma bula salva. Clique em "+ Bula".</div>';
+  }catch(e){ b.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro.</div>'; } }
+function bulaAddForm(){ openModal(`<h3>Nova bula</h3><div class="cl-2">${pfFld('Nome','buNome')}${pfFld('Princípio ativo','buPa')}</div>${pfFld('Categoria','buCat')}${pfTxa('Indicação','buInd','',2)}${pfTxa('Posologia','buPos','',2)}${pfFld('Link da bula (opcional)','buUrl')}<div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="bulaSave()">Salvar</button></div>`); }
+async function bulaSave(){ const g=id=>((document.getElementById(id)||{}).value||'').trim(); const nm=g('buNome'); if(!nm){ toast('Informe o nome','⚠'); return; } try{ await SB.rpc('nx_bula_add',{p_clinic:NX.clinic,p:{nome:nm,principio_ativo:g('buPa'),categoria:g('buCat'),indicacao:g('buInd'),posologia:g('buPos'),url:g('buUrl')}}); closeModal(); bulaLoad(); toast('Bula salva'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 function nxCheckOnboard(){
   const tok=new URLSearchParams(location.search).get('onboard'); if(!tok) return;
   const card=document.querySelector('#login .login-card'); if(!card) return;
