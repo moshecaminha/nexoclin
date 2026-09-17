@@ -772,8 +772,8 @@ const NAV={
   recepcao:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['clinica','Meu consultório','building'],['relatorios','Relatórios','chart']],
   secretaria:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['documentos','Documentos','inbox'],['clinica','Meu consultório','building'],['relatorios','Relatórios','chart']],
   enfermagem:[['cockpit','Atendimento','chat'],['documentos','Documentos','inbox'],['relatorios','Relatórios','chart']],
-  medico:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['documentos','Documentos','inbox'],['valores','Valores','chart'],['relatorios','Meus indicadores','chart']],
-  gestor:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['documentos','Documentos','inbox'],['valores','Valores','chart'],['clinica','Meu consultório','building'],['relatorios','Relatórios','chart'],['equipe','Equipe','users']],
+  medico:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['documentos','Documentos','inbox'],['valores','Valores','chart'],['perfil','Perfil do consultório','steth'],['relatorios','Meus indicadores','chart']],
+  gestor:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['documentos','Documentos','inbox'],['valores','Valores','chart'],['perfil','Perfil do consultório','steth'],['clinica','Meu consultório','building'],['relatorios','Relatórios','chart'],['equipe','Equipe','users']],
   admin:[['plataforma','Plataforma','map'],['suporte','Suporte','chat'],['crm','CRM','users'],['financeiro','Financeiro','chart'],['config','Config','shield'],['integr','Integrações','plug']],
 };
 const TITLES={cockpit:'Atendimento',agenda:'Agenda',clinica:'Meu consultório',plataforma:'Plataforma',relatorios:'Relatórios',integr:'Integrações',equipe:'Equipe & acessos'};
@@ -839,6 +839,7 @@ function nav(v){
   if(v==='cockpit'){ if(NX.real){ view.innerHTML=rcView(); rcLoad(); } else { WA.role=ROLE; view.innerHTML=WA.view(); WA.mount(); } }
   else if(v==='documentos'){ if(NX.real){ view.innerHTML=documentosView(); docLoad(); } else { view.innerHTML=emptyState('Documentos','Entre com uma conta real (médico, secretaria ou gestor) para gerenciar documentos.'); } }
   else if(v==='valores'){ if(NX.real){ view.innerHTML=valView(); valLoad(); } else { view.innerHTML=emptyState('Valores','Entre com uma conta real para configurar valores e cupons.'); } }
+  else if(v==='perfil'){ if(NX.real){ view.innerHTML=perfilView(); perfilLoad(); } else { view.innerHTML=emptyState('Perfil do consultório','Entre com uma conta real para configurar o perfil.'); } }
   else if(v==='prontuario'){ if(NX.real){ prontuario(); } else { view.innerHTML=emptyState('Prontuário','Entre com uma conta real para acessar o prontuário.'); } }
   else if(v==='agenda'){ if(NX.real){ view.innerHTML=agendaReal(); agLoad(); } else { view.innerHTML=agendaView(); } }
   else if(v==='relatorios'){ if(NX.real){ if(ROLE==='admin'){ view.innerHTML=relAdminView(); relAdminLoad(); } else { view.innerHTML=emptyState('Relatórios','Ainda sem dados. Os indicadores aparecem conforme os atendimentos acontecem.'); } } else { const sc=ROLE==='medico'?'medico':'admin'; view.innerHTML=WA.dash.view(sc); WA.dash.mount(sc); } }
@@ -1535,6 +1536,30 @@ function rcActions(){
   if(!done) btns.push(`<button class="rc-b2" onclick="rcFinishForm()">Encerrar…</button>`);
   return btns.join('');
 }
+function collKind(d){ const k=((d.chave||'')+'').toLowerCase(), v=((d.valor||'')+'').toLowerCase();
+  if(k==='red_flags') return {tag:'RISCO',bg:'#FDE7E5',fg:'#c0392b',icon:'🔴'};
+  if(k==='risco_sugerido'){ if(/emerg|muito/.test(v)) return {tag:'URGÊNCIA',bg:'#FDE7E5',fg:'#c0392b',icon:'🔴'}; if(/urgente/.test(v)) return {tag:'ATENÇÃO',bg:'#FCEFD6',fg:'#B4790B',icon:'🟠'}; return {tag:'ROTINA',bg:'#DCF3EA',fg:'#12996A',icon:'🟢'}; }
+  if(/sintoma|inicio|intensidade|associad/.test(k)) return {tag:'SINTOMA',bg:'#E1F1F8',fg:'#146F8E',icon:'🩺'};
+  if(k==='complementar'||/cronic|medica|alergia/.test(k)) return {tag:'HISTÓRICO',bg:'#EEE7FC',fg:'#5B4BD6',icon:'📋'};
+  if(k==='motivo'||k==='encaminhamento') return {tag:'FLUXO',bg:'#EAF4F8',fg:'#1B87AB',icon:'➡'};
+  if(k==='consentimento') return {tag:'LGPD',bg:'#EFF3F5',fg:'#5c7078',icon:'✔'};
+  return {tag:'',bg:'#F2F8FA',fg:'#5c7078',icon:''}; }
+function collRow(d){ const t=collKind(d); const label=((d.chave||'')+'').replace(/_/g,' ');
+  return `<div class="rc-d ${d.atencao?'at':''}" style="display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap">${t.tag?`<span style="flex:none;font-size:9.5px;font-weight:700;border-radius:6px;padding:1px 6px;background:${t.bg};color:${t.fg}">${t.icon} ${t.tag}</span>`:''}<span><b>${label}:</b> ${d.valor||''}</span></div>`; }
+function riskBanner(coll){ const alerta=(coll||[]).some(d=>d.atencao||((d.chave||'')==='red_flags')||(((d.chave||'')==='risco_sugerido')&&/emerg|muito/.test(((d.valor||'')+'').toLowerCase())));
+  return alerta?`<div style="background:#FDE7E5;border:1px solid #f5c6c2;border-radius:10px;padding:8px 11px;margin:8px 0;color:#c0392b;font-size:12.5px;font-weight:600">⚠ Sinais de atenção nesta conversa — priorize a avaliação.</div>`:''; }
+function rcExportPdf(){ const c=RC.active&&RC.active.conv; if(!c) return; const coll=RC.active.collected||[];
+  const rows=coll.map(d=>{ const t=collKind(d); return `<tr><td style="padding:5px 9px;border:1px solid #dbe8ed;white-space:nowrap"><span style="font-size:10px;font-weight:700;color:${t.fg}">${t.icon} ${t.tag}</span></td><td style="padding:5px 9px;border:1px solid #dbe8ed;font-weight:600">${((d.chave||'')+'').replace(/_/g,' ')}</td><td style="padding:5px 9px;border:1px solid #dbe8ed">${d.valor||''}${d.atencao?' <b style="color:#c0392b">[atenção]</b>':''}</td></tr>`; }).join('');
+  const html=`<html><head><meta charset="utf-8"><title>Resumo - ${c.paciente_nome||'Paciente'}</title></head><body style="font-family:Arial,sans-serif;padding:28px;color:#1e3640;max-width:760px;margin:auto">
+    <h2 style="color:#143A4E;margin:0 0 4px">NexoClin — Resumo do atendimento</h2>
+    <div style="color:#5c7078;font-size:13px;margin-bottom:14px">Gerado em ${new Date().toLocaleString('pt-BR')}</div>
+    <p><b>Paciente:</b> ${c.paciente_nome||c.responsavel_nome||'-'} &nbsp;|&nbsp; <b>Telefone:</b> ${c.telefone||'-'}</p>
+    <p><b>Status:</b> ${c.status||'-'} &nbsp;|&nbsp; <b>Gravidade:</b> ${c.risk||'-'}</p>
+    <h3 style="color:#143A4E;margin-top:20px">Dados coletados na triagem</h3>
+    <table style="border-collapse:collapse;width:100%;font-size:13px">${rows||'<tr><td style="padding:8px">Sem dados coletados.</td></tr>'}</table>
+    <p style="margin-top:26px;font-size:11.5px;color:#8a99a0">A IA do NexoClin organiza e prioriza o atendimento; não realiza diagnóstico nem substitui a avaliação médica.</p>
+  </body></html>`;
+  const w=window.open('','_blank'); if(!w){ toast('Permita pop-ups para gerar o PDF','⚠'); return; } w.document.write(html); w.document.close(); w.focus(); setTimeout(function(){ try{ w.print(); }catch(e){} },350); }
 function renderRCPainel(){
   const el=document.getElementById('rcPainel'); if(!el) return;
   if(!RC.active){ el.innerHTML='<div class="rc-empty">Selecione um atendimento para ver o painel.</div>'; return; }
@@ -1543,13 +1568,15 @@ function renderRCPainel(){
   const riskSel=`<select class="rc-risk" onchange="rcSetRisk(this.value)">${Object.entries(RISK).map(([k,v])=>`<option value="${k}" ${c.risk===k?'selected':''}>${v[1]}</option>`).join('')}</select>`;
   el.innerHTML=`<div class="rc-p-h">${c.paciente_nome||c.responsavel_nome||'Paciente'}</div>
     <div><span class="rc-stat" style="background:${rc[0]}22;color:${rc[0]}">${CSTAT[c.status]||c.status}</span></div>
+    ${riskBanner(coll)}
     ${c.desfecho?`<div class="rc-p-sub" style="margin-top:6px">Desfecho: <b>${c.desfecho}</b></div>`:''}
     <button class="rc-b2" style="width:100%;margin-top:10px" onclick="rcTriageForm()">📋 Triagem / dados do paciente</button>
     <div class="rc-p-sec">Gravidade ${riskSel}</div>
     <div class="rc-p-sec">Dados coletados</div>
-    <div class="rc-coll">${coll.length?coll.map(d=>`<div class="rc-d ${d.atencao?'at':''}">${d.atencao?'⚠ ':''}<b>${d.chave}:</b> ${d.valor||''}</div>`).join(''):'<div class="rc-empty" style="padding:6px 0">Nenhum ainda.</div>'}</div>
+    <div class="rc-coll">${coll.length?coll.map(collRow).join(''):'<div class="rc-empty" style="padding:6px 0">Nenhum ainda.</div>'}</div>
     <button class="rc-b2" style="width:100%;margin-top:8px" onclick="rcCollectForm()">+ Registrar dado</button>
     <button class="rc-b2" style="width:100%;margin-top:6px" onclick="rcSummary()">📋 Resumo p/ prontuário</button>
+    <button class="rc-b2" style="width:100%;margin-top:6px" onclick="rcExportPdf()">⬇ Baixar resumo (PDF)</button>
     <div class="rc-p-sec">Documentos <span class="rc-super">Plano Super</span></div>
     <div class="rc-acts"><button class="rc-b2" onclick="rcDocsSoon()">Receita · Atestado · Exame · Prontuário</button></div>
     <div class="rc-p-sec">Ações do fluxo</div>
@@ -2331,6 +2358,48 @@ async function valAvailSave(id){ const g=x=>((document.getElementById(x)||{}).va
 async function valAvailDel(id){ if(!confirm('Excluir este horário?')) return; try{ await SB.rpc('nx_avail_del',{p_id:id}); valAvailLoad(); toast('Excluído'); }catch(e){ toast('Erro','⚠'); } }
 async function agPayLink(id){ toast('Gerando link de pagamento…'); try{ const {data,error}=await SB.functions.invoke('pay-create',{body:{appointment_id:id}}); if(error) throw error; if(data&&data.ok){ prompt('Link de pagamento — copie e envie ao paciente:', data.link); } else { toast('Pagamento: '+((data&&data.erro)||'não foi possível gerar'),'⚠'); } }catch(e){ toast('Erro ao gerar link','⚠'); } }
 async function agTelemed(id){ toast('Preparando a sala de vídeo…'); try{ const {data,error}=await SB.functions.invoke('telemed-links',{body:{appointment_id:id}}); if(error) throw error; if(data&&data.ok){ prompt('Link do PACIENTE — envie pelo WhatsApp:', data.paciente_link); try{ window.open(data.medico_link,'_blank'); }catch(_e){} } else { toast('Telemedicina: '+((data&&data.erro)||'não foi possível abrir'),'⚠'); } }catch(e){ toast('Erro na telemedicina','⚠'); } }
+const PERFIL={data:null};
+function perfilCard(inner){ return `<div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:16px">${inner}</div>`; }
+function pfFld(label,id,val,ph){ return `<div class="nxm-field"><label>${label}</label><input id="${id}" value="${((val||'')+'').replace(/"/g,'&quot;')}" placeholder="${ph||''}"></div>`; }
+function pfTxa(label,id,val,rows){ return `<div class="nxm-field"><label>${label}</label><textarea id="${id}" rows="${rows||3}" style="width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:13.5px;font-family:var(--body,inherit)">${((val||'')+'').replace(/</g,'&lt;')}</textarea></div>`; }
+function pfSel(id,val,opts){ return `<select id="${id}">${opts.map(o=>`<option value="${o[0]}" ${val===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select>`; }
+function pfMsg(label,chave,val){ return `<div class="nxm-field"><label>${label}</label><textarea id="msg_${chave}" rows="4" style="width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:13.5px;font-family:var(--body,inherit)">${((val||'')+'').replace(/</g,'&lt;')}</textarea><button class="rc-b2" style="margin-top:6px" onclick="perfilMsgSave('${chave}')">Salvar mensagem</button></div>`; }
+function perfilView(){ return `<div class="wi" style="max-width:none"><div class="page-h"><h1>Perfil do consultório</h1><p>Dados do profissional, do consultório, pagamento, políticas e as <b>mensagens que a IA usa no WhatsApp</b>. Tudo editável e personalizado por consultório.</p></div><div id="perfilBox"><div class="rc-empty">Carregando…</div></div></div>`; }
+async function perfilLoad(){ const box=document.getElementById('perfilBox'); if(!box||!SB||!NX.clinic) return;
+  try{ const {data}=await SB.rpc('nx_clinic_full_get',{p_clinic:NX.clinic,p_prof:(NX.me&&NX.me.id)||null}); PERFIL.data=data||{}; box.innerHTML=perfilForm(); }catch(e){ box.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao carregar.</div>'; } }
+function perfilForm(){ const d=PERFIL.data||{}; const p=d.profissional||{}; const c=d.clinica||{}; const m=d.mensagens||{};
+  return `
+  ${perfilCard(`<div class="cl-ct">Dados do profissional</div>
+    <div class="cl-2">${pfFld('CPF','pfCpf',p.cpf)}${pfFld('CRM','pfCrm',p.registro_conselho,'CRM-UF 00000')}</div>
+    <div class="cl-2">${pfFld('RQE (especialista)','pfRqe',p.rqe)}${pfFld('Especialidade','pfEsp',p.especialidade)}</div>
+    <div class="cl-2">${pfFld('Telefone profissional','pfTel',p.telefone_prof)}${pfFld('E-mail profissional','pfEmail',p.email_prof)}</div>
+    ${pfTxa('Mini bio (aparece no perfil)','pfBio',p.mini_bio,3)}`)}
+  ${perfilCard(`<div class="cl-ct">Consultório</div>
+    ${pfFld('Público-alvo / faixa etária','pfPub',c.publico_alvo,'ex.: pré-natal a 12 anos')}
+    ${pfFld('Link do Google Maps','pfMaps',c.gmaps_url,'https://maps.app.goo.gl/...')}`)}
+  ${perfilCard(`<div class="cl-ct">Pagamento</div><div class="cl-cs">No modo PIX, a IA envia a chave e pede o comprovante. No Mercado Pago, gera link automático (precisa do token em Configurações).</div>
+    <div class="nxm-field"><label>Modo de pagamento</label>${pfSel('pfPagModo',c.pagamento_modo,[['pix_manual','PIX (manual + comprovante)'],['mercadopago','Mercado Pago (link automático)']])}</div>
+    <div class="cl-2">${pfFld('Chave PIX','pfPix',c.pix_chave,'CNPJ / e-mail / telefone')}${pfFld('Titular do PIX','pfPixT',c.pix_titular)}</div>`)}
+  ${perfilCard(`<div class="cl-ct">Políticas de atendimento</div>
+    <label style="display:flex;gap:8px;align-items:center;font-size:14px;margin:6px 0"><input type="checkbox" id="pfConv" ${c.aceita_convenio?'checked':''}> Aceita convênio</label>
+    ${pfTxa('Instruções de nota fiscal / reembolso','pfNf',c.instrucoes_nf,2)}
+    <label style="display:flex;gap:8px;align-items:center;font-size:14px;margin:6px 0"><input type="checkbox" id="pfRet" ${c.retorno_permite!==false?'checked':''}> Permite retorno sem custo</label>
+    <div class="cl-2"><div class="nxm-field"><label>Regra do retorno</label>${pfSel('pfRetRegra',c.retorno_regra,[['sob_analise','Sob análise / pendência médica'],['automatico_prazo','Automático por prazo']])}</div><div class="nxm-field"><label>Modalidade do retorno</label>${pfSel('pfRetMod',c.retorno_modalidade,[['telemedicina','Telemedicina'],['presencial','Presencial'],['ambas','Ambas']])}</div></div>
+    <div class="nxm-field"><label>Tolerância a atraso (min)</label><input id="pfAtraso" type="number" value="${c.tolerancia_atraso||15}"></div>
+    <button class="cl-btn pri" style="padding:9px 15px" onclick="perfilSave()">Salvar perfil e políticas</button>`)}
+  ${perfilCard(`<div class="cl-ct">Mensagens do WhatsApp (a IA usa estas)</div><div class="cl-cs">Personalize os textos. Use [valor], [pix], [titular], [data], [hora] — o sistema preenche na hora.</div>
+    ${pfMsg('Boas-vindas','boas_vindas',m.boas_vindas)}
+    ${pfMsg('Dados necessários para agendar','dados_necessarios',m.dados_necessarios)}
+    ${pfMsg('Sobre o acompanhamento','sobre_acompanhamento',m.sobre_acompanhamento)}
+    ${pfMsg('Consulta online','consulta_online',m.consulta_online)}
+    ${pfMsg('Pagamento','pagamento',m.pagamento)}
+    ${pfMsg('Agendamento confirmado','agendamento_confirmado',m.agendamento_confirmado)}`)}`; }
+async function perfilSave(){ const g=id=>((document.getElementById(id)||{}).value||'').trim(); const gc=id=>(((document.getElementById(id)||{}).checked)===true);
+  const j={cpf:g('pfCpf'),registro_conselho:g('pfCrm'),rqe:g('pfRqe'),mini_bio:g('pfBio'),especialidade:g('pfEsp'),telefone_prof:g('pfTel'),email_prof:g('pfEmail'),
+    publico_alvo:g('pfPub'),gmaps_url:g('pfMaps'),pix_chave:g('pfPix'),pix_titular:g('pfPixT'),pagamento_modo:g('pfPagModo'),
+    aceita_convenio:gc('pfConv'),instrucoes_nf:g('pfNf'),retorno_permite:gc('pfRet'),retorno_regra:g('pfRetRegra'),retorno_modalidade:g('pfRetMod'),tolerancia_atraso:parseInt(g('pfAtraso'))||15};
+  try{ await SB.rpc('nx_clinic_full_set',{p_clinic:NX.clinic,p_prof:(NX.me&&NX.me.id)||null,p:j}); toast('Perfil salvo'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+async function perfilMsgSave(chave){ const t=((document.getElementById('msg_'+chave)||{}).value||''); try{ await SB.rpc('nx_clinic_msg_set',{p_clinic:NX.clinic,p_chave:chave,p_texto:t}); toast('Mensagem salva'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 function nxCheckOnboard(){
   const tok=new URLSearchParams(location.search).get('onboard'); if(!tok) return;
   const card=document.querySelector('#login .login-card'); if(!card) return;
