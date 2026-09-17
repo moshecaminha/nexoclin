@@ -453,6 +453,28 @@ audio.rc-media{width:230px;max-width:100%}
 .rc-tool{color:var(--navy);background:#fff;border:1px solid var(--line);border-radius:9px;width:38px;height:34px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
 .rc-tool:hover{background:var(--mist)}
 .rc-cron{display:inline-flex;align-items:center;gap:5px;font-size:13px;font-weight:700;color:var(--navy);background:var(--mist);border:1px solid var(--line);border-radius:20px;padding:4px 11px}
+
+/* ===== PADRÃO DE CAMPOS (linha cinza sempre visível + foco azul) ===== */
+.wi input:not([type=checkbox]):not([type=radio]), .wi select, .wi textarea,
+.nxm-field input:not([type=checkbox]):not([type=radio]), .nxm-field select, .nxm-field textarea{
+  width:100% !important; box-sizing:border-box !important; max-width:100% !important;
+  border:1.5px solid #bcccd4 !important; border-radius:9px !important; padding:9px 11px !important;
+  font-size:14px; background:#fff !important; outline:none; color:var(--ink); font-family:inherit;
+}
+.wi input:focus, .wi select:focus, .wi textarea:focus,
+.nxm-field input:focus, .nxm-field select:focus, .nxm-field textarea:focus{
+  border-color:var(--cyan) !important; box-shadow:0 0 0 3px rgba(41,169,208,.18) !important;
+}
+/* grids e modais não estouram */
+.cl-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cl-2>*{min-width:0}
+@media(max-width:640px){.cl-2{grid-template-columns:1fr}}
+.nxm-field{min-width:0}
+/* abas do prontuário: pílulas com separação clara */
+.pt-tabs{display:flex;gap:6px;overflow-x:auto;border-bottom:0 !important;margin-bottom:14px;padding:5px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.pt-tab{flex:none;background:#fff;border:1px solid var(--line);border-radius:9px;padding:8px 13px;cursor:pointer;color:var(--mute);font-size:13px;font-weight:600;white-space:nowrap;border-bottom:1px solid var(--line) !important}
+.pt-tab:hover{background:var(--mist)}
+.pt-tab.on{color:#fff !important;background:var(--navy) !important;border-color:var(--navy) !important}
 </style>
 <style id="wa-style">
 /* ===== Cockpit de Atendimento WhatsApp — escopo .wa- ===== */
@@ -2515,7 +2537,7 @@ function prontOpen(pid,nome){ PRONT.patient=pid; PRONT.nome=nome||(((PRONT.list|
 async function prontLoad(){ try{ const {data}=await SB.rpc('nx_pt_get',{p_patient:PRONT.patient}); PRONT.data=data||{}; prontRender(); }catch(e){ const a=document.getElementById('pacArea'); if(a) a.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao abrir prontuário.</div>'; } }
 function prontRender(){ const a=document.getElementById('pacArea'); if(!a) return; const d=PRONT.data||{}; const p=d.paciente||{}; const f=d.ficha||{};
   a.innerHTML=`<div class="pt-top"><button class="pt-back" onclick="pacLoad()">← Pacientes</button>
-    <div class="pt-pid"><div class="pt-pnome">${p.nome||PRONT.nome||'Paciente'}</div><div class="pt-psub">${ptSexLabel(f.sexo)} · ${f.data_nascimento?ptIdadeStr(f.data_nascimento):'idade —'}${(f.prematuro&&f.semanas_gestacao)?(' (corrigida '+ptIdadeCorrigStr(f.data_nascimento,true,f.semanas_gestacao)+')'):''}${f.tipo_sanguineo?(' · Sangue '+f.tipo_sanguineo):''}${p.responsavel_nome?(' · Resp.: '+p.responsavel_nome):''}</div></div><button class="pt-toggle" style="margin-left:auto;background:var(--navy);color:#fff;border-color:var(--navy);white-space:nowrap" onclick="presencStart()">▶ Atendimento presencial</button></div>
+    <div class="pt-pid"><div class="pt-pnome">${p.nome||PRONT.nome||'Paciente'}</div><div class="pt-psub">${ptSexLabel(f.sexo)} · ${f.data_nascimento?ptIdadeStr(f.data_nascimento):'idade —'}${(f.prematuro&&f.semanas_gestacao)?(' (corrigida '+ptIdadeCorrigStr(f.data_nascimento,true,f.semanas_gestacao)+')'):''}${f.tipo_sanguineo?(' · Sangue '+f.tipo_sanguineo):''}${p.responsavel_nome?(' · Resp.: '+p.responsavel_nome):''}</div></div>${PRESENC.active?`<button class="pt-toggle" style="margin-left:auto;background:#c0392b;color:#fff;border-color:#c0392b;white-space:nowrap" onclick="presencSave()">⏹ Encerrar atendimento</button>`:`<button class="pt-toggle" style="margin-left:auto;background:#12996A;color:#fff;border-color:#12996A;white-space:nowrap" onclick="presencStart()">▶ Iniciar atendimento</button>`}</div>
     <div class="pt-tabs">${PT_TABS.map(([k,l])=>`<button class="pt-tab ${PRONT.tab===k?'on':''}" onclick="prontTab('${k}')">${l}</button>`).join('')}</div>
     <div id="prontBody"></div>`;
   prontBody(); }
@@ -2572,10 +2594,11 @@ function whoChart(measure,sexo,nasc,antro,prem,sem){ const corrM=(mo)=>(prem&&se
   return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;background:#fff;border:1px solid var(--line);border-radius:10px">${yt}${xt}${band}${line(1,'stroke="#dbe8ed" stroke-width="1"')}${line(2,'stroke="#b9cdd6" stroke-width="1"')}${line(3,'stroke="#143A4E" stroke-width="1.6"')}${line(4,'stroke="#b9cdd6" stroke-width="1"')}${line(5,'stroke="#dbe8ed" stroke-width="1"')}${ptLine}${dots}${lbl(5,'+3','#b9cdd6')}${lbl(4,'+2','#b9cdd6')}${lbl(3,'0','#143A4E')}${lbl(2,'-2','#b9cdd6')}${lbl(1,'-3','#b9cdd6')}</svg>${zread}`;
 }
 function ptCrescM(m){ PRONT.crescM=m; prontBody(); }
-function ptCresc(rows){ const f=((PRONT.data||{}).ficha||{}); const nasc=f.data_nascimento, sexo=f.sexo; const meas=PRONT.crescM||'peso';
+function ptCrescSex(x){ PRONT.crescSex=x; prontBody(); }
+function ptCresc(rows){ const f=((PRONT.data||{}).ficha||{}); const nasc=f.data_nascimento; const sexo=f.sexo||PRONT.crescSex||'M'; const meas=PRONT.crescM||'peso';
   const r=(rows||[]).map(a=>{ const imc=(a.peso&&a.altura)?(a.peso/Math.pow(a.altura/100,2)).toFixed(1):''; return `<tr><td>${ptFmtd(a.data)}</td><td>${a.peso||''} kg</td><td>${a.altura||''} cm</td><td>${a.pc||''}</td><td>${imc}</td><td style="text-align:right"><button class="eq-act danger" onclick="ptDel('antropometria','${a.id}')">×</button></td></tr>`; }).join('');
   const _b=(k,l)=>`<button class="pt-toggle ${meas===k?'on':''}" onclick="ptCrescM('${k}')">${l}</button>`; const toggle=`<div style="display:flex;gap:6px;margin:6px 0 10px;flex-wrap:wrap">${_b('peso','Peso')}${_b('estatura','Estatura')}${_b('imc','IMC')}${_b('pc','Per. cefálico')}</div>`;
-  const chart = nasc ? (toggle + whoChart(meas,sexo,nasc,rows,f.prematuro,f.semanas_gestacao) + (sexo?'':'<div class="cl-cs">Defina o <b>sexo</b> na Identificação para a curva correta (usando padrão masculino).</div>')) : '<div class="cl-cs">Informe a <b>data de nascimento</b> (e o sexo) na aba Identificação para ver as curvas da OMS.</div>';
+  const sexToggle = f.sexo?'':`<div style="display:flex;gap:6px;align-items:center;margin:6px 0;flex-wrap:wrap"><span class="cl-cs" style="margin:0">Sexo (defina na Identificação):</span><button class="pt-toggle ${sexo==='M'?'on':''}" onclick="ptCrescSex('M')">Masculino</button><button class="pt-toggle ${sexo==='F'?'on':''}" onclick="ptCrescSex('F')">Feminino</button></div>`; const dobNote = nasc?'':'<div class="cl-cs">Curva de referência da OMS exibida abaixo. Adicione a <b>data de nascimento</b> na Identificação para plotar as medidas do paciente sobre a curva.</div>'; const chart = toggle + sexToggle + whoChart(meas,sexo,nasc,rows,f.prematuro,f.semanas_gestacao) + dobNote;
   return ptCard(`<div class="pt-h">Curva de crescimento — OMS (0 a 5 anos)</div>${chart}<div class="cl-cs">Padrão WHO Child Growth Standards. Linhas: escore-z −3, −2, mediana, +2, +3.</div>`)
     + ptCard(`<div class="eq-bar"><b>Medidas registradas</b><button class="cl-btn pri" style="margin:0;padding:8px 13px" onclick="ptAddForm('antropometria')">+ Medida</button></div><table class="eq-tbl"><thead><tr><th>Data</th><th>Peso</th><th>Altura</th><th>PC</th><th>IMC</th><th></th></tr></thead><tbody>${r||'<tr><td colspan="6" style="color:var(--mute)">Sem medidas registradas.</td></tr>'}</tbody></table>`);
 }
@@ -2646,9 +2669,10 @@ function presencPanel(){ return `<div class="pt-card" style="border:2px solid va
 </div>`; }
 function ptEvo(rows){ const r=(rows||[]).map(e=>`<div class="pt-soap"><div class="pt-soap-h">${ptFmtdt(e.data)}${e.tipo==='presencial'?' · presencial':''}${e.duracao_min?(' · '+e.duracao_min+' min'):''}${e.profissional?(' · '+e.profissional):''}${e.cid?(' · CID '+e.cid):''}<button class="eq-act danger" style="float:right" onclick="ptDel('evolucao','${e.id}')">×</button></div>${e.subjetivo?`<div><b>S:</b> ${e.subjetivo}</div>`:''}${e.objetivo?`<div><b>O:</b> ${e.objetivo}</div>`:''}${e.avaliacao?`<div><b>A:</b> ${e.avaliacao}</div>`:''}${e.plano?`<div><b>P:</b> ${e.plano}</div>`:''}</div>`).join('');
   return (PRESENC.active?presencPanel():'') + ptCard(`<div class="eq-bar"><b>Evolução (SOAP)</b><button class="cl-btn pri" style="margin:0;padding:8px 13px" onclick="ptAddForm('evolucao')">+ Nota</button></div>${r||'<div class="rc-empty" style="padding:8px 0">Sem evoluções registradas.</div>'}`); }
+const VACINAS=['BCG','Hepatite B','Pentavalente (DTP+Hib+HepB)','Poliomielite inativada (VIP)','Poliomielite oral (VOP)','Pneumocócica 10-valente','Pneumocócica 13-valente','Rotavírus','Meningocócica C','Meningocócica ACWY','Meningocócica B','Febre amarela','Tríplice viral (SCR)','Tetra viral (SCRV)','Hepatite A','DTP','dTpa','Dupla adulto (dT)','Varicela','HPV quadrivalente','Influenza (gripe)','COVID-19','Dengue (QDenga)','Haemophilus influenzae b (Hib)','Palivizumabe (VSR)'];
 function ptAddForm(secao){ let body='';
   if(secao==='antropometria') body=`<div class="cl-2">${pfFld('Data','adData',ptTodayStr())}${pfFld('Peso (kg)','adPeso')}</div><div class="cl-2">${pfFld('Altura (cm)','adAltura')}${pfFld('PC (cm)','adPc')}</div>`;
-  else if(secao==='vacinas') body=`${pfFld('Vacina','adVac')}<div class="cl-2">${pfFld('Dose','adDose')}${pfFld('Data','adDataV',ptTodayStr())}</div>${pfFld('Lote','adLote')}`;
+  else if(secao==='vacinas') body=`<div class="nxm-field"><label>Vacina</label><input id="adVac" list="vacDL" autocomplete="off" placeholder="Digite para buscar…"><datalist id="vacDL">${VACINAS.map(v=>'<option value="'+v+'">').join('')}</datalist></div><div class="cl-2">${pfFld('Dose','adDose')}${pfFld('Data','adDataV',ptTodayStr())}</div>${pfFld('Lote','adLote')}`;
   else if(secao==='marcos') body=`${pfFld('Marco','adMarco')}<div class="cl-2">${pfFld('Idade esperada','adIdade')}${pfFld('Data','adDataM',ptTodayStr())}</div>`;
   else if(secao==='antecedentes') body=`<div class="nxm-field"><label>Tipo</label><select id="adTipo"><option value="pessoal">Pessoal</option><option value="familiar">Familiar</option><option value="alergia">Alergia</option><option value="medicacao">Medicação contínua</option></select></div>${pfTxa('Descrição','adDesc','',2)}`;
   else if(secao==='evolucao') body=`${pfTxa('Subjetivo (queixa/história)','adS','',2)}${pfTxa('Objetivo (exame)','adO','',2)}${pfTxa('Avaliação (hipótese)','adA','',2)}${pfTxa('Plano (conduta)','adP','',2)}${pfFld('CID','adCid')}`;
