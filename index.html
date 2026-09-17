@@ -196,6 +196,19 @@
   .cw-lead input{width:100%;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:15px;margin-bottom:8px;outline:none}
   .cw-lead button{width:100%;background:var(--wa);color:#0b3a24;border:0;border-radius:10px;padding:11px;font-weight:700;cursor:pointer}
   .cw-lead .lmsg{font-size:12.5px;margin-top:8px;min-height:14px}
+
+img{max-width:100%;height:auto}
+.logo-img{height:34px !important;width:auto !important;max-width:60vw;object-fit:contain}
+@media(max-width:560px){
+  .wrap,.hero.wrap,section,.nav{padding-left:16px;padding-right:16px;box-sizing:border-box}
+  .hero h1{font-size:clamp(23px,6.6vw,32px);line-height:1.22;word-break:break-word}
+  .hero p{font-size:15px}
+  .hero-cta{flex-direction:column;gap:10px}
+  .hero-cta a,.hero-cta .btn{width:100%;box-sizing:border-box;text-align:center}
+  .logo-img{height:30px !important}
+  .ribbon,.topbar{font-size:12.5px;line-height:1.35}
+}
+html,body{max-width:100%;overflow-x:hidden}
 </style>
 </head>
 <body>
