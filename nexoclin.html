@@ -475,6 +475,10 @@ audio.rc-media{width:230px;max-width:100%}
 .pt-tab{flex:none;background:#fff;border:1px solid var(--line);border-radius:9px;padding:8px 13px;cursor:pointer;color:var(--mute);font-size:13px;font-weight:600;white-space:nowrap;border-bottom:1px solid var(--line) !important}
 .pt-tab:hover{background:var(--mist)}
 .pt-tab.on{color:#fff !important;background:var(--navy) !important;border-color:var(--navy) !important}
+
+.pt-tl{border-left:3px solid var(--cyan);padding:6px 0 6px 12px;margin:8px 0}
+.pt-tl-date{font-size:13px;font-weight:700;color:var(--navy)}
+.pt-tl-body{font-size:13px;color:var(--ink);margin-top:2px}
 </style>
 <style id="wa-style">
 /* ===== Cockpit de Atendimento WhatsApp — escopo .wa- ===== */
@@ -2480,7 +2484,7 @@ async function perfilSave(){ const g=id=>((document.getElementById(id)||{}).valu
 async function perfilMsgSave(chave){ const t=((document.getElementById('msg_'+chave)||{}).value||''); try{ await SB.rpc('nx_clinic_msg_set',{p_clinic:NX.clinic,p_chave:chave,p_texto:t}); toast('Mensagem salva'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 /* ===== PRONTUÁRIO / DASHBOARD / PACIENTES / BULAS ===== */
 const PRONT={patient:null,data:null,tab:'ident',nome:''};
-const PT_TABS=[['ident','Identificação'],['nasc','Nascimento & Pré-natal'],['cresc','Crescimento'],['vac','Vacinação'],['dev','Desenvolvimento'],['ant','Antecedentes'],['evo','Evolução']];
+const PT_TABS=[['ident','Identificação'],['nasc','Nascimento & Pré-natal'],['cresc','Crescimento'],['vac','Vacinação'],['dev','Desenvolvimento'],['ant','Antecedentes'],['evo','Evolução'],['rel','Relatório']];
 const SEC_LABEL={antropometria:'Nova medida',vacinas:'Nova vacina',marcos:'Novo marco',antecedentes:'Novo antecedente',evolucao:'Nova evolução (SOAP)'};
 function ptCard(inner){ return `<div class="pt-card">${inner}</div>`; }
 function ptTodayStr(){ return new Date().toISOString().slice(0,10); }
@@ -2549,15 +2553,15 @@ function prontBody(){ const b=document.getElementById('prontBody'); if(!b) retur
   else if(t==='vac') b.innerHTML=ptVac(d.vacinas||[]);
   else if(t==='dev') b.innerHTML=ptDev(d.marcos||[]);
   else if(t==='ant') b.innerHTML=ptAnt(d.antecedentes||[]);
-  else if(t==='evo') b.innerHTML=ptEvo(d.evolucao||[]); }
+  else if(t==='evo') b.innerHTML=ptEvo(d.evolucao||[]); else if(t==='rel') b.innerHTML=ptRel(d); }
 function ptIdent(f){ return ptCard(`<div class="pt-h">Identificação</div>
-  <div class="cl-2">${pfFld('Sexo','ptSexo',f.sexo)}${pfFld('Data de nascimento','ptDN',f.data_nascimento,'AAAA-MM-DD')}</div>
+  <div class="cl-2"><div class="nxm-field"><label>Sexo</label>${pfSel('ptSexo',((f.sexo||'').toUpperCase().charAt(0)==='F'?'F':((f.sexo||'').toUpperCase().charAt(0)==='M'?'M':'')),[['','Selecione…'],['M','Masculino'],['F','Feminino']])}</div><div class="nxm-field"><label>Data de nascimento</label><input id="ptDN" type="date" value="${f.data_nascimento||''}"></div></div>
   <div class="cl-2">${pfFld('CPF','ptCpf',f.cpf)}${pfFld('Tipo sanguíneo','ptSang',f.tipo_sanguineo)}</div>
   <div class="cl-2">${pfFld('Nome da mãe','ptMae',f.mae_nome)}${pfFld('Nome do pai','ptPai',f.pai_nome)}</div>
   <div class="cl-2">${pfFld('Responsável','ptResp',f.responsavel)}${pfFld('Contato','ptCont',f.contato)}</div>
-  ${pfFld('Convênio','ptConv',f.convenio)}${pfTxa('Observações','ptObs',f.obs,2)}
+  <div class="nxm-field"><label>Tipo de consulta (padrão do paciente)</label>${pfSel('ptTipoAt',(f.tipo_atendimento||'particular'),[['particular','Particular'],['convenio','Convênio']])}</div>${pfTxa('Observações','ptObs',f.obs,2)}
   <button class="cl-btn pri" style="padding:9px 15px" onclick="ptFichaSave()">Salvar identificação</button>`); }
-async function ptFichaSave(){ const g=id=>((document.getElementById(id)||{}).value||'').trim(); const j={sexo:g('ptSexo'),data_nascimento:g('ptDN'),cpf:g('ptCpf'),tipo_sanguineo:g('ptSang'),mae_nome:g('ptMae'),pai_nome:g('ptPai'),responsavel:g('ptResp'),contato:g('ptCont'),convenio:g('ptConv'),obs:g('ptObs')}; try{ await SB.rpc('nx_pt_ficha_set',{p_patient:PRONT.patient,p:j}); toast('Identificação salva'); prontLoad(); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+async function ptFichaSave(){ const g=id=>((document.getElementById(id)||{}).value||'').trim(); const j={sexo:g('ptSexo'),data_nascimento:g('ptDN'),cpf:g('ptCpf'),tipo_sanguineo:g('ptSang'),mae_nome:g('ptMae'),pai_nome:g('ptPai'),responsavel:g('ptResp'),contato:g('ptCont'),tipo_atendimento:g('ptTipoAt'),obs:g('ptObs')}; try{ await SB.rpc('nx_pt_ficha_set',{p_patient:PRONT.patient,p:j}); toast('Identificação salva'); prontLoad(); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 function ptNasc(n){ return ptCard(`<div class="pt-h">Pré-natal e gestação</div>
   <div class="cl-2">${pfFld('Idade gestacional (sem)','ntGest',n.gestacao_semanas)}${pfFld('Tipo de parto','ntParto',n.tipo_parto)}</div>
   ${pfFld('Consultas de pré-natal','ntPn',n.prenatal_consultas)}${pfTxa('Intercorrências na gestação','ntInter',n.intercorrencias_gestacao,2)}
@@ -2591,14 +2595,14 @@ function whoChart(measure,sexo,nasc,antro,prem,sem){ const corrM=(mo)=>(prem&&se
   let yt=''; for(let i=0;i<=5;i++){ const v=yMin+(yMax-yMin)*i/5, y=Y(v); yt+=`<line x1="${pl}" y1="${y.toFixed(1)}" x2="${pl+iw}" y2="${y.toFixed(1)}" stroke="#eef3f5"/><text x="${pl-4}" y="${(y+3).toFixed(1)}" font-size="9.5" fill="#8a99a0" text-anchor="end">${v.toFixed(v<20?1:0)}</text>`; }
   const lbl=(idx,txt,col)=>`<text x="${(X(60)+2).toFixed(1)}" y="${(Y(rows[60][idx])+3).toFixed(1)}" font-size="9" fill="${col}">${txt}</text>`;
   let zread=''; if(pts.length){ const last=pts[pts.length-1], z=whoZ(measure,sx,last[0],last[1]); if(z!=null) zread=`<div class="cl-cs">Última: <b>${last[1]} ${unit}</b> aos ${Math.round(last[0])} meses · escore-z <b>${z>=0?'+':''}${z.toFixed(1)}</b> (P${whoP(z)})</div>`; }
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;background:#fff;border:1px solid var(--line);border-radius:10px">${yt}${xt}${band}${line(1,'stroke="#dbe8ed" stroke-width="1"')}${line(2,'stroke="#b9cdd6" stroke-width="1"')}${line(3,'stroke="#143A4E" stroke-width="1.6"')}${line(4,'stroke="#b9cdd6" stroke-width="1"')}${line(5,'stroke="#dbe8ed" stroke-width="1"')}${ptLine}${dots}${lbl(5,'+3','#b9cdd6')}${lbl(4,'+2','#b9cdd6')}${lbl(3,'0','#143A4E')}${lbl(2,'-2','#b9cdd6')}${lbl(1,'-3','#b9cdd6')}</svg>${zread}`;
+  return `<div style="max-width:680px"><svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;background:#fff;border:1px solid var(--line);border-radius:10px">${yt}${xt}${band}${line(1,'stroke="#dbe8ed" stroke-width="1"')}${line(2,'stroke="#b9cdd6" stroke-width="1"')}${line(3,'stroke="#143A4E" stroke-width="1.6"')}${line(4,'stroke="#b9cdd6" stroke-width="1"')}${line(5,'stroke="#dbe8ed" stroke-width="1"')}${ptLine}${dots}${lbl(5,'+3','#b9cdd6')}${lbl(4,'+2','#b9cdd6')}${lbl(3,'0','#143A4E')}${lbl(2,'-2','#b9cdd6')}${lbl(1,'-3','#b9cdd6')}</svg></div>${zread}`;
 }
 function ptCrescM(m){ PRONT.crescM=m; prontBody(); }
 function ptCrescSex(x){ PRONT.crescSex=x; prontBody(); }
-function ptCresc(rows){ const f=((PRONT.data||{}).ficha||{}); const nasc=f.data_nascimento; const sexo=f.sexo||PRONT.crescSex||'M'; const meas=PRONT.crescM||'peso';
+function ptCresc(rows){ const f=((PRONT.data||{}).ficha||{}); const nasc=f.data_nascimento; const sexo=(f.sexo||'M'); const meas=PRONT.crescM||'peso';
   const r=(rows||[]).map(a=>{ const imc=(a.peso&&a.altura)?(a.peso/Math.pow(a.altura/100,2)).toFixed(1):''; return `<tr><td>${ptFmtd(a.data)}</td><td>${a.peso||''} kg</td><td>${a.altura||''} cm</td><td>${a.pc||''}</td><td>${imc}</td><td style="text-align:right"><button class="eq-act danger" onclick="ptDel('antropometria','${a.id}')">×</button></td></tr>`; }).join('');
   const _b=(k,l)=>`<button class="pt-toggle ${meas===k?'on':''}" onclick="ptCrescM('${k}')">${l}</button>`; const toggle=`<div style="display:flex;gap:6px;margin:6px 0 10px;flex-wrap:wrap">${_b('peso','Peso')}${_b('estatura','Estatura')}${_b('imc','IMC')}${_b('pc','Per. cefálico')}</div>`;
-  const sexToggle = f.sexo?'':`<div style="display:flex;gap:6px;align-items:center;margin:6px 0;flex-wrap:wrap"><span class="cl-cs" style="margin:0">Sexo (defina na Identificação):</span><button class="pt-toggle ${sexo==='M'?'on':''}" onclick="ptCrescSex('M')">Masculino</button><button class="pt-toggle ${sexo==='F'?'on':''}" onclick="ptCrescSex('F')">Feminino</button></div>`; const dobNote = nasc?'':'<div class="cl-cs">Curva de referência da OMS exibida abaixo. Adicione a <b>data de nascimento</b> na Identificação para plotar as medidas do paciente sobre a curva.</div>'; const chart = toggle + sexToggle + whoChart(meas,sexo,nasc,rows,f.prematuro,f.semanas_gestacao) + dobNote;
+  const sexNote = f.sexo?'':'<div class="cl-cs">Defina o <b>sexo</b> na aba Identificação para a curva correta.</div>'; const dobNote = nasc?'':'<div class="cl-cs">Curva de referência da OMS exibida abaixo. Adicione a <b>data de nascimento</b> na Identificação para plotar as medidas do paciente sobre a curva.</div>'; const chart = toggle + whoChart(meas,sexo,nasc,rows,f.prematuro,f.semanas_gestacao) + sexNote + dobNote;
   return ptCard(`<div class="pt-h">Curva de crescimento — OMS (0 a 5 anos)</div>${chart}<div class="cl-cs">Padrão WHO Child Growth Standards. Linhas: escore-z −3, −2, mediana, +2, +3.</div>`)
     + ptCard(`<div class="eq-bar"><b>Medidas registradas</b><button class="cl-btn pri" style="margin:0;padding:8px 13px" onclick="ptAddForm('antropometria')">+ Medida</button></div><table class="eq-tbl"><thead><tr><th>Data</th><th>Peso</th><th>Altura</th><th>PC</th><th>IMC</th><th></th></tr></thead><tbody>${r||'<tr><td colspan="6" style="color:var(--mute)">Sem medidas registradas.</td></tr>'}</tbody></table>`);
 }
@@ -2657,32 +2661,35 @@ function presencStart(){ PRESENC.active=true; PRESENC.start=Date.now(); PRONT.ta
 function presencTick(){ const el=document.getElementById('presCron'); if(!el) return; const s=Math.floor((Date.now()-(PRESENC.start||Date.now()))/1000); el.textContent=('0'+Math.floor(s/60)).slice(-2)+':'+('0'+(s%60)).slice(-2); }
 function presencStop(){ PRESENC.active=false; if(PRESENC.iv){clearInterval(PRESENC.iv);PRESENC.iv=null;} }
 async function presencSave(){ const g=id=>((document.getElementById(id)||{}).value||'').trim(); const dur=Math.max(1,Math.round((Date.now()-(PRESENC.start||Date.now()))/60000));
-  if(!g('psS')&&!g('psO')&&!g('psA')&&!g('psP')){ toast('Registre ao menos um campo do SOAP','⚠'); return; }
-  const j={subjetivo:g('psS'),objetivo:g('psO'),avaliacao:g('psA'),plano:g('psP'),cid:g('psCid'),profissional:(NX.me&&NX.me.nome)||'',tipo:'presencial',duracao_min:dur};
+  const has=g('psS')||g('psO')||g('psA')||g('psP')||g('psCid');
+  if(!has){ if(!confirm('Encerrar o atendimento sem registrar nada no prontuário?')) return; presencStop(); prontLoad(); toast('Atendimento encerrado.'); return; }
+  const j={subjetivo:g('psS'),objetivo:g('psO'),avaliacao:g('psA'),plano:g('psP'),cid:g('psCid'),tipo_consulta:g('psTipo'),profissional:(NX.me&&NX.me.nome)||'',tipo:'presencial',duracao_min:dur};
   try{ await SB.rpc('nx_pt_row_add',{p_patient:PRONT.patient,p_secao:'evolucao',p:j}); presencStop(); toast('Atendimento presencial concluído ('+dur+' min)'); prontLoad(); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 function presencCancel(){ if(!confirm('Encerrar sem salvar o atendimento?')) return; presencStop(); prontRender(); }
-function presencPanel(){ return `<div class="pt-card" style="border:2px solid var(--cyan)">
+function presencPanel(){ const tipoDef=((PRONT.data||{}).ficha||{}).tipo_atendimento||'particular'; return `<div class="pt-card" style="border:2px solid var(--cyan)">
   <div class="eq-bar"><b>Atendimento presencial em andamento</b><span class="rc-cron"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/></svg> <span id="presCron">00:00</span></span></div>
   <div class="cl-cs">Registre o que você pergunta e o que o paciente relata, em tempo real. Ao concluir, vira uma evolução no prontuário com a duração.</div>
-  ${pfTxa('Subjetivo (queixa, história, relato)','psS','',3)}${pfTxa('Objetivo (exame físico, sinais, medidas)','psO','',3)}${pfTxa('Avaliação (hipótese diagnóstica)','psA','',2)}${pfTxa('Plano (conduta, prescrição, retorno)','psP','',3)}${pfFld('CID','psCid')}
+  ${pfTxa('Subjetivo (queixa, história, relato)','psS','',3)}${pfTxa('Objetivo (exame físico, sinais, medidas)','psO','',3)}${pfTxa('Avaliação (hipótese diagnóstica)','psA','',2)}${pfTxa('Plano (conduta, prescrição, retorno)','psP','',3)}${cidField('psCid')}<div class="nxm-field"><label>Tipo de consulta</label>${pfSel('psTipo',tipoDef,[['particular','Particular'],['convenio','Convênio']])}</div>
   <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="cl-btn pri" style="margin:0" onclick="presencSave()">Concluir atendimento</button><button class="cl-btn" style="margin:0;background:var(--mist);color:var(--navy)" onclick="presencCancel()">Cancelar</button></div>
 </div>`; }
-function ptEvo(rows){ const r=(rows||[]).map(e=>`<div class="pt-soap"><div class="pt-soap-h">${ptFmtdt(e.data)}${e.tipo==='presencial'?' · presencial':''}${e.duracao_min?(' · '+e.duracao_min+' min'):''}${e.profissional?(' · '+e.profissional):''}${e.cid?(' · CID '+e.cid):''}<button class="eq-act danger" style="float:right" onclick="ptDel('evolucao','${e.id}')">×</button></div>${e.subjetivo?`<div><b>S:</b> ${e.subjetivo}</div>`:''}${e.objetivo?`<div><b>O:</b> ${e.objetivo}</div>`:''}${e.avaliacao?`<div><b>A:</b> ${e.avaliacao}</div>`:''}${e.plano?`<div><b>P:</b> ${e.plano}</div>`:''}</div>`).join('');
+function ptEvo(rows){ const r=(rows||[]).map(e=>`<div class="pt-soap"><div class="pt-soap-h">${ptFmtdt(e.data)}${e.tipo==='presencial'?' · presencial':''}${e.tipo_consulta?(' · '+e.tipo_consulta):''}${e.duracao_min?(' · '+e.duracao_min+' min'):''}${e.profissional?(' · '+e.profissional):''}${e.cid?(' · CID '+e.cid):''}<button class="eq-act danger" style="float:right" onclick="ptDel('evolucao','${e.id}')">×</button></div>${e.subjetivo?`<div><b>S:</b> ${e.subjetivo}</div>`:''}${e.objetivo?`<div><b>O:</b> ${e.objetivo}</div>`:''}${e.avaliacao?`<div><b>A:</b> ${e.avaliacao}</div>`:''}${e.plano?`<div><b>P:</b> ${e.plano}</div>`:''}</div>`).join('');
   return (PRESENC.active?presencPanel():'') + ptCard(`<div class="eq-bar"><b>Evolução (SOAP)</b><button class="cl-btn pri" style="margin:0;padding:8px 13px" onclick="ptAddForm('evolucao')">+ Nota</button></div>${r||'<div class="rc-empty" style="padding:8px 0">Sem evoluções registradas.</div>'}`); }
+const CID10=['J06.9 - IVAS (resfriado comum)','J00 - Nasofaringite aguda','J02.9 - Faringite aguda','J03.9 - Amigdalite aguda','H66.9 - Otite média','J20.9 - Bronquite aguda','J21.9 - Bronquiolite aguda','J45 - Asma','J18.9 - Pneumonia','A09 - Diarreia e gastroenterite','A08.4 - Infecção intestinal viral','R50.9 - Febre','R51 - Cefaleia','R10.4 - Dor abdominal','B34.9 - Infecção viral','B01.9 - Varicela','B26.9 - Caxumba','B05.9 - Sarampo','A38 - Escarlatina','L20.9 - Dermatite atópica','L23.9 - Dermatite de contato','B35.9 - Micose (dermatofitose)','B37.9 - Candidíase','B86 - Escabiose','B85 - Pediculose','J30.4 - Rinite alérgica','H10.9 - Conjuntivite','N39.0 - Infecção urinária','R11 - Náuseas e vômitos','K21.9 - Refluxo gastroesofágico','K59.0 - Constipação','E86 - Desidratação','D50.9 - Anemia ferropriva','E55.9 - Deficiência de vitamina D','Z00.1 - Consulta de rotina (puericultura)','Z23 - Vacinação','T78.4 - Alergia','L50.9 - Urticária','R05 - Tosse','R06.0 - Dispneia','P07.3 - Prematuridade','R62.8 - Atraso do desenvolvimento','R62.0 - Atraso de marco do desenvolvimento','K30 - Dispepsia','B08.4 - Doença mão-pé-boca','A87.9 - Meningite viral','G43 - Enxaqueca','F90 - TDAH','F84.0 - Transtorno do espectro autista'];
+function cidField(id){ return `<div class="nxm-field"><label>CID</label><input id="${id}" list="dl_${id}" autocomplete="off" placeholder="Buscar CID-10…"><datalist id="dl_${id}">${CID10.map(c=>'<option value="'+c+'">').join('')}</datalist></div>`; }
 const VACINAS=['BCG','Hepatite B','Pentavalente (DTP+Hib+HepB)','Poliomielite inativada (VIP)','Poliomielite oral (VOP)','Pneumocócica 10-valente','Pneumocócica 13-valente','Rotavírus','Meningocócica C','Meningocócica ACWY','Meningocócica B','Febre amarela','Tríplice viral (SCR)','Tetra viral (SCRV)','Hepatite A','DTP','dTpa','Dupla adulto (dT)','Varicela','HPV quadrivalente','Influenza (gripe)','COVID-19','Dengue (QDenga)','Haemophilus influenzae b (Hib)','Palivizumabe (VSR)'];
 function ptAddForm(secao){ let body='';
   if(secao==='antropometria') body=`<div class="cl-2">${pfFld('Data','adData',ptTodayStr())}${pfFld('Peso (kg)','adPeso')}</div><div class="cl-2">${pfFld('Altura (cm)','adAltura')}${pfFld('PC (cm)','adPc')}</div>`;
   else if(secao==='vacinas') body=`<div class="nxm-field"><label>Vacina</label><input id="adVac" list="vacDL" autocomplete="off" placeholder="Digite para buscar…"><datalist id="vacDL">${VACINAS.map(v=>'<option value="'+v+'">').join('')}</datalist></div><div class="cl-2">${pfFld('Dose','adDose')}${pfFld('Data','adDataV',ptTodayStr())}</div>${pfFld('Lote','adLote')}`;
   else if(secao==='marcos') body=`${pfFld('Marco','adMarco')}<div class="cl-2">${pfFld('Idade esperada','adIdade')}${pfFld('Data','adDataM',ptTodayStr())}</div>`;
   else if(secao==='antecedentes') body=`<div class="nxm-field"><label>Tipo</label><select id="adTipo"><option value="pessoal">Pessoal</option><option value="familiar">Familiar</option><option value="alergia">Alergia</option><option value="medicacao">Medicação contínua</option></select></div>${pfTxa('Descrição','adDesc','',2)}`;
-  else if(secao==='evolucao') body=`${pfTxa('Subjetivo (queixa/história)','adS','',2)}${pfTxa('Objetivo (exame)','adO','',2)}${pfTxa('Avaliação (hipótese)','adA','',2)}${pfTxa('Plano (conduta)','adP','',2)}${pfFld('CID','adCid')}`;
+  else if(secao==='evolucao') body=`${pfTxa('Subjetivo (queixa/história)','adS','',2)}${pfTxa('Objetivo (exame)','adO','',2)}${pfTxa('Avaliação (hipótese)','adA','',2)}${pfTxa('Plano (conduta)','adP','',2)}${cidField('adCid')}<div class="nxm-field"><label>Tipo de consulta</label>${pfSel('adTipoC',(((PRONT.data||{}).ficha||{}).tipo_atendimento||'particular'),[['particular','Particular'],['convenio','Convênio']])}</div>`;
   openModal(`<h3>${SEC_LABEL[secao]||'Novo'}</h3>${body}<div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="ptAddSave('${secao}')">Salvar</button></div>`); }
 async function ptAddSave(secao){ const g=id=>((document.getElementById(id)||{}).value||'').trim(); let j={};
   if(secao==='antropometria') j={data:g('adData'),peso:g('adPeso'),altura:g('adAltura'),pc:g('adPc')};
   else if(secao==='vacinas') j={vacina:g('adVac'),dose:g('adDose'),data_aplicacao:g('adDataV'),lote:g('adLote')};
   else if(secao==='marcos') j={marco:g('adMarco'),idade_esperada:g('adIdade'),data:g('adDataM')};
   else if(secao==='antecedentes') j={tipo:g('adTipo'),descricao:g('adDesc')};
-  else if(secao==='evolucao') j={subjetivo:g('adS'),objetivo:g('adO'),avaliacao:g('adA'),plano:g('adP'),cid:g('adCid'),profissional:(NX.me&&NX.me.nome)||''};
+  else if(secao==='evolucao') j={subjetivo:g('adS'),objetivo:g('adO'),avaliacao:g('adA'),plano:g('adP'),cid:g('adCid'),tipo_consulta:g('adTipoC'),profissional:(NX.me&&NX.me.nome)||''};
   try{ await SB.rpc('nx_pt_row_add',{p_patient:PRONT.patient,p_secao:secao,p:j}); closeModal(); prontLoad(); toast('Registro adicionado'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 async function ptDel(secao,id){ if(!confirm('Excluir este registro?')) return; try{ await SB.rpc('nx_pt_row_del',{p_secao:secao,p_id:id}); prontLoad(); }catch(e){ toast('Erro','⚠'); } }
 // BULAS
@@ -2695,6 +2702,29 @@ async function bulaLoad(){ const b=document.getElementById('bulaBox'); if(!b||!S
   }catch(e){ b.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro.</div>'; } }
 function bulaAddForm(){ openModal(`<h3>Nova bula</h3><div class="cl-2">${pfFld('Nome','buNome')}${pfFld('Princípio ativo','buPa')}</div>${pfFld('Categoria','buCat')}${pfTxa('Indicação','buInd','',2)}${pfTxa('Posologia','buPos','',2)}${pfFld('Link da bula (opcional)','buUrl')}<div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="bulaSave()">Salvar</button></div>`); }
 async function bulaSave(){ const g=id=>((document.getElementById(id)||{}).value||'').trim(); const nm=g('buNome'); if(!nm){ toast('Informe o nome','⚠'); return; } try{ await SB.rpc('nx_bula_add',{p_clinic:NX.clinic,p:{nome:nm,principio_ativo:g('buPa'),categoria:g('buCat'),indicacao:g('buInd'),posologia:g('buPos'),url:g('buUrl')}}); closeModal(); bulaLoad(); toast('Bula salva'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+function ptRel(d){ d=d||PRONT.data||{}; const p=d.paciente||{}, f=d.ficha||{};
+  const tl=(d.evolucao||[]).map(e=>`<div class="pt-tl"><div class="pt-tl-date">🗓 ${ptFmtdt(e.data)}${e.tipo==='presencial'?' · presencial':''}${e.tipo_consulta?(' · '+e.tipo_consulta):''}${e.duracao_min?(' · '+e.duracao_min+' min'):''}${e.cid?(' · CID '+e.cid):''}</div><div class="pt-tl-body">${e.avaliacao?('<b>'+e.avaliacao+'</b> '):''}${e.subjetivo?('· '+(''+e.subjetivo).slice(0,90)):''}</div></div>`).join('')||'<div class="rc-empty" style="padding:8px 0">Sem consultas registradas.</div>';
+  const campos=(d.campos||[]).map(c=>`<div class="pt-row"><span><b>${c.chave}:</b> ${c.valor||''}</span><button class="eq-act danger" onclick="ptCampoDel('${c.id}')">×</button></div>`).join('')||'<div style="color:var(--mute);font-size:13px;padding:4px 0">Nenhum campo personalizado ainda.</div>';
+  return ptCard(`<div class="eq-bar"><b>Consultas — linha do tempo</b><button class="cl-btn pri" style="margin:0;padding:8px 13px" onclick="ptRelPdf()">⬇ Relatório (PDF)</button></div>${tl}`)
+   + ptCard(`<div class="eq-bar"><b>Campos personalizados</b><button class="cl-btn pri" style="margin:0;padding:8px 13px" onclick="ptCampoForm()">+ Campo</button></div><div class="cl-cs">Registre qualquer informação que você precise guardar sobre o paciente — fica salva no prontuário para as próximas consultas.</div>${campos}`);
+}
+function ptCampoForm(){ openModal(`<h3>Novo campo do prontuário</h3>${pfFld('Nome do campo','cpK','','ex.: Alergia alimentar, Convênio, Peso alvo…')}${pfTxa('Valor','cpV','',2)}<div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="ptCampoSave()">Salvar</button></div>`); }
+async function ptCampoSave(){ const g=id=>((document.getElementById(id)||{}).value||'').trim(); const k=g('cpK'); if(!k){ toast('Informe o nome do campo','⚠'); return; } try{ await SB.rpc('nx_pt_campo_set',{p_patient:PRONT.patient,p_chave:k,p_valor:g('cpV')}); closeModal(); prontLoad(); toast('Campo salvo'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+async function ptCampoDel(id){ if(!confirm('Excluir este campo?')) return; try{ await SB.rpc('nx_pt_campo_del',{p_id:id}); prontLoad(); }catch(e){ toast('Erro','⚠'); } }
+function ptRelPdf(){ const d=PRONT.data||{}; const p=d.paciente||{}, f=d.ficha||{}, n=d.nascimento||{};
+  const evo=(d.evolucao||[]).map(e=>`<div style="border:1px solid #dbe8ed;border-radius:8px;padding:8px 10px;margin:6px 0"><div style="font-weight:700;color:#143A4E">🗓 ${ptFmtdt(e.data)}${e.duracao_min?(' · '+e.duracao_min+' min'):''}${e.tipo==='presencial'?' · presencial':''}${e.cid?(' · CID '+e.cid):''}</div>${e.subjetivo?('<div><b>S:</b> '+e.subjetivo+'</div>'):''}${e.objetivo?('<div><b>O:</b> '+e.objetivo+'</div>'):''}${e.avaliacao?('<div><b>A:</b> '+e.avaliacao+'</div>'):''}${e.plano?('<div><b>P:</b> '+e.plano+'</div>'):''}</div>`).join('')||'<div>Sem consultas registradas.</div>';
+  const campos=(d.campos||[]).map(c=>`<tr><td style="padding:4px 8px;border:1px solid #dbe8ed;font-weight:600">${c.chave}</td><td style="padding:4px 8px;border:1px solid #dbe8ed">${c.valor||''}</td></tr>`).join('');
+  const vac=(d.vacinas||[]).map(v=>`${v.vacina} (${v.dose||''})${v.data_aplicacao?(' em '+(''+v.data_aplicacao).slice(0,10).split('-').reverse().join('/')):''}`).join('; ');
+  const html=`<html><head><meta charset="utf-8"><title>Prontuário - ${p.nome||''}</title></head><body style="font-family:Arial,sans-serif;padding:26px;color:#1e3640;max-width:820px;margin:auto">
+    <h2 style="color:#143A4E;margin:0 0 4px">Relatório do prontuário — ${p.nome||'Paciente'}</h2>
+    <div style="color:#5c7078;font-size:13px;margin-bottom:12px">${ptSexLabel(f.sexo)}${f.data_nascimento?(' · nascimento '+ptFmtd(f.data_nascimento)):''}${p.responsavel_nome?(' · Resp.: '+p.responsavel_nome):''} · gerado em ${new Date().toLocaleString('pt-BR')}</div>
+    ${(n&&(n.peso_nasc||n.tipo_parto))?`<p><b>Nascimento:</b> ${n.tipo_parto||''} ${n.peso_nasc?('· '+n.peso_nasc+' kg'):''} ${n.apgar1?('· Apgar '+n.apgar1+'/'+(n.apgar5||'')):''}</p>`:''}
+    ${vac?`<p><b>Vacinas registradas:</b> ${vac}</p>`:''}
+    ${campos?`<h3 style="color:#143A4E">Informações adicionais</h3><table style="border-collapse:collapse;width:100%;font-size:13px">${campos}</table>`:''}
+    <h3 style="color:#143A4E;margin-top:16px">Consultas (evolução)</h3>${evo}
+    <p style="margin-top:22px;font-size:11px;color:#8a99a0">Documento gerado pelo NexoClin. Prontuário do paciente — dado sensível de saúde (LGPD).</p>
+  </body></html>`;
+  const w=window.open('','_blank'); if(!w){ toast('Permita pop-ups para gerar o PDF','⚠'); return; } w.document.write(html); w.document.close(); w.focus(); setTimeout(function(){try{w.print();}catch(e){}},350); }
 function nxCheckOnboard(){
   const tok=new URLSearchParams(location.search).get('onboard'); if(!tok) return;
   const card=document.querySelector('#login .login-card'); if(!card) return;
