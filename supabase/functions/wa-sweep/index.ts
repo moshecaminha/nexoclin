@@ -48,9 +48,67 @@ async function responder(conv: string, clinic: string, telefone: string, texto: 
   return j.resposta as string;
 }
 
+/**
+ * Checagem das conexoes (1x por hora). Detecta o que a Meta nao avisa para a
+ * NexoClin por webhook: o aviso de desconexao (account_update) nao aceita
+ * override e vai para a URL padrao do app MVF, que e de outro sistema.
+ *  - webhook do numero passou a apontar para outro lugar -> pendente
+ *  - numero saiu do Cloud API (desconectou pelo celular) -> pendente
+ * Erro de leitura na Meta so e registrado: nao muda o status por duvida.
+ */
+const WEBHOOK = `${URL_SB}/functions/v1/wa-webhook`;
+function mesmaUrl(a?: string | null, b?: string | null) {
+  const n = (u?: string | null) => {
+    if (!u) return "";
+    try { const x = new URL(u); return (x.origin + x.pathname).replace(/\/+$/, ""); }
+    catch { return u.replace(/\/+$/, ""); }
+  };
+  return !!a && !!b && n(a) === n(b);
+}
+
+async function checarConexoes() {
+  const { data: conns } = await sb.from("clinic_whatsapp")
+    .select("clinic_id, phone_number_id, access_token")
+    .eq("status", "conectado");
+  let alteradas = 0;
+  for (const c of conns ?? []) {
+    if (!c.phone_number_id || !c.access_token) continue;
+    const r = await fetch(
+      `${GRAPH}/${c.phone_number_id}?fields=webhook_configuration,is_on_biz_app,platform_type`,
+      { headers: { Authorization: `Bearer ${c.access_token}` } });
+    const j = await r.json().catch(() => ({}));
+    const agora = new Date().toISOString();
+
+    if (!r.ok) {
+      await sb.from("clinic_whatsapp").update({
+        conexao_erro: "checagem: " + (j?.error?.message ?? `HTTP ${r.status}`), verificado_em: agora,
+      }).eq("clinic_id", c.clinic_id);
+      continue;
+    }
+
+    let motivo: string | null = null;
+    const destino = j?.webhook_configuration?.phone_number ?? null;
+    if (!mesmaUrl(destino, WEBHOOK)) motivo = `webhook do número aponta para ${destino ?? "a URL padrão do app"}`;
+    else if (j?.platform_type && j.platform_type !== "CLOUD_API") motivo = `número saiu do Cloud API (${j.platform_type})`;
+
+    await sb.from("clinic_whatsapp").update({
+      is_on_biz_app: j?.is_on_biz_app ?? null,
+      verificado_em: agora,
+      ...(motivo ? { status: "pendente", conexao_erro: motivo } : { conexao_erro: null }),
+    }).eq("clinic_id", c.clinic_id);
+    if (motivo) alteradas++;
+  }
+  return { verificadas: conns?.length ?? 0, marcadas_pendente: alteradas };
+}
+
 Deno.serve(async (req) => {
   if (INTERNO && req.headers.get("x-nx-internal") !== INTERNO) {
     return new Response("forbidden", { status: 403 });
+  }
+  let checagem: unknown = null;
+  if (new Date().getUTCMinutes() === 7 || new URL(req.url).searchParams.get("checar") === "1") {
+    try { checagem = await checarConexoes(); }
+    catch (e) { console.error("checagem:", e instanceof Error ? e.message : e); }
   }
   try {
     const { data: pend } = await sb.rpc("nx_wa_bot_pendentes");
@@ -63,7 +121,7 @@ Deno.serve(async (req) => {
       const r = await responder(p.conversation_id, p.clinic_id, p.telefone, p.texto);
       if (r) feitas.push(p.conversation_id);
     }
-    return Response.json({ ok: true, pendentes: lista.length, respondidas: feitas.length });
+    return Response.json({ ok: true, pendentes: lista.length, respondidas: feitas.length, checagem });
   } catch (e) {
     console.error("wa-sweep:", e instanceof Error ? e.message : e);
     return Response.json({ erro: String(e) }, { status: 500 });
