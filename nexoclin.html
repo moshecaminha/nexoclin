@@ -514,6 +514,31 @@ audio.rc-media{width:230px;max-width:100%}
 .pt-cfgcampo{font-size:12px;background:var(--mist);border:1px solid var(--line);border-radius:16px;padding:3px 9px}
 .pt-addcampo{font-size:12px;color:var(--cyan);cursor:pointer;border:1px dashed var(--cyan);border-radius:16px;padding:3px 9px}
 @media(max-width:760px){.pt-layout{flex-direction:column}.pt-nav{flex:auto;width:100%;flex-direction:row;overflow-x:auto;position:static}.pt-navi{white-space:nowrap}.pt-atbar{width:100%;margin:8px 0 0}}
+
+/* ===== CALENDÁRIO DA AGENDA ===== */
+.ag-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.ag-tabs{display:flex;gap:4px;background:var(--mist);border-radius:9px;padding:3px}
+.ag-tab{border:0;background:transparent;padding:7px 13px;border-radius:7px;font-weight:600;font-size:13px;color:var(--mute);cursor:pointer}
+.ag-tab.on{background:#fff;color:var(--navy);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.ag-nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ag-navb{border:1px solid var(--line);background:#fff;border-radius:7px;padding:6px 11px;cursor:pointer;font-weight:700;color:var(--navy)}
+.ag-navb:hover{background:var(--mist)}
+.ag-navlbl{font-weight:700;color:var(--navy);margin:0 6px;font-size:14px}
+.ag-calmode{display:inline-flex;gap:3px;margin-left:6px}
+.ag-calmode button{border:1px solid var(--line);background:#fff;border-radius:7px;padding:6px 10px;cursor:pointer;font-size:12px;font-weight:600;color:var(--mute)}
+.ag-calmode button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.agc{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:12px}
+.agc-cell{background:#fff;min-height:36px;padding:3px 5px}
+.agc-timehead,.agc-dayhead{background:var(--mist);font-weight:700;color:var(--navy);text-align:center;padding:9px 5px}
+.agc-dayhead.today{background:#e6f4ee;color:var(--green)}
+.agc-time{background:var(--mist);color:var(--mute);text-align:right;font-weight:600;font-size:11px;display:flex;align-items:center;justify-content:flex-end}
+.agc-slot{cursor:pointer;transition:background .1s}
+.agc-slot:hover{background:#eef7fb}
+.agc-slot.off,.agc-slot.off:hover{background:#f7f9fa;cursor:default}
+.agc-appt{background:#eef7fb;border-left:3px solid #888;border-radius:5px;padding:3px 6px;margin:2px 0;cursor:pointer;line-height:1.25;overflow:hidden}
+.agc-appt:hover{filter:brightness(.97)}
+.agc-appts{font-size:10px;color:var(--mute);text-transform:capitalize}
+@media(max-width:760px){.agc{font-size:10px}.agc-cell{min-height:30px;padding:2px 3px}.agc-appt{padding:2px 3px}.ag-toolbar>button{margin-left:0 !important}}
 </style>
 <style id="wa-style">
 /* ===== Cockpit de Atendimento WhatsApp — escopo .wa- ===== */
@@ -2141,25 +2166,83 @@ const AG={clinic:null,list:[]};
 function agendaReal(){
   return `<div class="wi" style="max-width:none">
     <div class="page-h"><h1>Agenda</h1><p>Agendamentos do consultório. Para consultas com telefone, a <b>confirmação</b> e os <b>lembretes</b> por WhatsApp são enviados automaticamente (24h e no dia).</p></div>
-    <div class="eq-bar"><b>Consultas</b><button class="cl-btn pri" style="margin:0;padding:10px 15px" onclick="agForm()">+ Novo agendamento</button></div>
-    <table class="eq-tbl"><thead><tr><th>Quando</th><th>Paciente</th><th>Profissional</th><th>Status</th><th style="text-align:right">Ações</th></tr></thead><tbody id="agBody"><tr><td colspan="5" style="color:var(--mute)">Carregando…</td></tr></tbody></table>
+    <div class="ag-toolbar">
+      <div class="ag-tabs"><button id="agTabCal" class="ag-tab on" onclick="agSetMode('cal')">📅 Calendário</button><button id="agTabList" class="ag-tab" onclick="agSetMode('lista')">☰ Lista</button></div>
+      <div class="ag-nav" id="agNav"></div>
+      <button class="cl-btn pri" style="margin:0 0 0 auto;padding:10px 15px" onclick="agForm()">+ Novo agendamento</button>
+    </div>
+    <div id="agView"><div class="rc-empty">Carregando…</div></div>
     <div style="background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:18px">
       <div class="eq-bar"><b>Horários de atendimento</b><button class="cl-btn pri" style="margin:0;padding:9px 14px" onclick="valAvailForm(-1)">+ Novo horário</button></div>
-      <div class="cl-cs">Dias e faixas em que você atende (padrão: Seg a Sáb, 08:00–18:00). É daqui que a agenda gera os horários livres para o paciente marcar. Inclua domingo se atender.</div>
+      <div class="cl-cs">Dias e faixas em que você atende (padrão: Seg a Sáb, 08:00–18:00). É daqui que a agenda gera os horários livres — e o calendário acima. Inclua domingo se atender.</div>
       <table class="eq-tbl"><thead><tr><th>Dia</th><th>Início</th><th>Fim</th><th>Modalidade</th><th>Slot</th><th style="text-align:right">Ações</th></tr></thead><tbody id="valAvailBody"><tr><td colspan="6" style="color:var(--mute)">Carregando…</td></tr></tbody></table>
     </div>
   </div>`;
 }
+const AGV={mode:'cal',cal:'semana',ref:new Date()};
+function agSetMode(m){ AGV.mode=m; const c=document.getElementById('agTabCal'),l=document.getElementById('agTabList'); if(c)c.classList.toggle('on',m==='cal'); if(l)l.classList.toggle('on',m==='lista'); agRenderView(); }
+function agSetModeInit(){ AGV.mode='cal'; }
+function agRenderView(){ const v=document.getElementById('agView'); if(!v) return; agNavRender(); v.innerHTML = AGV.mode==='lista' ? agListTable() : agCalendar(); }
+function agListTable(){ return `<table class="eq-tbl"><thead><tr><th>Quando</th><th>Paciente</th><th>Profissional</th><th>Status</th><th style="text-align:right">Ações</th></tr></thead><tbody>${agRows()}</tbody></table>`; }
+function agNavRender(){ const n=document.getElementById('agNav'); if(!n) return; if(AGV.mode!=='cal'){ n.innerHTML=''; return; }
+  const ref=AGV.ref; let label;
+  if(AGV.cal==='dia'){ label=ref.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}); }
+  else { const st=new Date(ref); st.setDate(ref.getDate()-ref.getDay()); const en=new Date(st); en.setDate(st.getDate()+6); label=`${('0'+st.getDate()).slice(-2)}/${('0'+(st.getMonth()+1)).slice(-2)} – ${('0'+en.getDate()).slice(-2)}/${('0'+(en.getMonth()+1)).slice(-2)}`; }
+  n.innerHTML=`<button class="ag-navb" onclick="agNavGo(-1)">‹</button><button class="ag-navb" onclick="agNavHoje()">Hoje</button><button class="ag-navb" onclick="agNavGo(1)">›</button><span class="ag-navlbl">${label}</span><span class="ag-calmode"><button class="${AGV.cal==='semana'?'on':''}" onclick="agCalMode('semana')">Semana</button><button class="${AGV.cal==='dia'?'on':''}" onclick="agCalMode('dia')">Dia</button></span>`; }
+function agNavGo(dir){ const step=AGV.cal==='dia'?1:7; AGV.ref=new Date(AGV.ref.getFullYear(),AGV.ref.getMonth(),AGV.ref.getDate()+dir*step); agRenderView(); }
+function agNavHoje(){ AGV.ref=new Date(); agRenderView(); }
+function agCalMode(m){ AGV.cal=m; agRenderView(); }
+function agCalendar(){ const av=VAL.avail||[]; const MO=['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const toMin=t=>{const p=(''+t).slice(0,5).split(':');return (+p[0])*60+(+p[1]);};
+  let slot=30, hmin=8*60, hmax=18*60;
+  if(av.length){ slot=Math.min(...av.map(a=>a.slot_min||30))||30; hmin=Math.min(...av.map(a=>toMin(a.hora_inicio))); hmax=Math.max(...av.map(a=>toMin(a.hora_fim))); }
+  if(!(slot>0))slot=30; if(hmax<=hmin){hmin=8*60;hmax=18*60;}
+  const availByDow={}; av.forEach(a=>{ (availByDow[a.dia_semana]=availByDow[a.dia_semana]||[]).push([toMin(a.hora_inicio),toMin(a.hora_fim)]); });
+  const ref=AGV.ref; const st=new Date(ref); st.setDate(ref.getDate()-ref.getDay()); st.setHours(0,0,0,0);
+  const days = AGV.cal==='dia' ? [new Date(ref.getFullYear(),ref.getMonth(),ref.getDate())] : Array.from({length:7},(_,i)=>{const d=new Date(st);d.setDate(st.getDate()+i);return d;});
+  const key=d=>d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+  const appByDay={}; (AG.list||[]).forEach(a=>{ const dt=new Date(a.scheduled_at); const k=key(dt); (appByDay[k]=appByDay[k]||[]).push(a); });
+  // estende a faixa para incluir agendamentos visíveis (ex.: 21:45)
+  let vis=[]; days.forEach(d=>{ (appByDay[key(d)]||[]).forEach(a=>{const dt=new Date(a.scheduled_at); vis.push(dt.getHours()*60+dt.getMinutes());}); });
+  if(vis.length){ hmin=Math.min(hmin, Math.floor(Math.min(...vis)/slot)*slot); hmax=Math.max(hmax, Math.ceil((Math.max(...vis)+1)/slot)*slot); }
+  const cor={agendada:'#B4790B',confirmada:'#12996A',cancelada:'#F2564C',realizada:'#6b7b83',faltou:'#F2564C'};
+  const todayK=key(new Date());
+  let head=`<div class="agc-cell agc-timehead"></div>`+days.map(d=>`<div class="agc-cell agc-dayhead ${key(d)===todayK?'today':''}">${MO[d.getDay()]} <b>${('0'+d.getDate()).slice(-2)}/${('0'+(d.getMonth()+1)).slice(-2)}</b></div>`).join('');
+  let rows='';
+  for(let m=hmin;m<hmax;m+=slot){ const hh=('0'+Math.floor(m/60)).slice(-2)+':'+('0'+(m%60)).slice(-2);
+    rows+=`<div class="agc-cell agc-time">${hh}</div>`;
+    days.forEach(d=>{ const dow=d.getDay(); const k=key(d); const ranges=availByDow[dow]||[]; const inAvail=ranges.some(r=>m>=r[0]&&m<r[1]);
+      const appts=(appByDay[k]||[]).filter(a=>{const dt=new Date(a.scheduled_at); const mm=dt.getHours()*60+dt.getMinutes(); return mm>=m&&mm<m+slot;});
+      const blocks=appts.map(a=>{const dt=new Date(a.scheduled_at); const t=('0'+dt.getHours()).slice(-2)+':'+('0'+dt.getMinutes()).slice(-2); return `<div class="agc-appt" style="border-left-color:${cor[a.status]||'#888'}" onclick="event.stopPropagation();agApptMenu('${a.id}')"><b>${t}</b> ${a.paciente_nome||'—'}<div class="agc-appts">${a.status}</div></div>`;}).join('');
+      rows+=`<div class="agc-cell agc-slot ${inAvail?'':'off'}" ${inAvail?`onclick="agQuick('${k}','${hh}')"`:''}>${blocks}</div>`;
+    });
+  }
+  return `<div class="agc" style="grid-template-columns:64px repeat(${days.length},minmax(0,1fr))">${head}${rows}</div>`; }
+function agQuick(date,time){ agForm({date:date,time:time}); }
+function agOpenPront(id){ const a=(AG.list||[]).find(x=>x.id===id); if(!a||!a.patient_id) return; closeModal(); nav('pacientes'); setTimeout(()=>{ try{ prontOpen(a.patient_id, a.paciente_nome||''); }catch(e){} }, 350); }
+function agApptMenu(id){ const a=(AG.list||[]).find(x=>x.id===id); if(!a) return;
+  openModal(`<h3>${a.paciente_nome||'Consulta'}</h3><div class="cl-cs">${agFmt(a.scheduled_at)} · ${a.profissional_nome||'—'} · <b>${a.status}</b>${a.telefone?(' · '+a.telefone):''}</div>
+   <div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0">
+    <button class="cl-btn" style="margin:0" onclick="agStatus('${a.id}','confirmada');closeModal()">Confirmar</button>
+    <button class="cl-btn" style="margin:0" onclick="agStatus('${a.id}','realizada');closeModal()">Realizada</button>
+    <button class="cl-btn" style="margin:0" onclick="closeModal();agRemarcarPrompt('${a.id}')">Remarcar</button>
+    <button class="cl-btn" style="margin:0" onclick="closeModal();agPayLink('${a.id}')">💳 Pagamento</button>
+    <button class="cl-btn" style="margin:0" onclick="closeModal();agTelemed('${a.id}')">🎥 Telemedicina</button>
+    ${a.patient_id?`<button class="cl-btn pri" style="margin:0" onclick="agOpenPront('${a.id}')">Abrir prontuário</button>`:''}
+    <button class="cl-btn danger" style="margin:0" onclick="closeModal();agCancelPrompt('${a.id}')">Cancelar</button>
+   </div>
+   <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Fechar</button></div>`); }
 async function agLoad(){ AG.clinic=NX.clinic; if(!SB||!AG.clinic) return;
-  try{ const {data}=await SB.rpc('nx_appt_list',{p_clinic:AG.clinic,p_from:null,p_to:null}); AG.list=data||[]; const b=document.getElementById('agBody'); if(b) b.innerHTML=agRows(); }
-  catch(e){ const b=document.getElementById('agBody'); if(b) b.innerHTML='<tr><td colspan="5" style="color:var(--coral)">Erro ao carregar.</td></tr>'; }
-  if(typeof valAvailLoad==='function') valAvailLoad(); }
+  const v=document.getElementById('agView');
+  try{ const r=await Promise.all([ SB.rpc('nx_appt_list',{p_clinic:AG.clinic,p_from:null,p_to:null}), SB.rpc('nx_avail_list',{p_clinic:NX.clinic,p_prof:(NX.me&&NX.me.id)||null}) ]);
+    AG.list=r[0].data||[]; VAL.avail=r[1].data||[]; agRenderView(); if(typeof valAvailRows==='function') valAvailRows(); }
+  catch(e){ if(v) v.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao carregar a agenda.</div>'; } }
 function agFmt(iso){ try{ return new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }catch(e){ return iso||''; } }
 function agRows(){ if(!AG.list.length) return '<tr><td colspan="5" style="color:var(--mute)">Nenhum agendamento ainda.</td></tr>';
   const cor={agendada:'#B4790B',confirmada:'#12996A',cancelada:'#F2564C',realizada:'#6b7b83',faltou:'#F2564C'};
   return AG.list.map(a=>`<tr><td>${agFmt(a.scheduled_at)}</td><td><b>${a.paciente_nome||'—'}</b>${a.telefone?`<div style="color:var(--mute);font-size:11px">${a.telefone}</div>`:''}</td><td style="color:var(--mute)">${a.profissional_nome||'—'}</td><td style="font-weight:700;color:${cor[a.status]||'#6b7b83'}">${a.status}</td>
     <td style="text-align:right;white-space:nowrap"><button class="eq-act" onclick="agStatus('${a.id}','confirmada')">Confirmar</button><button class="eq-act" onclick="agStatus('${a.id}','realizada')">Realizada</button><button class="eq-act" onclick="agRemarcarPrompt('${a.id}')">Remarcar</button><button class="eq-act" onclick="agPayLink('${a.id}')" title="Gerar link de pagamento">💳</button><button class="eq-act" onclick="agTelemed('${a.id}')" title="Iniciar telemedicina">🎥</button><button class="eq-act danger" onclick="agCancelPrompt('${a.id}')">Cancelar</button></td></tr>`).join(''); }
-async function agForm(){
+async function agForm(pre){
   let pats=[]; try{ const pl=await SB.rpc('nx_patients_list',{p_clinic:NX.clinic}); pats=pl.data||[]; }catch(e){}
   const patOpts='<option value="">— paciente cadastrado (opcional) —</option>'+pats.map(p=>`<option value="${p.id}" data-tel="${p.telefone||''}" data-nome="${(p.nome||'').replace(/"/g,'&quot;')}">${p.nome}</option>`).join('');
   openModal(`<h3>Novo agendamento</h3>
@@ -2169,6 +2252,7 @@ async function agForm(){
     <div class="cl-2"><div class="nxm-field"><label>Data</label><input id="agData" type="date"></div><div class="nxm-field"><label>Hora</label><input id="agHora" type="time"></div></div>
     <div class="nxm-field"><label>Título</label><input id="agTit" placeholder="Consulta"></div>
     <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="agSave()">Agendar</button></div>`);
+  if(pre){ const dd=document.getElementById('agData'), hh=document.getElementById('agHora'); if(dd&&pre.date)dd.value=pre.date; if(hh&&pre.time)hh.value=pre.time; }
 }
 function agPatPick(){ const s=document.getElementById('agPatSel'); if(!s)return; const o=s.options[s.selectedIndex];
   if(o&&o.value){ const n=document.getElementById('agNome'); const t=document.getElementById('agTel');
