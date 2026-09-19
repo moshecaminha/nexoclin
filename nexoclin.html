@@ -579,6 +579,32 @@ audio.rc-media{width:230px;max-width:100%}
 .pt-h .hicon svg{width:18px;height:18px}
 .wa-wait .hicon svg,.pac-card-meta .hicon svg{width:14px;height:14px}
 .pac-card-meta .hicon{margin-right:3px;color:var(--cyan)}
+
+/* ===== PRESCRIÇÕES & DOCUMENTOS ===== */
+.pt-navi.doc{border-color:#bfe0cf;color:#0F6E56;font-weight:700}
+.pt-navi.doc.on{background:#0F6E56;color:#fff;border-color:#0F6E56}
+.pt-navdot{background:#c0392b;color:#fff;border-radius:10px;padding:0 6px;font-size:11px;margin-left:4px;font-weight:700}
+.doc-new{background:#f2f9fb;border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:6px}
+.doc-new-h{font-weight:700;color:var(--navy);margin-bottom:8px}
+.doc-tipos{display:flex;flex-wrap:wrap;gap:8px}
+.doc-tbtn{display:flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:9px 12px;cursor:pointer;font-size:13px;font-weight:600;color:var(--navy)}
+.doc-tbtn:hover{border-color:var(--cyan);color:var(--cyan)}
+.doc-row{display:flex;align-items:center;gap:11px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:7px 0}
+.doc-row.novo{border-color:#f0c98a;background:#fff8ec}
+.doc-ic{flex:0 0 auto;color:var(--cyan);display:flex}
+.doc-main{flex:1;min-width:0}
+.doc-t{font-weight:600;color:var(--navy);font-size:14px}
+.doc-meta{font-size:12px;color:var(--mute);margin-top:2px}
+.doc-act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.doc-badge{display:inline-block;font-size:11px;font-weight:700;border-radius:11px;padding:1px 8px;margin-left:6px}
+.doc-badge.novo{background:#fdecea;color:#c0392b}
+.home-novos{background:#fff8ec;border:1px solid #f0c98a;border-radius:12px;padding:12px 15px;margin-bottom:14px}
+.home-novos>b{color:#8a5a12}
+.home-novos-list{margin-top:8px}
+.home-novos-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #f0e2c4;cursor:pointer;font-size:13.5px}
+.home-novos-row:last-child{border-bottom:0}
+.home-novos-row:hover{color:var(--cyan)}
+.doc-open{color:var(--cyan);font-weight:700;white-space:nowrap}
 </style>
 <style id="wa-style">
 /* ===== Cockpit de Atendimento WhatsApp — escopo .wa- ===== */
@@ -929,6 +955,10 @@ const ICON={
   user:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
   scale:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3"/><path d="M5 6h14"/><path d="M4 21h16"/><path d="M9.5 21a2.5 2.5 0 0 1 5 0"/><path d="M5 6 2.5 13a3.5 3.5 0 0 0 7 0L7 6"/><path d="M19 6l2.5 7a3.5 3.5 0 0 1-7 0L17 6"/></svg>',
   steth2:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v6a5 5 0 0 0 10 0V3"/><path d="M9 14v2a5 5 0 0 0 10 0v-3"/><circle cx="19" cy="11" r="2"/></svg>',
+  file:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+  pill:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5 3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"/><path d="M8.5 8.5l7 7"/></svg>',
+  flask:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/><path d="M7 15h10"/></svg>',
+  clipboard:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M9 5H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3"/><path d="M9 12h6M9 16h4"/></svg>',
 };
 function hico(name,color){ return `<span class="hicon"${color?(' style="color:'+color+'"'):''}>${ICON[name]||''}</span>`; }
 const ROLES={
@@ -942,10 +972,10 @@ const ROLES={
 const USER={recepcao:'Marina Souza',secretaria:'Cláudia Reis',enfermagem:'Enf. Paula Lima',medico:'Dra. Camila Ferreira',gestor:'Roberto Caminha',admin:'Super-admin'};
 const NAV={
   recepcao:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['clinica','Meu consultório','building'],['relatorios','Relatórios','chart']],
-  secretaria:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['documentos','Documentos','inbox'],['clinica','Meu consultório','building'],['relatorios','Relatórios','chart']],
-  enfermagem:[['cockpit','Atendimento','chat'],['documentos','Documentos','inbox'],['relatorios','Relatórios','chart']],
-  medico:[['inicio','Início','map'],['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['pacientes','Pacientes','users'],['documentos','Documentos','inbox'],['bulas','Bulas','inbox'],['valores','Valores','chart'],['perfil','Perfil do consultório','steth'],['relatorios','Meus indicadores','chart']],
-  gestor:[['inicio','Início','map'],['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['pacientes','Pacientes','users'],['documentos','Documentos','inbox'],['bulas','Bulas','inbox'],['valores','Valores','chart'],['perfil','Perfil do consultório','steth'],['clinica','Meu consultório','building'],['relatorios','Relatórios','chart'],['equipe','Equipe','users']],
+  secretaria:[['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['clinica','Meu consultório','building'],['relatorios','Relatórios','chart']],
+  enfermagem:[['cockpit','Atendimento','chat'],['relatorios','Relatórios','chart']],
+  medico:[['inicio','Início','map'],['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['pacientes','Pacientes','users'],['bulas','Bulas','inbox'],['valores','Valores','chart'],['perfil','Perfil do consultório','steth'],['relatorios','Meus indicadores','chart']],
+  gestor:[['inicio','Início','map'],['cockpit','Atendimento','chat'],['agenda','Agenda','calendar'],['pacientes','Pacientes','users'],['bulas','Bulas','inbox'],['valores','Valores','chart'],['perfil','Perfil do consultório','steth'],['clinica','Meu consultório','building'],['relatorios','Relatórios','chart'],['equipe','Equipe','users']],
   admin:[['plataforma','Plataforma','map'],['suporte','Suporte','chat'],['crm','CRM','users'],['financeiro','Financeiro','chart'],['config','Config','shield'],['integr','Integrações','plug']],
 };
 const TITLES={cockpit:'Atendimento',agenda:'Agenda',clinica:'Meu consultório',plataforma:'Plataforma',relatorios:'Relatórios',integr:'Integrações',equipe:'Equipe & acessos'};
@@ -2654,6 +2684,7 @@ async function perfilMsgSave(chave){ const t=((document.getElementById('msg_'+ch
 const PRONT={patient:null,data:null,sec:'ident',nome:'',def:[],atend:null,valores:{},timeline:[],cronStart:null,cronIv:null,crescM:'peso'};
 let MODELOS_CACHE=[];
 function escAttr(x){return(''+(x==null?'':x)).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+function safeUrl(u){ u=(''+(u==null?'':u)).trim(); return /^https?:\/\//i.test(u)?u:'#'; }
 function escTa(x){return(''+(x==null?'':x)).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
 const SEC_LABEL={antropometria:'Nova medida',vacinas:'Nova vacina',marcos:'Novo marco',antecedentes:'Novo antecedente',evolucao:'Nova evolução (SOAP)'};
 function ptCard(inner){ return `<div class="pt-card">${inner}</div>`; }
@@ -2673,11 +2704,12 @@ async function dashLoad(){ const b=document.getElementById('dashBox'); if(!b||!S
   if(DASH_PERIOD==='7'){ const ff=new Date(today); ff.setDate(ff.getDate()-6); from=iso(ff); } else if(DASH_PERIOD==='30'){ const ff=new Date(today); ff.setDate(ff.getDate()-29); from=iso(ff); }
   const todayISO=iso(new Date());
   try{
-    const [dR,apR,lemR,waR]=await Promise.all([
+    const [dR,apR,lemR,waR,docR]=await Promise.all([
       SB.rpc('nx_dash',{p_clinic:NX.clinic,p_from:from,p_to:to}),
       SB.rpc('nx_appt_list',{p_clinic:NX.clinic,p_from:todayISO+'T00:00:00',p_to:todayISO+'T23:59:59'}),
       SB.rpc('nx_lembrete_list',{p_clinic:NX.clinic}),
-      SB.rpc('nx_wa_inbox_urgent',{p_clinic:NX.clinic,p_limit:6})
+      SB.rpc('nx_wa_inbox_urgent',{p_clinic:NX.clinic,p_limit:6}),
+      SB.rpc('nx_doc_novos',{p_clinic:NX.clinic})
     ]);
     const d=dR.data||{}; const kpi=(v,l)=>`<div class="pt-kpi"><div class="pt-kpi-n">${v||0}</div><div class="pt-kpi-l">${l}</div></div>`;
     const stCor={agendada:'#B4790B',confirmada:'#12996A',cancelada:'#F2564C',realizada:'#6b7b83',faltou:'#F2564C'};
@@ -2686,8 +2718,9 @@ async function dashLoad(){ const b=document.getElementById('dashBox'); if(!b||!S
     DASH_LEMBRETES=lemR.data||[];
     const RK={emergencia:['Emergência','#c0392b'],muito_urgente:['Muito urgente','#e8590c'],urgente:['Urgente','#B4790B'],pouco_urgente:['Pouco urgente','#12996A'],nao_urgente:['Não urgente','#6b7b83']};
     const waRows=(waR.data||[]).map(w=>{const r=RK[w.risk]||['—','#6b7b83']; const wm=w.waiting_min||0; const wait=wm>=60?(Math.floor(wm/60)+'h'+(wm%60)+'m'):(wm+'min'); return `<div class="wa-urg" onclick="nav('cockpit')"><div class="wa-urg-top"><span class="wa-risk" style="border-color:${r[1]};color:${r[1]}">${r[0]}</span><b>${w.paciente_nome||w.responsavel_nome||w.telefone||'—'}</b><span class="wa-wait">${hico('clock')} ${wait}</span></div><div class="wa-urg-body">${(w.body||'').replace(/</g,'&lt;')}</div></div>`;}).join('')||'<div class="rc-empty" style="padding:8px 0">Nenhuma mensagem aguardando resposta.</div>';
-    const upRows=NX_UPDATES.slice(0,6).map(u=>`<div class="home-up"><span class="home-up-d">${u.d}</span><span>${u.t}</span></div>`).join('');
+    const novos=(docR.data||[]); const novosCard=novos.length?`<div class="home-novos">${hico('inbox')} <b>${novos.length} documento(s) novo(s) enviado(s) por pacientes</b><div class="home-novos-list">${novos.slice(0,6).map(n=>`<div class="home-novos-row" onclick="docAbrirPaciente('${n.patient_id}')"><span>${n.paciente||'Paciente'} · ${docTipoLabel(n.tipo)}</span><span class="doc-open">Ver →</span></div>`).join('')}</div></div>`:''; const upRows=NX_UPDATES.slice(0,6).map(u=>`<div class="home-up"><span class="home-up-d">${u.d}</span><span>${u.t}</span></div>`).join('');
     b.innerHTML=`<div class="pt-kpis">${kpi(d.pacientes,'Pacientes')}${kpi(d.consultas_periodo,'Consultas ('+(d.periodo_de||'')+'–'+(d.periodo_ate||'')+')')}${kpi(d.realizadas_periodo,'Realizadas no período')}${kpi(d.agendados_semana,'Agendados (7 dias)')}${kpi(d.aguardando,'Aguardando médico')}${kpi(d.aniversariantes_mes,'Aniversariantes do mês')}</div>
+      ${novosCard}
       <div class="home-grid">
         <div>
           ${ptCard(`<div class="pt-h">${hico('calendar')} Agenda de hoje</div>${agRows}`)}
@@ -2757,14 +2790,15 @@ async function pacNewSave(){ const g=id=>((document.getElementById(id)||{}).valu
   if(respId){ j.resp_id=respId; } else { j.resp_nome=g('pnRespNome')||g('pnRespQ'); j.resp_telefone=g('pnRespTel'); j.parentesco=g('pnRespPar'); j.resp_cpf=g('pnRespCpf'); }
   try{ const {data,error}=await SB.rpc('nx_patient_full_create',{p_clinic:NX.clinic,p:j}); if(error) throw error; closeModal(); prontOpen(data.patient_id,nm); toast('Paciente criado'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 // PRONTUÁRIO
-function prontOpen(pid,nome){ PRONT.patient=pid; PRONT.nome=nome||(((PRONT.list||[]).find(x=>x.id===pid)||{}).nome)||''; PRONT.sec='ident'; PRONT.atend=null; PRONT.valores={}; PRONT.cronStart=null; if(PRONT.cronIv){clearInterval(PRONT.cronIv);PRONT.cronIv=null;} const a=document.getElementById('pacArea'); if(a) a.innerHTML='<div class="rc-empty">Abrindo prontuário…</div>'; prontLoad(); }
-async function prontLoad(){ try{ const r=await Promise.all([SB.rpc('nx_pt_get',{p_patient:PRONT.patient}),SB.rpc('nx_prt_def',{p_clinic:NX.clinic}),SB.rpc('nx_prt_timeline',{p_patient:PRONT.patient})]); PRONT.data=r[0].data||{}; PRONT.def=r[1].data||[]; PRONT.timeline=r[2].data||[]; prontRender(); }catch(e){ const a=document.getElementById('pacArea'); if(a) a.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao abrir prontuário.</div>'; } }
+function prontOpen(pid,nome,sec){ PRONT.patient=pid; PRONT.nome=nome||(((PRONT.list||[]).find(x=>x.id===pid)||{}).nome)||''; PRONT.sec=sec||'ident'; PRONT.atend=null; PRONT.valores={}; PRONT.cronStart=null; if(PRONT.cronIv){clearInterval(PRONT.cronIv);PRONT.cronIv=null;} const a=document.getElementById('pacArea'); if(a) a.innerHTML='<div class="rc-empty">Abrindo prontuário…</div>'; prontLoad(); }
+async function prontLoad(){ try{ const r=await Promise.all([SB.rpc('nx_pt_get',{p_patient:PRONT.patient}),SB.rpc('nx_prt_def',{p_clinic:NX.clinic}),SB.rpc('nx_prt_timeline',{p_patient:PRONT.patient}),SB.rpc('nx_doc_pt_list',{p_patient:PRONT.patient})]); PRONT.data=r[0].data||{}; PRONT.def=r[1].data||[]; PRONT.timeline=r[2].data||[]; PRONT.docs=r[3].data||[]; prontRender(); }catch(e){ const a=document.getElementById('pacArea'); if(a) a.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao abrir prontuário.</div>'; } }
 function ptIdadeDetalhe(nasc){ if(!nasc) return 'idade —'; const b=new Date(nasc), n=new Date(); let y=n.getFullYear()-b.getFullYear(), m=n.getMonth()-b.getMonth(), d=n.getDate()-b.getDate(); if(d<0){ m--; d+=new Date(n.getFullYear(),n.getMonth(),0).getDate(); } if(m<0){ y--; m+=12; } return `${y}a ${m}m ${d}d`; }
 function prontCronTick(){ const el=document.getElementById('prontCronT'); if(!el) return; const s=Math.floor((Date.now()-(PRONT.cronStart||Date.now()))/1000); el.textContent=('0'+Math.floor(s/3600)).slice(-2)+':'+('0'+(Math.floor(s/60)%60)).slice(-2)+':'+('0'+(s%60)).slice(-2); }
 function prontCronStart(){ if(!PRONT.cronStart) PRONT.cronStart=Date.now(); if(PRONT.cronIv) clearInterval(PRONT.cronIv); PRONT.cronIv=setInterval(prontCronTick,1000); prontCronTick(); }
 function prontCronStop(){ if(PRONT.cronIv){ clearInterval(PRONT.cronIv); PRONT.cronIv=null; } PRONT.cronStart=null; }
-function prontNav(){ const items=[['ident','Identificação']]; (PRONT.def||[]).forEach(x=>items.push([x.chave,x.titulo])); items.push(['hist','Histórico']);
-  let h=items.map(([k,l])=>`<button class="pt-navi ${PRONT.sec===k?'on':''}" onclick="prontSec('${k}')">${l}</button>`).join('');
+function prontNav(){ const items=[['ident','Identificação'],['docs','Prescrições & Documentos']]; (PRONT.def||[]).forEach(x=>items.push([x.chave,x.titulo])); items.push(['hist','Histórico']);
+  const novos=(PRONT.docs||[]).filter(x=>x.origem==='paciente'&&x.visto===false).length;
+  let h=items.map(([k,l])=>`<button class="pt-navi ${PRONT.sec===k?'on':''} ${k==='docs'?'doc':''}" onclick="prontSec('${k}')">${l}${(k==='docs'&&novos)?(' <span class="pt-navdot">'+novos+'</span>'):''}</button>`).join('');
   h+=`<button class="pt-navi cfg" onclick="prontPersonalizar()">⚙ Personalizar</button>`; return h; }
 function prontRender(){ const a=document.getElementById('pacArea'); if(!a) return; const d=PRONT.data||{}; const p=d.paciente||{}; const f=d.ficha||{};
   const tags=(d.tags||[]).map(t=>`<span class="pt-tag2" style="${t.cor?('border-color:'+t.cor+';color:'+t.cor):''}">${t.tag}<b onclick="tagDel('${t.id}')" style="cursor:pointer;margin-left:6px">×</b></span>`).join('');
@@ -2784,11 +2818,42 @@ function prontSec(k){ PRONT.sec=k; prontRender(); }
 function prontBody(){ const b=document.getElementById('prontBody'); if(!b) return; const d=PRONT.data||{}; const k=PRONT.sec;
   if(k==='ident'){ b.innerHTML=ptIdent(d.ficha||{}); return; }
   if(k==='hist'){ b.innerHTML=ptHistorico(); return; }
+  if(k==='docs'){ b.innerHTML=ptDocs(); return; }
   const sec=(PRONT.def||[]).find(x=>x.chave===k);
   if(!sec){ b.innerHTML=ptIdent(d.ficha||{}); return; }
   if(sec.sistema && sec.tipo_sistema==='crescimento'){ b.innerHTML=ptCresc(d.antropometria||[]); return; }
   if(sec.sistema && sec.tipo_sistema==='vacinas'){ b.innerHTML=ptVac(d.vacinas||[]); return; }
   b.innerHTML=renderSecaoDin(sec); }
+
+const DOC_TIPOS=[
+ {k:'receita_simples',l:'Receita', tpl:'Uso oral:\n1) \n\nOrientações:'},
+ {k:'receita_controle',l:'Receita de controle especial', tpl:'Receituário de Controle Especial\n\n1) '},
+ {k:'atestado',l:'Atestado', tpl:'Atesto, para os devidos fins, que o(a) paciente sob meus cuidados necessita de afastamento por ___ dia(s), a partir de ___.'},
+ {k:'exame_solicitacao',l:'Solicitação de exames', tpl:'Solicito os seguintes exames:\n- '},
+ {k:'laudo',l:'Laudo', tpl:'Laudo médico:\n'},
+ {k:'parecer',l:'Parecer técnico', tpl:'Parecer técnico com base em evidências:\n'},
+ {k:'relatorio',l:'Relatório médico', tpl:'Relatório médico\nQuadro clínico, evolução e prognóstico:\n'},
+ {k:'recomendacao',l:'Recomendações', tpl:'Recomendações e orientações:\n- '}
+];
+function docIcon(t){ return ({receita_simples:'pill',receita_controle:'pill',atestado:'clipboard',exame_solicitacao:'flask',laudo:'file',parecer:'file',relatorio:'file',recomendacao:'clipboard',exame_recebido:'inbox'})[t]||'file'; }
+function docTipoLabel(t){ const m={receita_simples:'Receita',receita_controle:'Receita de controle especial',atestado:'Atestado',exame_solicitacao:'Solicitação de exames',laudo:'Laudo',parecer:'Parecer técnico',relatorio:'Relatório médico',recomendacao:'Recomendações',exame_recebido:'Exame recebido',outro:'Documento'}; return m[t]||'Documento'; }
+function docStatusBadge(d){ const m={rascunho:['rascunho','#6b7b83'],emitido:['emitido','#146F8E'],assinado:['assinado ✓','#12996A'],recebido:['recebido','#B4790B'],revisado:['revisado','#6b7b83']}; const x=m[d.status]||['','#888']; return `<span class="doc-badge" style="background:${x[1]}18;color:${x[1]}">${x[0]}</span>`; }
+function ptDocs(){ const docs=PRONT.docs||[]; const recebidos=docs.filter(d=>d.origem==='paciente'); const emitidos=docs.filter(d=>d.origem!=='paciente'); const novos=recebidos.filter(d=>d.visto===false);
+  const criar=`<div class="doc-new"><div class="doc-new-h">Nova prescrição / documento</div><div class="doc-tipos">${DOC_TIPOS.map(t=>`<button class="doc-tbtn" onclick="docNovo('${t.k}')">${hico(docIcon(t.k))}<span>${t.l}</span></button>`).join('')}</div><div class="cl-cs" style="margin-top:8px">Assinatura digital por <b>VIDaaS</b> (ICP-Brasil). Numeração e histórico por paciente.</div></div>`;
+  const recBox = recebidos.length?`<div class="pt-h" style="margin-top:14px">${hico('inbox')} Recebidos do paciente ${novos.length?('<span class="doc-badge novo">'+novos.length+' novo(s)</span>'):''}</div>${recebidos.map(docRowRecebido).join('')}`:'';
+  const emiBox = `<div class="pt-h" style="margin-top:14px">Emitidos</div>${emitidos.length?emitidos.map(docRow).join(''):'<div class="rc-empty" style="padding:8px 0">Nenhum documento emitido ainda.</div>'}`;
+  return ptCard(criar+recBox+emiBox); }
+function docRow(d){ return `<div class="doc-row"><div class="doc-ic">${hico(docIcon(d.tipo))}</div><div class="doc-main"><div class="doc-t">${docTipoLabel(d.tipo)}${(d.titulo&&d.titulo!==docTipoLabel(d.tipo))?(' · '+d.titulo):''} ${docStatusBadge(d)}</div><div class="doc-meta">${d.numero||''} · ${ptFmtdt(d.data)}${d.provedor?(' · assinado com '+d.provedor):''}</div></div><div class="doc-act">${d.status!=='assinado'?`<button class="cl-btn" style="margin:0;padding:6px 10px" onclick="docAssinar('${d.id}')">Assinar (VIDaaS)</button>`:''}<button class="cl-btn" style="margin:0;padding:6px 10px" onclick="docVer('${d.id}')">Ver</button>${d.status!=='assinado'?`<button class="eq-act danger" onclick="docDel('${d.id}')">×</button>`:''}</div></div>`; }
+function docRowRecebido(d){ return `<div class="doc-row ${d.visto?'':'novo'}"><div class="doc-ic">${hico('inbox')}</div><div class="doc-main"><div class="doc-t">${d.titulo||'Documento recebido'} ${d.visto?'':'<span class="doc-badge novo">novo</span>'}</div><div class="doc-meta">Enviado pelo paciente · ${ptFmtdt(d.data)}${d.arquivo_tipo?(' · '+d.arquivo_tipo):''}</div></div><div class="doc-act">${d.arquivo_url?`<a class="cl-btn" style="margin:0;padding:6px 10px" href="${safeUrl(d.arquivo_url)}" target="_blank" rel="noopener">Abrir</a>`:''}${d.visto?'':`<button class="cl-btn pri" style="margin:0;padding:6px 10px" onclick="docVisto('${d.id}')">Marcar visto</button>`}</div></div>`; }
+function docNovo(tipo){ const t=DOC_TIPOS.find(x=>x.k===tipo)||{k:tipo,l:docTipoLabel(tipo),tpl:''}; openModal(`<h3>${t.l}</h3><div class="nxm-field"><label>Título</label><input id="docTit" value="${t.l}"></div><div class="nxm-field"><label>Conteúdo</label><textarea id="docCont" rows="8">${escTa(t.tpl||'')}</textarea></div><div class="cl-cs">Após emitir, você pode assinar digitalmente com VIDaaS.</div><div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="docSalvar('${t.k}')">Emitir documento</button></div>`); }
+async function docSalvar(tipo){ const g=id=>((document.getElementById(id)||{}).value||''); try{ await SB.rpc('nx_doc_create',{p_patient:PRONT.patient,p_atend:PRONT.atend||null,p_tipo:tipo,p_titulo:g('docTit').trim(),p_conteudo:g('docCont')}); closeModal(); toast('Documento emitido'); reloadDocs(); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+async function reloadDocs(){ try{ const {data}=await SB.rpc('nx_doc_pt_list',{p_patient:PRONT.patient}); PRONT.docs=data||[]; prontRender(); }catch(e){} }
+async function docAssinar(id){ try{ await SB.rpc('nx_doc_sign',{p_doc:id,p_provedor:'VIDaaS',p_ref:null}); toast('Documento assinado (VIDaaS)'); reloadDocs(); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+async function docDel(id){ if(!confirm('Excluir este documento?')) return; try{ await SB.rpc('nx_doc_del',{p_doc:id}); toast('Documento excluído'); reloadDocs(); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+async function docVisto(id){ try{ await SB.rpc('nx_doc_mark_seen',{p_doc:id}); reloadDocs(); }catch(e){} }
+function docVer(id){ const d=(PRONT.docs||[]).find(x=>x.id===id); if(!d) return; openModal(`<h3>${docTipoLabel(d.tipo)}</h3><div class="cl-cs">${d.numero||''} · ${ptFmtdt(d.data)}${d.provedor?(' · assinado com '+d.provedor+(d.assinado_em?(' em '+ptFmtdt(d.assinado_em)):'')):''}</div><div style="white-space:pre-wrap;font-size:14px;max-height:52vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:12px;margin-top:8px">${escTa(d.conteudo||'')}</div>${d.arquivo_url?`<div style="margin-top:8px"><a class="cl-btn" href="${safeUrl(d.arquivo_url)}" target="_blank" rel="noopener">Abrir arquivo</a></div>`:''}<div class="nxm-actions">${d.status!=='assinado'?`<button class="nxm-btn ghost" onclick="closeModal();docAssinar('${d.id}')">Assinar (VIDaaS)</button>`:''}<button class="nxm-btn pri" onclick="closeModal()">Fechar</button></div>`); }
+function docAbrirPaciente(pid){ nav('pacientes'); setTimeout(()=>{ try{ prontOpen(pid,'','docs'); }catch(e){} }, 350); }
+
 function renderSecaoDin(sec){ const active=!!PRONT.atend;
   const fields=(sec.campos||[]).map(c=>{ const key=sec.chave+'.'+c.chave; const v=(PRONT.valores[key]!=null?PRONT.valores[key]:''); return campoRender(sec,c,v,active); }).join('');
   const banner=active?'':'<div class="pt-banner">Inicie o atendimento para preencher. O registro fica salvo e imutável ao finalizar.</div>';
@@ -2833,7 +2898,7 @@ async function campoAddCfg(secId){ const l=prompt('Nome do campo:'); if(!l) retu
 async function campoDelCfg(id){ if(!confirm('Remover campo?')) return; await SB.rpc('nx_prt_campo_del',{p_id:id}); await reloadDef(); prontRender(); prontPersonalizar(); }
 async function certConfig(){ let cur={}; try{ const {data}=await SB.rpc('nx_prt_cert_get',{p_clinic:NX.clinic}); cur=data||{}; }catch(e){} openModal(`<h3>Certificado digital</h3><div class="cl-cs">Configure seu certificado para assinar documentos. A NexoClin <b>não armazena sua chave privada</b> — a assinatura é feita pelo provedor (ICP-Brasil).</div>
    <div class="nxm-field"><label>Tipo</label>${pfSel('certTipo',cur.tipo||'nuvem',[['nuvem','Nuvem (BirdID/VIDaaS)'],['A1','A1 (arquivo)'],['A3','A3 (token/cartão)']])}</div>
-   <div class="nxm-field"><label>Provedor</label>${pfSel('certProv',cur.provedor||'BirdID',[['BirdID','BirdID'],['VIDaaS','VIDaaS'],['ICP-Brasil','ICP-Brasil (outro)']])}</div>
+   <div class="nxm-field"><label>Provedor</label>${pfSel('certProv',cur.provedor||'VIDaaS',[['VIDaaS','VIDaaS'],['BirdID','BirdID'],['ICP-Brasil','ICP-Brasil (outro)']])}</div>
    <div class="nxm-field"><label>Identificador (CPF do certificado)</label><input id="certId" value="${escAttr(cur.identificador||'')}"></div>
    <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="certSave()">Salvar</button></div>`); }
 async function certSave(){ const g=id=>((document.getElementById(id)||{}).value||'').trim(); try{ await SB.rpc('nx_prt_cert_set',{p_clinic:NX.clinic,p:{tipo:g('certTipo'),provedor:g('certProv'),identificador:g('certId')}}); closeModal(); toast('Certificado configurado'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
