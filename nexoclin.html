@@ -539,6 +539,46 @@ audio.rc-media{width:230px;max-width:100%}
 .agc-appt:hover{filter:brightness(.97)}
 .agc-appts{font-size:10px;color:var(--mute);text-transform:capitalize}
 @media(max-width:760px){.agc{font-size:10px}.agc-cell{min-height:30px;padding:2px 3px}.agc-appt{padding:2px 3px}.ag-toolbar>button{margin-left:0 !important}}
+
+/* ===== INÍCIO (home) ===== */
+.home-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media(max-width:860px){.home-grid{grid-template-columns:1fr}}
+.lem-row{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--mist)}
+.lem-row:last-child{border-bottom:0}
+.lem-row input[type=checkbox]{width:auto;flex:0 0 auto}
+.lem-txt{flex:1;font-size:14px}
+.lem-badge{display:inline-block;font-size:11px;font-weight:700;border-radius:12px;padding:1px 8px;background:var(--mist);color:var(--navy);margin-left:6px}
+.lem-badge.hoje{background:#e6f4ee;color:#0F6E56}
+.lem-badge.venc,.lem-badge.urg{background:#fdecea;color:#c0392b}
+.wa-urg{border:1px solid var(--line);border-radius:9px;padding:8px 10px;margin:7px 0;cursor:pointer}
+.wa-urg:hover{background:var(--mist)}
+.wa-urg-top{display:flex;align-items:center;gap:8px;font-size:13px}
+.wa-risk{font-size:11px;font-weight:700;border:1px solid;border-radius:12px;padding:1px 8px;white-space:nowrap}
+.wa-wait{margin-left:auto;color:var(--mute);font-size:12px;white-space:nowrap}
+.wa-urg-body{font-size:13px;color:var(--ink);margin-top:3px}
+.home-up{display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--mist);font-size:13.5px}
+.home-up:last-child{border-bottom:0}
+.home-up-d{flex:0 0 44px;color:var(--cyan);font-weight:700;font-size:12px}
+/* ===== PACIENTES (cartões ricos) ===== */
+.pac-card{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:8px 0}
+.pac-card-main{flex:1;cursor:pointer;min-width:0}
+.pac-card-h{font-size:15px;color:var(--navy)}
+.pac-card-age{color:var(--mute);font-size:12.5px;font-weight:600;margin-left:4px}
+.pac-card-meta{display:flex;flex-wrap:wrap;gap:14px;margin-top:5px;font-size:12.5px;color:var(--mute)}
+.pac-card-act{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:640px){.pac-card{flex-direction:column;align-items:stretch}.pac-card-act{justify-content:flex-start}}
+/* ===== LINHA DO TEMPO — data destacada + separadores ===== */
+.pt-tlrow{padding-bottom:14px;border-bottom:1px solid var(--line);margin-bottom:10px}
+.pt-tlrow:last-child{border-bottom:0;margin-bottom:0}
+.pt-tldate{background:#e6f4ee;border:1px solid #bfe0cf}
+.pt-tldd{color:#0F6E56}.pt-tlmo{color:#12996A}.pt-tlyy{color:#5a8f7c}
+
+.hicon{display:inline-flex;align-items:center;vertical-align:-3px}
+.hicon svg{width:16px;height:16px}
+.pt-h .hicon,.eq-bar .hicon{margin-right:5px}
+.pt-h .hicon svg{width:18px;height:18px}
+.wa-wait .hicon svg,.pac-card-meta .hicon svg{width:14px;height:14px}
+.pac-card-meta .hicon{margin-right:3px;color:var(--cyan)}
 </style>
 <style id="wa-style">
 /* ===== Cockpit de Atendimento WhatsApp — escopo .wa- ===== */
@@ -883,7 +923,14 @@ const ICON={
   shield:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
   building:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/><path d="M12 7v6M9 10h6"/></svg>',
   map:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.686-7-11a7 7 0 0 1 14 0c0 5.314-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+  bell:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
+  clock:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  sparkle:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M17.7 6.3l-2.8 2.8M9.1 14.9l-2.8 2.8"/></svg>',
+  user:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  scale:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3"/><path d="M5 6h14"/><path d="M4 21h16"/><path d="M9.5 21a2.5 2.5 0 0 1 5 0"/><path d="M5 6 2.5 13a3.5 3.5 0 0 0 7 0L7 6"/><path d="M19 6l2.5 7a3.5 3.5 0 0 1-7 0L17 6"/></svg>',
+  steth2:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v6a5 5 0 0 0 10 0V3"/><path d="M9 14v2a5 5 0 0 0 10 0v-3"/><circle cx="19" cy="11" r="2"/></svg>',
 };
+function hico(name,color){ return `<span class="hicon"${color?(' style="color:'+color+'"'):''}>${ICON[name]||''}</span>`; }
 const ROLES={
   recepcao:{label:'Recepção',ic:'inbox',banner:'Central de Recepção',short:'Triagem e roteamento da fila',desc:'Você recebe as conversas novas, faz a triagem e encaminha cada caso.',color:'#1596BE',soft:'#E1F4FA'},
   secretaria:{label:'Secretaria',ic:'calendar',banner:'Agenda & Secretaria',short:'Agenda, confirmações e retornos',desc:'Você agenda, confirma e organiza os retornos dos pacientes.',color:'#6C5CE7',soft:'#ECEAFD'},
@@ -2167,7 +2214,7 @@ function agendaReal(){
   return `<div class="wi" style="max-width:none">
     <div class="page-h"><h1>Agenda</h1><p>Agendamentos do consultório. Para consultas com telefone, a <b>confirmação</b> e os <b>lembretes</b> por WhatsApp são enviados automaticamente (24h e no dia).</p></div>
     <div class="ag-toolbar">
-      <div class="ag-tabs"><button id="agTabCal" class="ag-tab on" onclick="agSetMode('cal')">📅 Calendário</button><button id="agTabList" class="ag-tab" onclick="agSetMode('lista')">☰ Lista</button></div>
+      <div class="ag-tabs"><button id="agTabCal" class="ag-tab on" onclick="agSetMode('cal')">${hico('calendar')} Calendário</button><button id="agTabList" class="ag-tab" onclick="agSetMode('lista')">☰ Lista</button></div>
       <div class="ag-nav" id="agNav"></div>
       <button class="cl-btn pri" style="margin:0 0 0 auto;padding:10px 15px" onclick="agForm()">+ Novo agendamento</button>
     </div>
@@ -2624,22 +2671,72 @@ async function dashLoad(){ const b=document.getElementById('dashBox'); if(!b||!S
   ['dpHoje','dp7','dp30'].forEach(x=>{const e=document.getElementById(x);if(e)e.classList.remove('on');}); const act=DASH_PERIOD==='hoje'?'dpHoje':(DASH_PERIOD==='7'?'dp7':'dp30'); const ae=document.getElementById(act); if(ae)ae.classList.add('on');
   const today=new Date(); const iso=x=>x.toISOString().slice(0,10); let from=iso(today), to=iso(today);
   if(DASH_PERIOD==='7'){ const ff=new Date(today); ff.setDate(ff.getDate()-6); from=iso(ff); } else if(DASH_PERIOD==='30'){ const ff=new Date(today); ff.setDate(ff.getDate()-29); from=iso(ff); }
-  try{ const {data}=await SB.rpc('nx_dash',{p_clinic:NX.clinic,p_from:from,p_to:to}); const d=data||{};
-    const kpi=(v,l)=>`<div class="pt-kpi"><div class="pt-kpi-n">${v||0}</div><div class="pt-kpi-l">${l}</div></div>`;
-    const prox=(d.proximos||[]).map(p=>`<div class="pt-row"><span><b>${p.paciente||'—'}</b></span><span style="color:var(--mute);font-size:13px">${p.quando} · ${p.modalidade||''}</span></div>`).join('')||'<div class="rc-empty" style="padding:8px 0">Sem próximos agendamentos.</div>';
-    let vpCard=''; try{ const {data:vp}=await SB.rpc('nx_vacina_pendencias',{p_clinic:NX.clinic}); const vl=vp||[]; if(vl.length){ const rows=vl.slice(0,25).map(x=>`<div class="pt-row"><span><b>${x.paciente}</b> · ${x.vacina} (${x.dose}) <span style="font-size:11px;font-weight:700;color:${x.status==='atrasada'?'#c0392b':'#B4790B'}">${x.status}</span></span><span style="color:var(--mute);font-size:12px">${x.prevista}${x.telefone?(' · '+x.telefone):''}</span></div>`).join(''); const atn=vl.filter(x=>x.status==='atrasada').length; vpCard=ptCard(`<div class="pt-h">Vacinas pendentes ${atn?('· <span style=\"color:#c0392b\">'+atn+' atrasada(s)</span>'):''}</div>${rows}<div class="cl-cs">Lista para a equipe contatar os responsáveis. O envio automático por WhatsApp exige template aprovado (próxima etapa).</div>`); } }catch(e){}
+  const todayISO=iso(new Date());
+  try{
+    const [dR,apR,lemR,waR]=await Promise.all([
+      SB.rpc('nx_dash',{p_clinic:NX.clinic,p_from:from,p_to:to}),
+      SB.rpc('nx_appt_list',{p_clinic:NX.clinic,p_from:todayISO+'T00:00:00',p_to:todayISO+'T23:59:59'}),
+      SB.rpc('nx_lembrete_list',{p_clinic:NX.clinic}),
+      SB.rpc('nx_wa_inbox_urgent',{p_clinic:NX.clinic,p_limit:6})
+    ]);
+    const d=dR.data||{}; const kpi=(v,l)=>`<div class="pt-kpi"><div class="pt-kpi-n">${v||0}</div><div class="pt-kpi-l">${l}</div></div>`;
+    const stCor={agendada:'#B4790B',confirmada:'#12996A',cancelada:'#F2564C',realizada:'#6b7b83',faltou:'#F2564C'};
+    const ags=(apR.data||[]).filter(a=>iso(new Date(a.scheduled_at))===todayISO).sort((x,y)=>new Date(x.scheduled_at)-new Date(y.scheduled_at));
+    const agRows=ags.map(a=>{const s2=new Date(a.scheduled_at); const hh=('0'+s2.getHours()).slice(-2)+':'+('0'+s2.getMinutes()).slice(-2); return `<div class="pt-row"><span><b>${hh}</b> · ${a.paciente_nome||'—'}${a.profissional_nome?(' <span style=\"color:var(--mute);font-size:12px\">· '+a.profissional_nome+'</span>'):''}</span><span style="font-weight:700;color:${stCor[a.status]||'#6b7b83'};font-size:12px">${a.status}</span></div>`;}).join('')||'<div class="rc-empty" style="padding:8px 0">Nenhuma consulta para hoje.</div>';
+    DASH_LEMBRETES=lemR.data||[];
+    const RK={emergencia:['Emergência','#c0392b'],muito_urgente:['Muito urgente','#e8590c'],urgente:['Urgente','#B4790B'],pouco_urgente:['Pouco urgente','#12996A'],nao_urgente:['Não urgente','#6b7b83']};
+    const waRows=(waR.data||[]).map(w=>{const r=RK[w.risk]||['—','#6b7b83']; const wm=w.waiting_min||0; const wait=wm>=60?(Math.floor(wm/60)+'h'+(wm%60)+'m'):(wm+'min'); return `<div class="wa-urg" onclick="nav('cockpit')"><div class="wa-urg-top"><span class="wa-risk" style="border-color:${r[1]};color:${r[1]}">${r[0]}</span><b>${w.paciente_nome||w.responsavel_nome||w.telefone||'—'}</b><span class="wa-wait">${hico('clock')} ${wait}</span></div><div class="wa-urg-body">${(w.body||'').replace(/</g,'&lt;')}</div></div>`;}).join('')||'<div class="rc-empty" style="padding:8px 0">Nenhuma mensagem aguardando resposta.</div>';
+    const upRows=NX_UPDATES.slice(0,6).map(u=>`<div class="home-up"><span class="home-up-d">${u.d}</span><span>${u.t}</span></div>`).join('');
     b.innerHTML=`<div class="pt-kpis">${kpi(d.pacientes,'Pacientes')}${kpi(d.consultas_periodo,'Consultas ('+(d.periodo_de||'')+'–'+(d.periodo_ate||'')+')')}${kpi(d.realizadas_periodo,'Realizadas no período')}${kpi(d.agendados_semana,'Agendados (7 dias)')}${kpi(d.aguardando,'Aguardando médico')}${kpi(d.aniversariantes_mes,'Aniversariantes do mês')}</div>
-      ${ptCard(`<div class="pt-h">Próximos agendamentos</div>${prox}`)}${vpCard}`;
-  }catch(e){ b.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao carregar.</div>'; } }
+      <div class="home-grid">
+        <div>
+          ${ptCard(`<div class="pt-h">${hico('calendar')} Agenda de hoje</div>${agRows}`)}
+          ${ptCard(`<div class="eq-bar" style="margin-bottom:6px"><b>${hico('bell')} Lembretes</b><button class="cl-btn pri" style="margin:0;padding:6px 11px;font-size:12px" onclick="lembreteForm()">+ Novo</button></div><div id="lemList">${renderLembretes()}</div>`)}
+        </div>
+        <div>
+          ${ptCard(`<div class="pt-h">${hico('chat')} WhatsApp — aguardando resposta</div>${waRows}<div class="cl-cs">Por prioridade de risco e tempo de espera. Clique para abrir no Atendimento.</div>`)}
+          ${ptCard(`<div class="pt-h">${hico('sparkle')} Atualizações do sistema</div>${upRows}`)}
+        </div>
+      </div>`;
+  }catch(e){ b.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao carregar.</div>'; }
+}
+let DASH_LEMBRETES=[];
+const NX_UPDATES=[
+ {d:'18/09',t:'Início renovado: agenda do dia, lembretes e urgentes do WhatsApp.'},
+ {d:'18/09',t:'Calendário da agenda (semana/dia) com marcação por clique.'},
+ {d:'17/09',t:'Prontuário flexível: atendimento imutável, modelos e linha do tempo.'},
+ {d:'17/09',t:'Certificado digital e tags clínicas no paciente.'},
+ {d:'16/09',t:'Curvas de crescimento OMS e cartão de vacinas (PNI).'},
+ {d:'15/09',t:'Cartões de paciente com resumo (idade, peso, responsável).'}
+];
+function renderLembretes(){ if(!DASH_LEMBRETES.length) return '<div class="rc-empty" style="padding:8px 0">Nenhum lembrete. Crie um com "+ Novo".</div>';
+  return DASH_LEMBRETES.map(l=>{ const badge=l.vencido?'<span class="lem-badge venc">vencido</span>':(l.hoje?'<span class="lem-badge hoje">hoje</span>':(l.data?('<span class="lem-badge">'+ptFmtd(l.data)+'</span>'):'')); const urg=l.prioridade==='urgente'?'<span class="lem-badge urg">urgente</span>':''; return `<div class="lem-row"><input type="checkbox" onchange="lembreteDone('${l.id}')" title="Concluir"><div class="lem-txt">${l.texto} ${urg}${badge}</div><button class="eq-act danger" onclick="lembreteDel('${l.id}')">×</button></div>`; }).join(''); }
+function lembreteForm(){ openModal(`<h3>Novo lembrete</h3>
+  <div class="nxm-field"><label>Lembrete</label><input id="lemTxt" placeholder="Ex.: Ligar para o laboratório sobre o exame da Alice"></div>
+  <div class="cl-2"><div class="nxm-field"><label>Data</label><input id="lemData" type="date"></div><div class="nxm-field"><label>Prioridade</label><select id="lemPrio"><option value="normal">Normal</option><option value="urgente">Urgente</option></select></div></div>
+  <div class="nxm-field"><label>Para</label><select id="lemPara"><option value="todos">Todos</option><option value="medico">Médico</option><option value="secretaria">Secretaria</option></select></div>
+  <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="lembreteAdd()">Adicionar</button></div>`); }
+async function lembreteAdd(){ const g=id=>((document.getElementById(id)||{}).value||'').trim(); const t=g('lemTxt'); if(!t){ toast('Escreva o lembrete','⚠'); return; } try{ await SB.rpc('nx_lembrete_add',{p_clinic:NX.clinic,p_texto:t,p_data:g('lemData')||null,p_prioridade:g('lemPrio'),p_para:g('lemPara')}); closeModal(); dashLoad(); toast('Lembrete adicionado'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+async function lembreteDone(id){ try{ await SB.rpc('nx_lembrete_done',{p_id:id}); dashLoad(); }catch(e){} }
+async function lembreteDel(id){ try{ await SB.rpc('nx_lembrete_del',{p_id:id}); dashLoad(); }catch(e){} }
+function waOpen(tel,txt){ const dd=(''+(tel||'')).replace(/\D/g,''); if(!dd){ toast('Sem telefone do responsável','⚠'); return; } window.open('https://wa.me/'+dd+(txt?('?text='+encodeURIComponent(txt)):''),'_blank'); }
 // PACIENTES
 function pacView(){ return `<div class="wi" style="max-width:none"><div class="page-h"><h1>Pacientes</h1><p>Prontuário e histórico completo de cada paciente — desde a gestação.</p></div>
   <div class="eq-bar"><input id="pacQ" placeholder="Buscar por nome…" oninput="pacLoad()" style="flex:1;border:1px solid var(--line);border-radius:10px;padding:9px 12px;outline:none"><button class="cl-btn pri" style="margin:0" onclick="pacNew()">+ Novo paciente</button></div>
   <div id="pacArea"><div class="rc-empty">Carregando…</div></div></div>`; }
 async function pacLoad(){ PRONT.patient=null; const a=document.getElementById('pacArea'); if(!a||!SB||!NX.clinic) return;
-  const q=((document.getElementById('pacQ')||{}).value||'');
-  try{ const {data}=await SB.rpc('nx_pacientes_list',{p_clinic:NX.clinic,p_q:q}); const list=data||[]; PRONT.list=list;
-    a.innerHTML=list.length?`<div class="pt-card" style="padding:6px">${list.map(p=>`<div class="pt-prow" onclick="prontOpen('${p.id}')"><div><b>${p.nome||'—'}</b><div style="font-size:12px;color:var(--mute)">${p.telefone||''}${p.data_nascimento?(' · '+ptIdadeStr(p.data_nascimento)):''}</div></div><span style="color:var(--cyan-d);font-size:13px;white-space:nowrap">Abrir →</span></div>`).join('')}</div>`:'<div class="rc-empty">Nenhum paciente ainda. Clique em "+ Novo paciente".</div>';
+  const q=((document.getElementById('pacQ')||{}).value||'').toLowerCase().trim();
+  try{ const {data}=await SB.rpc('nx_patients_overview',{p_clinic:NX.clinic}); let list=data||[]; PRONT.list=list.map(p=>({id:p.id,nome:p.nome}));
+    if(q) list=list.filter(p=>((p.nome||'').toLowerCase().indexOf(q)>=0));
+    a.innerHTML=list.length?list.map(p=>pacCard(p)).join(''):'<div class="rc-empty">Nenhum paciente encontrado.</div>';
   }catch(e){ a.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao carregar.</div>'; } }
+function pacCard(p){ const idade=p.data_nascimento?ptIdadeStr(p.data_nascimento):'idade —'; const uc=p.ultima_consulta?ptFmtd(p.ultima_consulta):'—'; const peso=p.peso?(p.peso+' kg'):'—'; const resp=p.responsavel_nome||'—'; const tel=p.responsavel_tel||p.telefone||'';
+  return `<div class="pac-card"><div class="pac-card-main" onclick="prontOpen('${p.id}')">
+    <div class="pac-card-h"><b>${p.nome||'—'}</b> <span class="pac-card-age">${ptSexLabel(p.sexo)} · ${idade}</span></div>
+    <div class="pac-card-meta"><span>${hico('steth2')} Última consulta: <b style="color:var(--ink)">${uc}</b></span><span>${hico('scale')} Peso: <b style="color:var(--ink)">${peso}</b></span><span>${hico('user')} Resp.: <b style="color:var(--ink)">${resp}</b>${tel?(' · '+tel):''}</span></div>
+   </div>
+   <div class="pac-card-act">${tel?`<button class="cl-btn" style="margin:0;padding:8px 11px" onclick="event.stopPropagation();waOpen('${tel}','Olá! Aqui é do consultório.')">${hico('chat')} Mensagem</button>`:''}<button class="cl-btn pri" style="margin:0;padding:8px 12px" onclick="prontOpen('${p.id}')">Abrir →</button></div>
+  </div>`; }
 let PAC_RESP_T=null;
 function ptSexLabel(x){ x=((x||'')+'').toUpperCase(); return x.charAt(0)==='M'?'Masculino':x.charAt(0)==='F'?'Feminino':'sexo —'; }
 function ptCorrMonths(nasc,prem,sem){ const mo=whoMonths(nasc,new Date().toISOString().slice(0,10)); if(mo==null) return null; if(prem&&sem&&mo<=24) return Math.max(0,mo-(40-sem)/4.345); return mo; }
@@ -2673,7 +2770,7 @@ function prontRender(){ const a=document.getElementById('pacArea'); if(!a) retur
   const tags=(d.tags||[]).map(t=>`<span class="pt-tag2" style="${t.cor?('border-color:'+t.cor+';color:'+t.cor):''}">${t.tag}<b onclick="tagDel('${t.id}')" style="cursor:pointer;margin-left:6px">×</b></span>`).join('');
   const idade=f.data_nascimento?ptIdadeDetalhe(f.data_nascimento):'idade —';
   const bar=PRONT.atend
-    ? `<button class="pt-atbtn fin" onclick="atendFinalizar()">■ Finalizar atendimento</button><div class="pt-dur">⏱ <span>Duração</span> <b id="prontCronT">00:00:00</b></div>`
+    ? `<button class="pt-atbtn fin" onclick="atendFinalizar()">■ Finalizar atendimento</button><div class="pt-dur">${hico('clock')} <span>Duração</span> <b id="prontCronT">00:00:00</b></div>`
     : `<button class="pt-atbtn ini" onclick="atendStart()">▶ Iniciar atendimento</button>`;
   a.innerHTML=`<div class="pt-top"><button class="pt-back" onclick="pacLoad()">← Pacientes</button>
     <div class="pt-pid"><div class="pt-pnome">${p.nome||PRONT.nome||'Paciente'}</div>
