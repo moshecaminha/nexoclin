@@ -107,5 +107,13 @@ Deno.serve(async (req) => {
     p_type: "text",
   });
 
+  // 6) Intervencao humana pausa a IA. Excecao: mensagem do sistema, como o
+  //    encaminhamento para agendamento, que religa a IA de proposito.
+  if (body?.sistema !== true) {
+    await admin.from("conversations")
+      .update({ bot_active: false, updated_at: new Date().toISOString() })
+      .eq("id", conversation_id);
+  }
+
   return json({ ok: true, wamid, message_id: msgId });
 });
