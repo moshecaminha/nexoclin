@@ -309,6 +309,28 @@ Deno.serve(async (req) => {
   try {
     for (const entry of body?.entry ?? []) {
       for (const change of entry?.changes ?? []) {
+        // Coexistencia: mensagem que a equipe mandou pelo app do celular.
+        // Grava na conversa como saida da equipe e pausa a IA. history e
+        // smb_app_state_sync ficam so no webhook_events (gravado acima).
+        if (change?.field === "smb_message_echoes") {
+          const ve = change.value ?? {};
+          const phoneEco = ve.metadata?.phone_number_id;
+          if (!phoneEco) continue;
+          for (const eco of ve.message_echoes ?? []) {
+            // edicao e exclusao nao sao mensagem nova
+            if (eco?.type === "edit" || eco?.type === "revoke") continue;
+            await sb.rpc("nx_wa_eco", {
+              p_phone_number_id: phoneEco,
+              p_to: String(eco?.to ?? ""),
+              p_type: eco?.type ?? "text",
+              p_body: corpoDe(eco) ?? `[${eco?.type ?? "mensagem"} enviada pelo celular]`,
+              p_wamid: eco?.id ?? null,
+              p_ts: Number(eco?.timestamp ?? 0),
+              p_media_id: midiaDe(eco)?.id ?? null,
+            });
+          }
+          continue;
+        }
         if (change?.field !== "messages") continue;
         const v = change.value ?? {};
         const phoneId = v.metadata?.phone_number_id;   // <- a chave do roteamento
