@@ -1,0 +1,87 @@
+<!doctype html><html lang="pt-BR"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cadastro do paciente — NexoClin</title>
+<style>
+:root{--navy:#143A4E;--cyan:#146F8E;--green:#12996A;--line:#d7e5ec;--mist:#eef5f8;--ink:#22323a;--mute:#6a808c;--coral:#c0392b}
+*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:var(--ink);background:#f6fafb;margin:0}
+.wrap{max-width:520px;margin:0 auto;padding:26px 18px 60px}
+.brand{display:flex;align-items:center;gap:8px;color:var(--navy);font-weight:800;font-size:20px;margin-bottom:4px}
+.brand b{color:var(--cyan)}
+.clinic{color:var(--mute);font-size:14px;margin-bottom:18px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;box-shadow:0 1px 3px rgba(20,58,78,.05)}
+h2{font-size:15px;color:var(--navy);margin:2px 0 10px}
+label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
+input,select{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:15px;outline:none;background:#fff}
+input:focus,select:focus{border-color:var(--cyan)}
+.row{display:flex;gap:10px}.row>div{flex:1}
+.chk{display:flex;gap:8px;align-items:flex-start;font-size:13px;margin:14px 0;cursor:pointer}
+.chk input{width:auto;margin-top:3px}
+.btn{width:100%;border:0;background:var(--green);color:#fff;font-weight:700;font-size:16px;border-radius:11px;padding:13px;margin-top:14px;cursor:pointer}
+.btn:disabled{opacity:.6}
+.msg{font-size:13.5px;margin-top:10px}.err{color:var(--coral)}
+.ok-screen{text-align:center;padding:20px 6px}
+.ok-ic{width:64px;height:64px;border-radius:50%;background:#e6f4ee;color:var(--green);display:flex;align-items:center;justify-content:center;font-size:34px;margin:0 auto 12px}
+.foot{color:var(--mute);font-size:12px;text-align:center;margin-top:18px}
+.hide{display:none}
+</style></head><body>
+<div class="wrap">
+  <div class="brand">✚ Nexo<b>Clin</b></div>
+  <div class="clinic" id="clinicName">Carregando…</div>
+  <div class="card" id="formCard">
+    <h2>Dados da criança</h2>
+    <label>Nome completo da criança *</label>
+    <input id="nome" autocomplete="name">
+    <div class="row">
+      <div><label>Sexo</label><select id="sexo"><option value="">—</option><option value="M">Masculino</option><option value="F">Feminino</option></select></div>
+      <div><label>Data de nascimento</label><input id="dn" type="date"></div>
+    </div>
+    <label class="chk"><input type="checkbox" id="prem" onchange="document.getElementById('semBox').classList.toggle('hide',!this.checked)"> Prematuro(a)</label>
+    <div id="semBox" class="hide"><label>Semanas de gestação ao nascer</label><input id="sem" type="number" inputmode="numeric" placeholder="ex.: 34"></div>
+
+    <h2 style="margin-top:18px">Responsável</h2>
+    <label>Nome do responsável *</label>
+    <input id="rnome" autocomplete="name">
+    <div class="row">
+      <div><label>Telefone (WhatsApp) *</label><input id="rtel" inputmode="tel" placeholder="(21) 90000-0000"></div>
+      <div><label>Parentesco</label><input id="rpar" placeholder="mãe, pai…"></div>
+    </div>
+    <label>CPF (opcional)</label>
+    <input id="rcpf" inputmode="numeric">
+
+    <label class="chk"><input type="checkbox" id="consent"> Autorizo o cadastro dos meus dados e do(a) meu(minha) filho(a) para atendimento neste consultório, conforme a LGPD.</label>
+    <button class="btn" id="btn" onclick="enviar()">Enviar cadastro</button>
+    <div class="msg err" id="err"></div>
+  </div>
+
+  <div class="card ok-screen hide" id="okCard">
+    <div class="ok-ic">✓</div>
+    <h2 style="font-size:18px">Cadastro concluído!</h2>
+    <p style="color:var(--mute);font-size:14px">Recebemos seus dados. O consultório já está com o cadastro ativo e vai entrar em contato pelo WhatsApp.</p>
+  </div>
+
+  <div class="foot">NexoClin · seus dados são usados apenas para o seu atendimento.</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SB_URL="https://kzbazzwfdagfhyxuadqp.supabase.co";
+const SB_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6YmF6endmZGFnZmh5eHVhZHFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwNTYwMjUsImV4cCI6MjEwMjYzMjAyNX0.CembztJIxu21Q2WB6BV4iCGWLkYo8xXQW7Id35b3pyM";
+const sb=window.supabase.createClient(SB_URL,SB_KEY);
+const slug=new URLSearchParams(location.search).get('c')||'';
+const $=id=>document.getElementById(id);
+(async function(){ if(!slug){ $('clinicName').textContent='Link inválido.'; $('formCard').classList.add('hide'); return; }
+  try{ const {data}=await sb.rpc('nx_clinic_by_slug',{p_slug:slug}); if(data&&data.ok){ $('clinicName').textContent='Cadastro no consultório: '+(data.nome||''); } else { $('clinicName').textContent='Consultório não encontrado.'; $('formCard').classList.add('hide'); } }
+  catch(e){ $('clinicName').textContent='Não foi possível carregar o consultório.'; }
+})();
+async function enviar(){ const g=id=>($(id).value||'').trim(); $('err').textContent='';
+  if(!g('nome')||!g('rnome')||g('rtel').replace(/\D/g,'').length<10){ $('err').textContent='Preencha o nome da criança, do responsável e um telefone válido.'; return; }
+  if(!$('consent').checked){ $('err').textContent='É preciso autorizar o uso dos dados (LGPD).'; return; }
+  $('btn').disabled=true; $('btn').textContent='Enviando…';
+  try{ const {data,error}=await sb.rpc('nx_patient_selfregister',{p_slug:slug,p:{nome:g('nome'),sexo:g('sexo'),data_nascimento:g('dn'),prematuro:$('prem').checked,semanas_gestacao:g('sem'),resp_nome:g('rnome'),resp_telefone:g('rtel'),parentesco:g('rpar'),resp_cpf:g('rcpf')}});
+    if(error) throw error;
+    if(data&&data.ok){ $('formCard').classList.add('hide'); $('okCard').classList.remove('hide'); window.scrollTo(0,0); }
+    else { $('err').textContent=(data&&data.erro)||'Não foi possível concluir. Tente novamente.'; $('btn').disabled=false; $('btn').textContent='Enviar cadastro'; }
+  }catch(e){ $('err').textContent='Erro ao enviar. Tente novamente.'; $('btn').disabled=false; $('btn').textContent='Enviar cadastro'; }
+}
+</script>
+</body></html>
