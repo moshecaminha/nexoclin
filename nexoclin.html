@@ -37,7 +37,7 @@ button{font-family:inherit}
 .logo-word i{color:var(--cyan);font-style:normal;font-weight:700}
 
 /* ---------- LOGIN ---------- */
-#login{position:fixed;inset:0;display:grid;place-items:center;padding:22px;background:
+#login{position:fixed;inset:0;display:grid;place-items:center;padding:22px;overflow-y:auto;background:
   radial-gradient(1000px 500px at 80% -10%,var(--cyan-ghost),transparent),
   radial-gradient(800px 500px at -10% 110%,#FBEEEC,transparent),var(--bg);z-index:50}
 .login-card{background:var(--card);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow);width:100%;max-width:440px;padding:34px 30px}
@@ -626,6 +626,8 @@ audio.rc-media{width:230px;max-width:100%}
 
 .cm-search{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;margin:2px 0 8px;outline:none;font-size:14px}
 .cm-search:focus{border-color:var(--cyan)}
+
+@media(max-width:600px){#login{place-items:start center}#login .login-card{margin:14px 0}}
 </style>
 <style id="wa-style">
 /* ===== Cockpit de Atendimento WhatsApp — escopo .wa- ===== */
@@ -1815,7 +1817,7 @@ function renderRCPainel(){
 async function rcAdvance(status,assignMe){ try{ await SB.rpc('nx_conv_advance',{p_conv:RC.activeId,p_status:status,p_risk:null,p_assign_me:!!assignMe}); await rcLoad(); await rcOpen(RC.activeId); toast('Atendimento atualizado'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 async function rcRoute(modal){ if(!RC.activeId) return; const c=RC.active&&RC.active.conv; const to=c&&c.telefone;
   try{ const {data,error}=await SB.rpc('nx_conv_route',{p_conv:RC.activeId,p_modalidade:modal}); if(error) throw error;
-    if(to && data){ try{ await SB.functions.invoke('wa-send',{body:{clinic_id:NX.clinic,to:to,kind:'text',text:data,conv_id:RC.activeId,sistema:true}}); }catch(_e){} }
+    if(to && data){ try{ await SB.functions.invoke('wa-send',{body:{clinic_id:NX.clinic,to:to,kind:'text',text:data,conv_id:RC.activeId}}); }catch(_e){} }
     toast(modal==='telemedicina'?'Telemedicina: paciente convidado a agendar (pré-pago) 🎥':'Presencial: paciente convidado a agendar 📅');
     RC._sig=null; await rcLoad(); await rcOpen(RC.activeId);
   }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
@@ -2198,8 +2200,6 @@ window.addEventListener('message', function(ev){
   try{
     var d = JSON.parse(ev.data);
     if (d.type !== 'WA_EMBEDDED_SIGNUP') return;
-    // Coexistencia: numero que ja estava no app WhatsApp Business
-    if (d.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING') WA_ES.coexistencia = true;
     if (d.data){
       if (d.data.waba_id)         WA_ES.waba_id = d.data.waba_id;
       if (d.data.phone_number_id) WA_ES.phone_number_id = d.data.phone_number_id;
@@ -2218,7 +2218,7 @@ function waConectar(){
     waEnviarCodigo(a.code, a.accessToken);
   }, { config_id: WA_FB_CONFIG, response_type: 'code',
        override_default_response_type: true,
-       extras: { setup:{}, featureType:'whatsapp_business_app_onboarding', sessionInfoVersion:'3' } });
+       extras: { setup:{}, featureType:'', sessionInfoVersion:'3' } });
 }
 
 async function waEnviarCodigo(code, token){
@@ -2228,8 +2228,7 @@ async function waEnviarCodigo(code, token){
       method:'POST',
       headers:{'Authorization':'Bearer '+sess.session.access_token,'Content-Type':'application/json'},
       body: JSON.stringify({ clinic_id:NX.clinic, code:code||null, token:token||null,
-        waba_id:WA_ES.waba_id, phone_number_id:WA_ES.phone_number_id,
-        coexistencia: !!WA_ES.coexistencia })
+        waba_id:WA_ES.waba_id, phone_number_id:WA_ES.phone_number_id })
     });
     const d = await r.json();
     if (d.ok){ waMsg('Conectado: '+(d.numero||''),'ok'); waLoad(); }
