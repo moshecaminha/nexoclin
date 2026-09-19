@@ -616,6 +616,16 @@ audio.rc-media{width:230px;max-width:100%}
 @media(max-width:640px){.pr-grid{grid-template-columns:1fr}}
 .pr-row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--mist);font-size:13.5px}
 .pr-l{color:var(--mute)}.pr-v{color:var(--ink);font-weight:600;text-align:right;word-break:break-word}
+
+.cm-row{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin:6px 0}
+.cm-main{flex:1;min-width:0}.cm-main b{color:var(--navy)}
+.cm-sys{font-size:11px;font-weight:700;background:var(--mist);color:var(--mute);border-radius:12px;padding:1px 8px;margin-left:6px}
+.cm-snip{font-size:12px;color:var(--mute);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cm-act{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.cm-link{color:var(--cyan);cursor:pointer;font-size:12px;align-self:center;margin-left:2px;white-space:nowrap}
+
+.cm-search{width:100%;border:1px solid var(--line);border-radius:9px;padding:9px 11px;margin:2px 0 8px;outline:none;font-size:14px}
+.cm-search:focus{border-color:var(--cyan)}
 </style>
 <style id="wa-style">
 /* ===== Cockpit de Atendimento WhatsApp — escopo .wa- ===== */
@@ -2681,6 +2691,19 @@ function perfilForm(){ const d=PERFIL.data||{}; const p=d.profissional||{}; cons
     <button class="cl-btn pri" style="padding:9px 15px" onclick="perfilSave()">Salvar perfil e políticas</button>`)}
   ${perfilCard(`<div class="cl-ct">Link de cadastro do paciente</div><div class="cl-cs">Envie este link pelo WhatsApp. Ao preencher, a criança já entra <b>ativa</b> no seu prontuário.</div>${(function(){ var slug=(c.link_slug||''); if(!slug){ return '<button class="cl-btn pri" style="padding:9px 15px" onclick="selfSlug()">Definir link de cadastro</button>'; } var u=new URL('cadastro.html',location.href).href+'?c='+slug; return '<div class="cl-cs" style="word-break:break-all">Seu link: <code>'+u+'</code></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="cl-btn" style="margin:0" onclick="selfCopy(\''+u+'\')">Copiar link</button><button class="cl-btn pri" style="margin:0" onclick="selfShare(\''+u+'\')">Enviar por WhatsApp</button><button class="cl-btn" style="margin:0" onclick="selfSlug()">Alterar link</button></div>'; })()}`)}
   ${perfilCard(`<div class="cl-ct">Dados do cadastro</div>${perfilResumo(c,p)}`)}
+  ${perfilCard(`<div class="cl-ct">Catálogos & Modelos</div><div class="cl-cs">Gerencie posologias, medicamentos, exames e os modelos de cada documento — adicione, edite ou remova. Tudo fica salvo no seu consultório.</div>
+   <div style="display:flex;flex-wrap:wrap;gap:8px">
+    <button class="cl-btn" style="margin:0" onclick="catMgrOpen('modelo','posologia','Posologias')">Posologias</button>
+    <button class="cl-btn" style="margin:0" onclick="catMgrOpen('med','','Medicamentos')">Medicamentos</button>
+    <button class="cl-btn" style="margin:0" onclick="catMgrOpen('exam','','Exames')">Exames</button>
+    <button class="cl-btn" style="margin:0" onclick="catMgrOpen('modelo','doc:receita','Modelos de receita')">Receitas</button>
+    <button class="cl-btn" style="margin:0" onclick="catMgrOpen('modelo','doc:atestado','Modelos de atestado')">Atestados</button>
+    <button class="cl-btn" style="margin:0" onclick="catMgrOpen('modelo','doc:laudo','Modelos de laudo')">Laudos</button>
+    <button class="cl-btn" style="margin:0" onclick="catMgrOpen('modelo','doc:parecer','Modelos de parecer')">Pareceres</button>
+    <button class="cl-btn" style="margin:0" onclick="catMgrOpen('modelo','doc:relatorio','Modelos de relatório')">Relatórios</button>
+    <button class="cl-btn" style="margin:0" onclick="catMgrOpen('modelo','doc:recomendacao','Modelos de recomendações')">Recomendações</button>
+    <button class="cl-btn" style="margin:0" onclick="catMgrOpen('modelo','doc:exame_solicitacao','Modelos de solicitação de exames')">Solicit. exames</button>
+   </div>`)}
   ${perfilCard(`<div class="cl-ct">Certificado digital (assinatura de documentos)</div><div class="cl-cs">Configure seu certificado ICP-Brasil para assinar prescrições, atestados e o prontuário ao finalizar o atendimento. A NexoClin <b>nunca armazena sua chave privada</b> — a assinatura é feita pelo provedor.</div>
     <button class="cl-btn pri" style="padding:9px 15px" onclick="certConfig()">Configurar certificado</button>`)}
   ${perfilCard(`<div class="cl-ct">Mensagens do WhatsApp (a IA usa estas)</div><div class="cl-cs">Personalize os textos. Use [valor], [pix], [titular], [data], [hora] — o sistema preenche na hora.</div>
@@ -2882,19 +2905,20 @@ async function docNovo(tipo){ const t=DOC_TIPOS.find(x=>x.k===tipo)||{k:tipo,l:d
   if(tipo==='receita_simples'||tipo==='receita_controle'){
     const meds=(DOC_CAT.med||[]).map(m=>`<option value="${escAttr(m.nome)}">`).join('');
     const poso=(DOC_CAT.poso||[]).map((p,i)=>`<option value="${i}">${escAttr(p.nome)}</option>`).join('');
-    builder=`<div class="doc-build"><input id="docMed" list="dlMed" placeholder="Buscar medicamento na base…"><datalist id="dlMed">${meds}</datalist><select id="docPoso"><option value="">Posologia…</option>${poso}</select><button class="cl-btn" style="margin:0" onclick="docAddMed()">+ Item</button></div>`;
+    builder=`<div class="doc-build"><input id="docMed" list="dlMed" placeholder="Buscar medicamento na base…"><datalist id="dlMed">${meds}</datalist><select id="docPoso"><option value="">Posologia…</option>${poso}</select><button class="cl-btn" style="margin:0" onclick="docAddMed()">+ Item</button><a class="cm-link" onclick="catMgrOpen('med','','Medicamentos','${tipo}')">medicamentos</a><a class="cm-link" onclick="catMgrOpen('modelo','posologia','Posologias','${tipo}')">posologias</a></div>`;
   } else if(tipo==='exame_solicitacao'){
     const exs=(DOC_CAT.exam||[]).map(n=>`<option value="${escAttr(n)}">`).join('');
-    builder=`<div class="doc-build"><input id="docExam" list="dlExam" placeholder="Buscar exame na base…"><datalist id="dlExam">${exs}</datalist><button class="cl-btn" style="margin:0" onclick="docAddExam()">+ Item</button></div>`;
+    builder=`<div class="doc-build"><input id="docExam" list="dlExam" placeholder="Buscar exame na base…"><datalist id="dlExam">${exs}</datalist><button class="cl-btn" style="margin:0" onclick="docAddExam()">+ Item</button><a class="cm-link" onclick="catMgrOpen('exam','','Exames','${tipo}')">exames</a></div>`;
   }
-  const tplSel = DOC_TPL.length?`<div class="doc-build"><select id="docTpl" style="flex:1;min-width:180px"><option value="">Usar modelo pronto…</option>${DOC_TPL.map((m,i)=>`<option value="${i}">${escAttr(m.nome)}${m.global?' (sistema)':''}</option>`).join('')}</select><button class="cl-btn" style="margin:0" onclick="docTplApply()">Aplicar</button></div>`:'';
+  const tplSel = DOC_TPL.length?`<input id="docTplQ" class="cm-search" placeholder="Buscar modelo salvo por palavra-chave…" oninput="docTplFilter()"><div class="doc-build"><select id="docTpl" style="flex:1;min-width:180px"><option value="">Usar modelo pronto…</option>${DOC_TPL.map((m,i)=>`<option value="${i}">${escAttr(m.nome)}${m.global?' (sistema)':''}</option>`).join('')}</select><button class="cl-btn" style="margin:0" onclick="docTplApply()">Aplicar</button></div>`:'';
   openModal(`<h3>${t.l}</h3>
    <div class="nxm-field"><label>Título</label><input id="docTit" value="${escAttr(t.l)}"></div>
-   <div class="doc-modtools">Modelos: escolha um pronto ou <a onclick="docTplSave('${tipo}')">salve o atual como modelo</a>.</div>
+   <div class="doc-modtools">Modelos: escolha um pronto, <a onclick="docTplSave('${tipo}')">salve o atual</a> ou <a onclick="catMgrOpen('modelo','doc:${tipo}','Modelos de documento','${tipo}')">gerenciar modelos</a>.</div>
    ${tplSel}${builder}
    <div class="nxm-field"><label>Conteúdo</label><textarea id="docCont" rows="9">${escTa(t.tpl||'')}</textarea></div>
    <div class="cl-cs">Autocomplete usa a base de medicamentos/exames do sistema. Após emitir, assine com VIDaaS.</div>
    <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Cancelar</button><button class="nxm-btn pri" onclick="docSalvar('${t.k}')">Emitir documento</button></div>`); }
+function docTplFilter(){ const q=((document.getElementById('docTplQ')||{}).value||'').toLowerCase().trim(); const sel=document.getElementById('docTpl'); if(!sel) return; let h='<option value="">Usar modelo pronto…</option>'; (DOC_TPL||[]).forEach(function(m,i){ if(!q || (((m.nome||'')+' '+(m.conteudo||'')).toLowerCase().indexOf(q)>=0)) h+='<option value="'+i+'">'+escAttr(m.nome)+(m.global?' (sistema)':'')+'</option>'; }); sel.innerHTML=h; }
 function docTplApply(){ const sel=document.getElementById('docTpl'); const ta=document.getElementById('docCont'); if(!sel||!ta||sel.value==='') return; const m=DOC_TPL[+sel.value]; if(m){ ta.value=m.conteudo||''; ta.focus(); } }
 async function docTplSave(tipo){ const ta=document.getElementById('docCont'); if(!ta||!ta.value.trim()){ toast('Conteúdo vazio'); return; } const nome=prompt('Nome do modelo:'); if(!nome) return; try{ await SB.rpc('nx_prt_modelo_add',{p_clinic:NX.clinic,p_nome:nome,p_escopo:'doc:'+tipo,p_conteudo:ta.value}); toast('Modelo salvo'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 function docAddMed(){ const mi=document.getElementById('docMed'); const ps=document.getElementById('docPoso'); const ta=document.getElementById('docCont'); if(!mi||!ta) return; const med=(mi.value||'').trim(); if(!med){ return; } let poso='';
@@ -2927,6 +2951,45 @@ async function docPdf(id){ const d=(PRONT.docs||[]).find(x=>x.id===id); if(!d) r
   const w=window.open('','_blank'); if(!w){ toast('Permita pop-ups para gerar o PDF','⚠'); return; }
   w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+docTipoLabel(d.tipo)+' — '+escAttr(p.nome||'')+'</title>'+DOC_PDF_CSS+'<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/scr'+'ipt></head><body>'+body+'<scr'+'ipt>(function(){try{document.querySelectorAll(".qr").forEach(function(el){new QRCode(el,{text:el.getAttribute("data-text"),width:104,height:104,correctLevel:QRCode.CorrectLevel.M});});}catch(e){}setTimeout(function(){window.print();},650);})();<\/scr'+'ipt></body></html>');
   w.document.close(); }
+
+
+let CATMGR={kind:'',escopo:'',title:'',items:[],returnTipo:''};
+async function catMgrOpen(kind,escopo,title,returnTipo){ CATMGR={kind,escopo,title,items:[],returnTipo:returnTipo||''};
+  try{ let r; if(kind==='modelo') r=await SB.rpc('nx_prt_modelo_list',{p_clinic:NX.clinic,p_escopo:escopo});
+       else if(kind==='med') r=await SB.rpc('nx_cat_med_list',{p_clinic:NX.clinic});
+       else r=await SB.rpc('nx_cat_exam_list',{p_clinic:NX.clinic});
+       CATMGR.items=r.data||[]; }catch(e){ CATMGR.items=[]; }
+  catMgrList(); }
+function catMgrClose(){ const rt=CATMGR.returnTipo; closeModal(); if(rt) setTimeout(()=>{ try{ docNovo(rt); }catch(e){} },60); }
+function catMgrList(){ CATMGR.q=CATMGR.q||''; openModal(`<h3>${CATMGR.title}</h3><div class="cl-cs">Adicione, edite ou remova. Itens do <b>sistema</b> podem ser editados (viram <b>sua cópia</b>) ou ocultados. Tudo fica salvo no seu consultório.</div>
+   <input id="cmSearch" class="cm-search" placeholder="Buscar por palavra-chave…" value="${escAttr(CATMGR.q)}" oninput="CATMGR.q=this.value;catMgrBody()">
+   <div style="max-height:50vh;overflow:auto;margin:4px 0"><table class="eq-tbl"><thead><tr><th>Nome</th><th>Detalhe</th><th>Origem</th><th style="text-align:right">Ações</th></tr></thead><tbody id="cmBody"></tbody></table></div>
+   <div class="nxm-actions"><button class="nxm-btn ghost" onclick="catMgrClose()">Fechar</button><button class="nxm-btn pri" onclick="catMgrForm('')">+ Adicionar</button></div>`);
+  catMgrBody(); }
+function catMgrBody(){ const b=document.getElementById('cmBody'); if(!b) return; const q=(CATMGR.q||'').toLowerCase().trim(); let it=CATMGR.items||[];
+  if(q){ it=it.filter(m=>(((m.nome||'')+' '+(m.conteudo||'')+' '+(m.principio||'')+' '+(m.posologia||'')+' '+(m.categoria||'')+' '+(m.tipo||'')).toLowerCase().indexOf(q)>=0)); }
+  b.innerHTML = it.length ? it.map(m=>{ let det=''; if(CATMGR.kind==='med') det=((m.principio?(m.principio+' · '):'')+(m.posologia||'')); else if(CATMGR.kind==='exam') det=(m.tipo||''); else det=((m.conteudo||'').slice(0,80));
+     return `<tr><td><b>${escAttr(m.nome||'')}</b></td><td class="cm-snip">${escAttr(det)}</td><td>${m.global?'<span class="cm-sys">sistema</span>':'<span style="color:var(--green);font-weight:600;font-size:12px">meu</span>'}</td><td style="text-align:right;white-space:nowrap"><button class="cl-btn" style="margin:0;padding:5px 9px" onclick="catMgrForm('${m.id}')">Editar</button> <button class="eq-act danger" onclick="catMgrDel('${m.id}',${m.global?'true':'false'})">${m.global?'Ocultar':'Excluir'}</button></td></tr>`; }).join('')
+     : `<tr><td colspan="4" style="color:var(--mute);padding:8px">${q?('Nada encontrado para “'+escAttr(q)+'”.'):'Nenhum item ainda.'}</td></tr>`; }
+function catMgrForm(id){ const m=(id?(CATMGR.items.find(x=>x.id===id)||{}):{}); const k=CATMGR.kind; let fields='';
+  if(k==='modelo'){ fields=`<div class="nxm-field"><label>Nome</label><input id="cmNome" value="${escAttr(m.nome||'')}"></div><div class="nxm-field"><label>Conteúdo</label><textarea id="cmCont" rows="6">${escTa(m.conteudo||'')}</textarea></div>`; }
+  else if(k==='med'){ fields=`<div class="nxm-field"><label>Nome</label><input id="cmNome" value="${escAttr(m.nome||'')}"></div><div class="cl-2"><div class="nxm-field"><label>Princípio ativo</label><input id="cmPrinc" value="${escAttr(m.principio||'')}"></div><div class="nxm-field"><label>Categoria</label><input id="cmCat" value="${escAttr(m.categoria||'')}"></div></div><div class="nxm-field"><label>Posologia padrão</label><input id="cmPoso" value="${escAttr(m.posologia||'')}"></div>`; }
+  else { fields=`<div class="nxm-field"><label>Nome</label><input id="cmNome" value="${escAttr(m.nome||'')}"></div><div class="nxm-field"><label>Tipo</label>${pfSel('cmTipo',m.tipo||'laboratorio',[['laboratorio','Laboratório'],['imagem','Imagem'],['outro','Outro']])}</div>`; }
+  const isSys=(!!id&&m.global);
+  openModal(`<h3>${(id?'Editar':'Novo')} — ${CATMGR.title}</h3>${isSys?'<div class="pt-banner" style="margin-bottom:8px">Item do sistema: ao salvar, será criada a <b>sua cópia</b> e o original ficará oculto para você.</div>':''}${fields}<div class="nxm-actions"><button class="nxm-btn ghost" onclick="catMgrList()">Voltar</button><button class="nxm-btn pri" onclick="catMgrSave('${id}')">Salvar</button></div>`); }
+async function catMgrSave(id){ const g=x=>((document.getElementById(x)||{}).value||'').trim(); const k=CATMGR.kind; let p={};
+  try{
+    if(k==='modelo'){ p={id:id||'',nome:g('cmNome'),escopo:CATMGR.escopo,conteudo:((document.getElementById('cmCont')||{}).value||'')}; if(!p.nome){ toast('Informe o nome','⚠'); return; } await SB.rpc('nx_cat_modelo_save',{p_clinic:NX.clinic,p:p}); }
+    else if(k==='med'){ p={id:id||'',nome:g('cmNome'),principio:g('cmPrinc'),categoria:g('cmCat'),posologia:g('cmPoso')}; if(!p.nome){ toast('Informe o nome','⚠'); return; } await SB.rpc('nx_cat_med_save',{p_clinic:NX.clinic,p:p}); }
+    else { p={id:id||'',nome:g('cmNome'),tipo:g('cmTipo')}; if(!p.nome){ toast('Informe o nome','⚠'); return; } await SB.rpc('nx_cat_exam_save',{p_clinic:NX.clinic,p:p}); }
+    toast('Salvo'); DOC_CAT={med:null,exam:null,poso:null}; DOC_TPL=[]; catMgrOpen(CATMGR.kind,CATMGR.escopo,CATMGR.title,CATMGR.returnTipo);
+  }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+async function catMgrDel(id,isGlobal){ if(!confirm(isGlobal?'Ocultar este item do sistema no seu consultório?':'Excluir este item?')) return; const k=CATMGR.kind;
+  try{ if(k==='modelo') await SB.rpc('nx_cat_modelo_del',{p_clinic:NX.clinic,p_id:id});
+       else if(k==='med') await SB.rpc('nx_cat_med_del',{p_clinic:NX.clinic,p_id:id});
+       else await SB.rpc('nx_cat_exam_del',{p_clinic:NX.clinic,p_id:id});
+       toast(isGlobal?'Ocultado':'Excluído'); DOC_CAT={med:null,exam:null,poso:null}; DOC_TPL=[]; catMgrOpen(CATMGR.kind,CATMGR.escopo,CATMGR.title,CATMGR.returnTipo);
+  }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 
 function docAbrirPaciente(pid){ nav('pacientes'); setTimeout(()=>{ try{ prontOpen(pid,'','docs'); }catch(e){} }, 350); }
 
@@ -3063,7 +3126,7 @@ function pniCard(nasc,vacinas){
   const R=pniRows(nasc,vacinas); const atras=R.filter(r=>r.st==='atrasada').length, prox=R.filter(r=>r.st==='próxima').length;
   const rows=R.map(r=>`<tr><td>${r.v}</td><td>${r.d}</td><td>${r.idade}</td><td>${r.applied?'—':r.prev}</td><td style="text-align:right;white-space:nowrap"><span style="font-size:11px;font-weight:700;color:${r.cor}">${r.ic} ${r.st}</span></td></tr>`).join('');
   const resumo=(atras||prox)?`<div class="cl-cs">${atras?('<b style="color:#c0392b">⚠ '+atras+' atrasada(s)</b>'):''}${atras&&prox?' · ':''}${prox?('<b style="color:#B4790B">● '+prox+' próxima(s)</b>'):''}</div>`:'<div class="cl-cs"><b style="color:#12996A">✓ Em dia com o calendário até a idade atual.</b></div>';
-  return ptCard(`<div class="eq-bar"><b>Calendário vacinal (PNI) — automático</b><button class="cl-btn pri" style="margin:0;padding:8px 13px" onclick="vacPdf()">⬇ Ficha vacinal (PDF)</button></div>${resumo}<table class="eq-tbl"><thead><tr><th>Vacina</th><th>Dose</th><th>Idade</th><th>Prevista</th><th style="text-align:right">Status</th></tr></thead><tbody>${rows}</tbody></table><div class="cl-cs">Baseado no Calendário Nacional de Vacinação (PNI). Confirme sempre com a caderneta.</div>`);
+  return ptCard(`<div class="eq-bar"><b>Calendário vacinal (PNI) — automático</b><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="cl-btn" style="margin:0;padding:8px 13px" onclick="vacLink()">Enviar carteira ao responsável</button><button class="cl-btn pri" style="margin:0;padding:8px 13px" onclick="vacPdf()">Ficha vacinal (PDF)</button></span></div>${resumo}<table class="eq-tbl"><thead><tr><th>Vacina</th><th>Dose</th><th>Idade</th><th>Prevista</th><th style="text-align:right">Status</th></tr></thead><tbody>${rows}</tbody></table><div class="cl-cs">Baseado no Calendário Nacional de Vacinação (PNI). Confirme sempre com a caderneta.</div>`);
 }
 function vacPdf(){ const d=PRONT.data||{}; const p=d.paciente||{}, f=d.ficha||{}; const nasc=f.data_nascimento; if(!nasc){ toast('Informe a data de nascimento','⚠'); return; }
   const R=pniRows(nasc,d.vacinas||[]);
@@ -3076,7 +3139,17 @@ function vacPdf(){ const d=PRONT.data||{}; const p=d.paciente||{}, f=d.ficha||{}
   </body></html>`;
   const w=window.open('','_blank'); if(!w){ toast('Permita pop-ups para gerar o PDF','⚠'); return; } w.document.write(html); w.document.close(); w.focus(); setTimeout(function(){ try{w.print();}catch(e){} },350); }
 function ptVac(rows){ const nasc=((PRONT.data||{}).ficha||{}).data_nascimento; const r=(rows||[]).map(v=>`<tr><td>${v.vacina||''}</td><td>${v.dose||''}</td><td>${ptFmtd(v.data_aplicacao)}</td><td>${v.lote||''}</td><td style="text-align:right"><button class="eq-act danger" onclick="ptDel('vacinas','${v.id}')">×</button></td></tr>`).join('');
-  return pniCard(nasc,rows) + ptCard(`<div class="eq-bar"><b>Vacinação</b><button class="cl-btn pri" style="margin:0;padding:8px 13px" onclick="ptAddForm('vacinas')">+ Vacina</button></div><table class="eq-tbl"><thead><tr><th>Vacina</th><th>Dose</th><th>Data</th><th>Lote</th><th></th></tr></thead><tbody>${r||'<tr><td colspan="5" style="color:var(--mute)">Sem vacinas registradas.</td></tr>'}</tbody></table>`); }
+  return pniCard(nasc,rows) + ptCard(`<div class="eq-bar"><b>Vacinação</b><span style="display:flex;gap:8px;flex-wrap:wrap"><button class="cl-btn" style="margin:0;padding:8px 13px" onclick="vacLink()">Enviar carteira ao responsável</button><button class="cl-btn pri" style="margin:0;padding:8px 13px" onclick="ptAddForm('vacinas')">+ Vacina</button></span></div><table class="eq-tbl"><thead><tr><th>Vacina</th><th>Dose</th><th>Data</th><th>Lote</th><th></th></tr></thead><tbody>${r||'<tr><td colspan="5" style="color:var(--mute)">Sem vacinas registradas.</td></tr>'}</tbody></table>`); }
+
+async function vacLink(){ if(!PRONT.patient){ toast('Abra um paciente primeiro','⚠'); return; } try{ const {data,error}=await SB.rpc('nx_vac_link',{p_patient:PRONT.patient}); if(error) throw error; if(!data||!data.ok){ toast('Erro ao gerar link','⚠'); return; }
+  const url=new URL('vacinas.html',location.href).href+'?t='+data.token; const resp=(((PRONT.data||{}).paciente||{}).responsavel_tel)||'';
+  openModal(`<h3>Carteira de vacinação — link para o responsável</h3><div class="cl-cs">Envie este link pelo WhatsApp. O responsável marca o que já foi aplicado (as datas previstas seguem o PNI) e tudo entra no prontuário automaticamente, sem duplicar.</div>
+   <div class="cl-cs" style="word-break:break-all">Link: <code>${url}</code></div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="cl-btn" style="margin:0" onclick="selfCopy('${url}')">Copiar link</button><button class="cl-btn pri" style="margin:0" onclick="vacShare('${url}','${resp}')">Enviar por WhatsApp</button></div>
+   <div class="nxm-actions"><button class="nxm-btn ghost" onclick="closeModal()">Fechar</button></div>`);
+ }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
+function vacShare(url,tel){ const d=(''+(tel||'')).replace(/\D/g,''); const txt='Olá! Por favor, preencha a carteira de vacinação do seu filho(a) por este link: '+url; window.open('https://wa.me/'+d+'?text='+encodeURIComponent(txt),'_blank'); }
+
 function ptDev(rows){ const r=(rows||[]).map(m=>`<tr><td>${m.marco||''}</td><td>${m.idade_esperada||''}</td><td>${ptFmtd(m.data)}</td><td>${m.atingido?'✓':'—'}</td><td style="text-align:right"><button class="eq-act danger" onclick="ptDel('marcos','${m.id}')">×</button></td></tr>`).join('');
   return ptCard(`<div class="eq-bar"><b>Desenvolvimento (marcos)</b><button class="cl-btn pri" style="margin:0;padding:8px 13px" onclick="ptAddForm('marcos')">+ Marco</button></div><table class="eq-tbl"><thead><tr><th>Marco</th><th>Idade esperada</th><th>Data</th><th>Atingido</th><th></th></tr></thead><tbody>${r||'<tr><td colspan="5" style="color:var(--mute)">Sem marcos registrados.</td></tr>'}</tbody></table>`); }
 function ptAnt(rows){ const grp=t=>(rows||[]).filter(a=>a.tipo===t).map(a=>`<div class="pt-row"><span>${a.descricao||''}</span><button class="eq-act danger" onclick="ptDel('antecedentes','${a.id}')">×</button></div>`).join('')||'<div style="color:var(--mute);font-size:13px;padding:4px 0">—</div>';
