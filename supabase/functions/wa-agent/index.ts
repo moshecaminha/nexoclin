@@ -290,6 +290,22 @@ const PASSO_SEM_MEDICO = new Set(["ag_prof", "ag_turno", "agenda_pref"]);
 const RE_SO_1 = /^\s*(1\b|1️⃣|sim\b)/;
 const RE_SO_5 = /^\s*(5|5️⃣)\s*[).]?\s*$/;
 
+/**
+ * Quem e a familia deste telefone. Sem isso a IA pergunta o nome de quem ja e
+ * paciente da casa. Cada crianca tem o seu proprio prontuario: a IA precisa
+ * saber de qual delas se esta falando antes de registrar qualquer sintoma.
+ */
+function familia(quem: any): string {
+  if (!quem?.encontrado) return "Cadastro: telefone ainda não conhecido nesta clínica\n";
+  const cr = (quem.criancas ?? []).map((c: any) => c.nome).filter(Boolean);
+  return `Responsável já cadastrado: ${quem.responsavel_nome ?? "sem nome"}\n` +
+    (cr.length
+      ? `Crianças deste responsável: ${cr.join(", ")}. ` +
+        `Cumprimente pelo nome, confirme de QUAL delas se trata antes de coletar ` +
+        `sintoma, e nunca misture sintomas de irmãos.\n`
+      : "Ainda sem criança cadastrada para este responsável.\n");
+}
+
 /** Agenda, preco, cupom, modalidade e remarcacao: responde o banco, nao o modelo. */
 async function doSistema(
   conv: string, texto: string, estado: string | null, ultimaIA: string,
@@ -407,6 +423,14 @@ export async function agente(conv: string, texto: string): Promise<string | null
     return (await alertaRepetido(msg)) ? null : msg;
   }
 
+  // 2.5) Conversa parada ha mais de 12h: pergunta se e para continuar o
+  //      assunto anterior ou abrir outro. So depois volta a triagem.
+  const estadoConv = conversa.bot_state ?? null;
+  if (estadoConv === "retomar" || estadoConv === "retomar_resp") {
+    const { data: ret } = await sb.rpc("nx_conv_retomar", { p_conv: conv, p_text: texto });
+    if (ret?.texto) return ret.texto;
+  }
+
   const { data: meses } = await sb.rpc("nx_idade_meses", { p: conversa.paciente_idade ?? null });
   const { data: bandeira } = await sb.rpc("nx_wa_has_redflag", { t, p_meses: meses ?? null });
   if (bandeira === true) {
@@ -457,6 +481,7 @@ export async function agente(conv: string, texto: string): Promise<string | null
     `Clínica: ${ctx.clinica ?? "—"}\n` +
     `Paciente já identificado: ${ctx.paciente_nome ?? "ainda não"}\n` +
     `Idade: ${ctx.paciente_idade ?? "ainda não"}\n` +
+    familia(ctx.quem) +
     `Já coletado: ${JSON.stringify(ctx.coletado ?? {})}\n` +
     `Situação: ${SITUACAO[ctx.status ?? ""] ?? "em triagem"}`;
 

@@ -133,8 +133,42 @@ async function baixarMidia(
  * era o que acontecia na producao, onde a resposta so era gravada no banco.
  * Roda fora da resposta do webhook — a Meta corta em poucos segundos.
  */
+/** Segundos de espera antes de responder: quem escreve em rajada ("oi", "bom
+ *  dia", "e o seguinte") recebia uma resposta para cada mensagem. */
+const ESPERA_RAJADA_MS = 7000;
+
+/**
+ * Espera a pessoa terminar de escrever. Se chegou mensagem nova depois desta,
+ * quem responde e a ultima - esta sai de cena. Devolve o texto acumulado.
+ */
+async function aguardarRajada(conv: string, texto: string): Promise<string | null> {
+  const marca = new Date().toISOString();
+  await new Promise((r) => setTimeout(r, ESPERA_RAJADA_MS));
+
+  const { data: novas } = await sb.from("messages").select("body")
+    .eq("conversation_id", conv).eq("direction", "in")
+    .gt("created_at", marca).order("created_at", { ascending: true });
+
+  // chegou mensagem depois desta: quem responde e a ultima da rajada
+  if (novas?.length) return null;
+
+  // junta o que a pessoa escreveu em sequencia nos ultimos segundos
+  const desde = new Date(Date.now() - ESPERA_RAJADA_MS * 3).toISOString();
+  const { data: rajada } = await sb.from("messages").select("body, created_at")
+    .eq("conversation_id", conv).eq("direction", "in")
+    .gte("created_at", desde).order("created_at", { ascending: true });
+
+  const partes = (rajada ?? []).map((m: { body: string | null }) => (m.body ?? "").trim())
+    .filter((b: string) => b.length > 0);
+  return partes.length > 1 ? partes.join(". ") : texto;
+}
+
 async function responderBot(conv: string, texto: string, telefone: string, clinic: string) {
   try {
+    const juntado = await aguardarRajada(conv, texto);
+    if (juntado === null) return;   // outra mensagem chegou; ela e que responde
+    texto = juntado;
+
     // O agente (wa-agent) decide o que responder. Ele ja aplica risco,
     // dados coletados e encaminhamento no banco antes de devolver o texto.
     const r = await fetch(`${URL_SB}/functions/v1/wa-agent`, {
