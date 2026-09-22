@@ -199,7 +199,14 @@ const CMD_ZERAR = ["zerar", "#zerar", "reset", "#reset", "recomecar", "recomeça
  */
 async function zerarConversa(phoneId: string, telefone: string): Promise<boolean> {
   try {
-    const { data: r } = await sb.rpc("nx_dev_reset", { p_telefone: telefone });
+    // zera so neste consultorio: o mesmo telefone pode falar com varios
+    const { data: cw } = await sb.from("clinic_whatsapp")
+      .select("clinic_id").eq("phone_number_id", phoneId).maybeSingle();
+    const { data: r, error: eReset } = await sb.rpc("nx_dev_reset", {
+      p_telefone: telefone,
+      p_clinic: cw?.clinic_id ?? null,
+    });
+    if (eReset) console.error("zerar:", eReset.message);
     const { data: conn } = await sb.from("clinic_whatsapp")
       .select("access_token, phone_number_id").eq("phone_number_id", phoneId).single();
     if (!conn?.access_token) return true;

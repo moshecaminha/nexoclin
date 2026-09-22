@@ -312,6 +312,14 @@ async function doSistema(
 ): Promise<string | null> {
   const t = texto.toLowerCase();
 
+  // Quem pede agenda explicitamente recomeca o agendamento, mesmo parado num
+  // passo antigo. Sem isto a conversa morria no passo e o modelo respondia
+  // "vou pedir para a equipe verificar os horarios".
+  if (estado && RE_AGENDAR.test(t)) {
+    const { data } = await sb.rpc("nx_book_start", { p_conv: conv });
+    if (data) return data;
+  }
+
   const passo = estado ? RESPONDE_PASSO[estado] : undefined;
   if (passo) {
     if (!passo.test(t)) return null;
