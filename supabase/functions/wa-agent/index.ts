@@ -273,6 +273,7 @@ const RE_AGENDAR =
 // Cara de resposta a cada passo do agendamento. Se a mae voltou a falar do
 // sintoma no meio ("39 de febre"), a triagem responde e o passo fica onde esta.
 const RESPONDE_PASSO: Record<string, RegExp> = {
+  ag_quem: /.+/,
   ag_prof: /(dr\.?|dra\.?|tanto faz|qualquer|indiferente|mais (cedo|pr[óo]xim)|^\D{0,12}\d{1,2}\D{0,12}$|[a-zà-ú]{3,})/,
   ag_mod: /(tele|v[ií]deo|online|presencial|^\s*[12]\s*$)/,
   // Nos dois passos de escolha o banco sempre tem resposta (entende ate
@@ -286,7 +287,7 @@ const RESPONDE_PASSO: Record<string, RegExp> = {
 
 // Passos em que ainda nao ha medico escolhido - e justamente o que se esta
 // resolvendo ali, entao nao da para exigir professional_id.
-const PASSO_SEM_MEDICO = new Set(["ag_prof", "ag_turno", "agenda_pref"]);
+const PASSO_SEM_MEDICO = new Set(["ag_quem", "ag_prof", "ag_turno", "agenda_pref"]);
 
 // Respostas numericas as opcoes que a propria IA ofereceu e que levam a agenda.
 const RE_SO_1 = /^\s*(1\b|1️⃣|sim\b)/;
