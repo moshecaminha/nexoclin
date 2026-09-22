@@ -275,8 +275,10 @@ const RE_AGENDAR =
 const RESPONDE_PASSO: Record<string, RegExp> = {
   ag_prof: /(dr\.?|dra\.?|tanto faz|qualquer|indiferente|mais (cedo|pr[óo]xim)|^\D{0,12}\d{1,2}\D{0,12}$|[a-zà-ú]{3,})/,
   ag_mod: /(tele|v[ií]deo|online|presencial|^\s*[12]\s*$)/,
-  ag_turno: /(manh|cedo|tarde|qualquer|tanto faz|^\s*[12]\s*$)/,
-  ag_offer: /(outro|mais|outra|diferente|nenhum|^\D{0,12}\d{1,2}\D{0,12}$)/,
+  // Nos dois passos de escolha o banco sempre tem resposta (entende ate
+  // "depois das 15h"), entao nada aqui pode escapar para o modelo.
+  ag_turno: /.+/,
+  ag_offer: /.+/,
   agenda_pref: /.+/,
   ag_dia: /(amanh|hoje|segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado|domingo|\b\d{1,2}\/\d{1,2}\b|\bdia \d{1,2}\b)/,
   ag_slot: /^\D{0,12}\d{1,2}\D{0,12}$/,
@@ -465,9 +467,12 @@ export async function agente(conv: string, texto: string): Promise<string | null
 
   // 5) Consentimento LGPD antes de coletar dado de saude. Conversa com triagem
   //    ja em andamento antes desta regra nao recebe a pergunta no meio.
+  // No meio do agendamento nao se interrompe para pedir consentimento: a
+  // pergunta volta quando a triagem comecar.
+  const agendando = (conversa.bot_state ?? "").startsWith("ag_");
   const triagemEmAndamento = Object.keys(ctx.coletado ?? {}).some((k) => !FORA_DA_TRIAGEM.has(k));
   const jaPediu = falasIA.some((b) => b.toLowerCase().includes(MARCA_CONSENTIMENTO));
-  if (!ctx.consentiu && (jaPediu || !triagemEmAndamento)) {
+  if (!ctx.consentiu && !agendando && (jaPediu || !triagemEmAndamento)) {
     const c = await consentimento(conv, t, ctx, falasIA);
     if (c !== undefined) return c;
   }
