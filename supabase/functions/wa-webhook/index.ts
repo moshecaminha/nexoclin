@@ -256,6 +256,14 @@ async function enviarTexto(clinic: string, conv: string, telefone: string, texto
  */
 async function avisarMidia(conv: string, clinic: string, telefone: string, tipo: string) {
   try {
+    // Com consulta esperando pagamento, foto ou PDF quase sempre e o
+    // comprovante. Registra e chama a equipe para conferir - a IA nunca
+    // dá um pagamento por confirmado.
+    if (tipo === "image" || tipo === "document") {
+      const { data: comp } = await sb.rpc("nx_pagamento_comprovante", { p_conv: conv });
+      if (comp) { await enviarTexto(clinic, conv, telefone, comp, "assistente"); return; }
+    }
+
     const { data: texto } = await sb.rpc("nx_wa_midia_ack", { p_conv: conv, p_tipo: tipo });
     if (texto) await enviarTexto(clinic, conv, telefone, texto, "assistente");
   } catch (e) {
