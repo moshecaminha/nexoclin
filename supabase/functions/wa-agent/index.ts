@@ -273,14 +273,41 @@ const RE_AGENDAR =
 // Cara de resposta a cada passo do agendamento. Se a mae voltou a falar do
 // sintoma no meio ("39 de febre"), a triagem responde e o passo fica onde esta.
 const RESPONDE_PASSO: Record<string, RegExp> = {
+  ag_quem: /.+/,
+  ag_prof: /(dr\.?|dra\.?|tanto faz|qualquer|indiferente|mais (cedo|pr[óo]xim)|^\D{0,12}\d{1,2}\D{0,12}$|[a-zà-ú]{3,})/,
   ag_mod: /(tele|v[ií]deo|online|presencial|^\s*[12]\s*$)/,
+  // Nos dois passos de escolha o banco sempre tem resposta (entende ate
+  // "depois das 15h"), entao nada aqui pode escapar para o modelo.
+  ag_turno: /.+/,
+  ag_offer: /.+/,
+  agenda_pref: /.+/,
   ag_dia: /(amanh|hoje|segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado|domingo|\b\d{1,2}\/\d{1,2}\b|\bdia \d{1,2}\b)/,
   ag_slot: /^\D{0,12}\d{1,2}\D{0,12}$/,
 };
 
+// Passos em que ainda nao ha medico escolhido - e justamente o que se esta
+// resolvendo ali, entao nao da para exigir professional_id.
+const PASSO_SEM_MEDICO = new Set(["ag_quem", "ag_prof", "ag_turno", "agenda_pref"]);
+
 // Respostas numericas as opcoes que a propria IA ofereceu e que levam a agenda.
 const RE_SO_1 = /^\s*(1\b|1️⃣|sim\b)/;
 const RE_SO_5 = /^\s*(5|5️⃣)\s*[).]?\s*$/;
+
+/**
+ * Quem e a familia deste telefone. Sem isso a IA pergunta o nome de quem ja e
+ * paciente da casa. Cada crianca tem o seu proprio prontuario: a IA precisa
+ * saber de qual delas se esta falando antes de registrar qualquer sintoma.
+ */
+function familia(quem: any): string {
+  if (!quem?.encontrado) return "Cadastro: telefone ainda não conhecido nesta clínica\n";
+  const cr = (quem.criancas ?? []).map((c: any) => c.nome).filter(Boolean);
+  return `Responsável já cadastrado: ${quem.responsavel_nome ?? "sem nome"}\n` +
+    (cr.length
+      ? `Crianças deste responsável: ${cr.join(", ")}. ` +
+        `Cumprimente pelo nome, confirme de QUAL delas se trata antes de coletar ` +
+        `sintoma, e nunca misture sintomas de irmãos.\n`
+      : "Ainda sem criança cadastrada para este responsável.\n");
+}
 
 /** Agenda, preco, cupom, modalidade e remarcacao: responde o banco, nao o modelo. */
 async function doSistema(
@@ -288,12 +315,23 @@ async function doSistema(
 ): Promise<string | null> {
   const t = texto.toLowerCase();
 
+  // Quem pede agenda explicitamente recomeca o agendamento, mesmo parado num
+  // passo antigo. Sem isto a conversa morria no passo e o modelo respondia
+  // "vou pedir para a equipe verificar os horarios".
+  if (estado && RE_AGENDAR.test(t)) {
+    const { data } = await sb.rpc("nx_book_start", { p_conv: conv });
+    if (data) return data;
+  }
+
   const passo = estado ? RESPONDE_PASSO[estado] : undefined;
   if (passo) {
     if (!passo.test(t)) return null;
-    // sem medico definido nao ha agenda de onde tirar horario
-    const { data: prof } = await sb.rpc("nx_conv_doctor", { p_conv: conv });
-    if (!prof) return null;
+    // fora dos passos de escolha, sem medico definido nao ha agenda de onde
+    // tirar horario
+    if (!PASSO_SEM_MEDICO.has(estado!)) {
+      const { data: prof } = await sb.rpc("nx_conv_doctor", { p_conv: conv });
+      if (!prof) return null;
+    }
     const { data } = await sb.rpc("nx_book_step", { p_conv: conv, p_text: texto });
     return data ?? null;
   }
@@ -396,6 +434,14 @@ export async function agente(conv: string, texto: string): Promise<string | null
     return (await alertaRepetido(msg)) ? null : msg;
   }
 
+  // 2.5) Conversa parada ha mais de 12h: pergunta se e para continuar o
+  //      assunto anterior ou abrir outro. So depois volta a triagem.
+  const estadoConv = conversa.bot_state ?? null;
+  if (estadoConv === "retomar" || estadoConv === "retomar_resp") {
+    const { data: ret } = await sb.rpc("nx_conv_retomar", { p_conv: conv, p_text: texto });
+    if (ret?.texto) return ret.texto;
+  }
+
   const { data: meses } = await sb.rpc("nx_idade_meses", { p: conversa.paciente_idade ?? null });
   const { data: bandeira } = await sb.rpc("nx_wa_has_redflag", { t, p_meses: meses ?? null });
   if (bandeira === true) {
@@ -422,9 +468,12 @@ export async function agente(conv: string, texto: string): Promise<string | null
 
   // 5) Consentimento LGPD antes de coletar dado de saude. Conversa com triagem
   //    ja em andamento antes desta regra nao recebe a pergunta no meio.
+  // No meio do agendamento nao se interrompe para pedir consentimento: a
+  // pergunta volta quando a triagem comecar.
+  const agendando = (conversa.bot_state ?? "").startsWith("ag_");
   const triagemEmAndamento = Object.keys(ctx.coletado ?? {}).some((k) => !FORA_DA_TRIAGEM.has(k));
   const jaPediu = falasIA.some((b) => b.toLowerCase().includes(MARCA_CONSENTIMENTO));
-  if (!ctx.consentiu && (jaPediu || !triagemEmAndamento)) {
+  if (!ctx.consentiu && !agendando && (jaPediu || !triagemEmAndamento)) {
     const c = await consentimento(conv, t, ctx, falasIA);
     if (c !== undefined) return c;
   }
@@ -446,6 +495,7 @@ export async function agente(conv: string, texto: string): Promise<string | null
     `Clínica: ${ctx.clinica ?? "—"}\n` +
     `Paciente já identificado: ${ctx.paciente_nome ?? "ainda não"}\n` +
     `Idade: ${ctx.paciente_idade ?? "ainda não"}\n` +
+    familia(ctx.quem) +
     `Já coletado: ${JSON.stringify(ctx.coletado ?? {})}\n` +
     `Situação: ${SITUACAO[ctx.status ?? ""] ?? "em triagem"}`;
 

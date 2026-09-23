@@ -133,8 +133,42 @@ async function baixarMidia(
  * era o que acontecia na producao, onde a resposta so era gravada no banco.
  * Roda fora da resposta do webhook — a Meta corta em poucos segundos.
  */
+/** Segundos de espera antes de responder: quem escreve em rajada ("oi", "bom
+ *  dia", "e o seguinte") recebia uma resposta para cada mensagem. */
+const ESPERA_RAJADA_MS = 7000;
+
+/**
+ * Espera a pessoa terminar de escrever. Se chegou mensagem nova depois desta,
+ * quem responde e a ultima - esta sai de cena. Devolve o texto acumulado.
+ */
+async function aguardarRajada(conv: string, texto: string): Promise<string | null> {
+  const marca = new Date().toISOString();
+  await new Promise((r) => setTimeout(r, ESPERA_RAJADA_MS));
+
+  const { data: novas } = await sb.from("messages").select("body")
+    .eq("conversation_id", conv).eq("direction", "in")
+    .gt("created_at", marca).order("created_at", { ascending: true });
+
+  // chegou mensagem depois desta: quem responde e a ultima da rajada
+  if (novas?.length) return null;
+
+  // junta o que a pessoa escreveu em sequencia nos ultimos segundos
+  const desde = new Date(Date.now() - ESPERA_RAJADA_MS * 3).toISOString();
+  const { data: rajada } = await sb.from("messages").select("body, created_at")
+    .eq("conversation_id", conv).eq("direction", "in")
+    .gte("created_at", desde).order("created_at", { ascending: true });
+
+  const partes = (rajada ?? []).map((m: { body: string | null }) => (m.body ?? "").trim())
+    .filter((b: string) => b.length > 0);
+  return partes.length > 1 ? partes.join(". ") : texto;
+}
+
 async function responderBot(conv: string, texto: string, telefone: string, clinic: string) {
   try {
+    const juntado = await aguardarRajada(conv, texto);
+    if (juntado === null) return;   // outra mensagem chegou; ela e que responde
+    texto = juntado;
+
     // O agente (wa-agent) decide o que responder. Ele ja aplica risco,
     // dados coletados e encaminhamento no banco antes de devolver o texto.
     const r = await fetch(`${URL_SB}/functions/v1/wa-agent`, {
@@ -165,7 +199,14 @@ const CMD_ZERAR = ["zerar", "#zerar", "reset", "#reset", "recomecar", "recomeça
  */
 async function zerarConversa(phoneId: string, telefone: string): Promise<boolean> {
   try {
-    const { data: r } = await sb.rpc("nx_dev_reset", { p_telefone: telefone });
+    // zera so neste consultorio: o mesmo telefone pode falar com varios
+    const { data: cw } = await sb.from("clinic_whatsapp")
+      .select("clinic_id").eq("phone_number_id", phoneId).maybeSingle();
+    const { data: r, error: eReset } = await sb.rpc("nx_dev_reset", {
+      p_telefone: telefone,
+      p_clinic: cw?.clinic_id ?? null,
+    });
+    if (eReset) console.error("zerar:", eReset.message);
     const { data: conn } = await sb.from("clinic_whatsapp")
       .select("access_token, phone_number_id").eq("phone_number_id", phoneId).single();
     if (!conn?.access_token) return true;
@@ -215,6 +256,14 @@ async function enviarTexto(clinic: string, conv: string, telefone: string, texto
  */
 async function avisarMidia(conv: string, clinic: string, telefone: string, tipo: string) {
   try {
+    // Com consulta esperando pagamento, foto ou PDF quase sempre e o
+    // comprovante. Registra e chama a equipe para conferir - a IA nunca
+    // dá um pagamento por confirmado.
+    if (tipo === "image" || tipo === "document") {
+      const { data: comp } = await sb.rpc("nx_pagamento_comprovante", { p_conv: conv });
+      if (comp) { await enviarTexto(clinic, conv, telefone, comp, "assistente"); return; }
+    }
+
     const { data: texto } = await sb.rpc("nx_wa_midia_ack", { p_conv: conv, p_tipo: tipo });
     if (texto) await enviarTexto(clinic, conv, telefone, texto, "assistente");
   } catch (e) {
