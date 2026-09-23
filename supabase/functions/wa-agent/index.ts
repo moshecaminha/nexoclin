@@ -402,11 +402,24 @@ export async function agente(conv: string, texto: string): Promise<string | null
 
   // 1) Confirmacao de presenca. Vale com a IA pausada: quem so responde
   //    "confirmo" a um lembrete precisa de retorno.
-  if (/confirm/.test(t) && !/(remarc|desmarc|cancel|n[ãa]o)/.test(t)) {
+  const pediuConfirmar = /confirm/.test(t) && !/(remarc|desmarc|cancel|n[ãa]o)/.test(t);
+  if (pediuConfirmar) {
     const { data: cf } = await sb.rpc("nx_appt_confirmar_paciente", { p_conv: conv });
+    if (cf?.ok && cf.ja_confirmada) {
+      return `Sua consulta de ${cf.quando} já está confirmada. ✅ Até lá! ` +
+        "Se precisar remarcar ou cancelar, é só me avisar por aqui.";
+    }
     if (cf?.ok) {
       return `Perfeito! Sua consulta de ${cf.quando} está confirmada. ✅ Até lá! ` +
         "Se precisar remarcar ou cancelar, é só me avisar por aqui.";
+    }
+    // Respondeu a um lembrete e nao achamos a consulta: a equipe resolve. O que
+    // nao pode e cair na pergunta de consentimento, como se fosse conversa nova.
+    const { data: temAppt } = await sb.from("appointments")
+      .select("id").eq("conversation_id", conv).limit(1).maybeSingle();
+    if (temAppt) {
+      return "Não consegui localizar essa consulta agora. Já avisei a equipe para " +
+        "confirmar com você por aqui. 💙";
     }
   }
 
@@ -470,7 +483,11 @@ export async function agente(conv: string, texto: string): Promise<string | null
   //    ja em andamento antes desta regra nao recebe a pergunta no meio.
   // No meio do agendamento nao se interrompe para pedir consentimento: a
   // pergunta volta quando a triagem comecar.
-  const agendando = (conversa.bot_state ?? "").startsWith("ag_");
+  // Consentimento e coisa de conversa nova. Quem ja tem consulta marcada ou
+  // caso na fila nao pode receber "podemos comecar?" no meio do caminho.
+  const jaEmAndamento = ["agendada", "aguardando_medico", "em_atendimento"]
+    .includes(String(ctx.status ?? ""));
+  const agendando = (conversa.bot_state ?? "").startsWith("ag_") || pediuConfirmar || jaEmAndamento;
   const triagemEmAndamento = Object.keys(ctx.coletado ?? {}).some((k) => !FORA_DA_TRIAGEM.has(k));
   const jaPediu = falasIA.some((b) => b.toLowerCase().includes(MARCA_CONSENTIMENTO));
   if (!ctx.consentiu && !agendando && (jaPediu || !triagemEmAndamento)) {
