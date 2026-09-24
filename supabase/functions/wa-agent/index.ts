@@ -309,6 +309,107 @@ function familia(quem: any): string {
       : "Ainda sem criança cadastrada para este responsável.\n");
 }
 
+
+/**
+ * O modelo INTERPRETA, o banco DECIDE.
+ *
+ * Aqui o modelo so converte a frase em estrutura: dia, hora, turno, se e
+ * confirmacao, qual opcao. Ele nao ve a agenda, nao escolhe horario e nao
+ * escreve nada para o paciente. Se ele errar ou a chamada falhar, o banco
+ * valida, descarta o impossivel e cai na leitura por regra.
+ */
+const ESQUEMA_PEDIDO = {
+  type: "json_schema",
+  json_schema: {
+    name: "pedido_agenda",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["data", "hora", "hora_min", "hora_max", "turno", "confirmacao", "escolha"],
+      properties: {
+        data: { type: ["string", "null"], description: "AAAA-MM-DD do dia pedido" },
+        hora: { type: ["string", "null"], description: "HH:MM exato pedido" },
+        hora_min: { type: ["string", "null"], description: "HH:MM minimo (depois das X)" },
+        hora_max: { type: ["string", "null"], description: "HH:MM maximo (antes das X)" },
+        turno: { type: ["string", "null"], enum: ["manha", "tarde", null] },
+        confirmacao: {
+          type: "boolean",
+          description: "true SO quando a mensagem e apenas um aceite, sem pedir nada novo",
+        },
+        escolha: {
+          type: ["integer", "null"],
+          description: "1 ou 2 quando a pessoa escolhe uma das opcoes ja oferecidas",
+        },
+      },
+    },
+  },
+} as const;
+
+async function interpretar(
+  texto: string, offers: unknown[], hoje: string,
+): Promise<{ ped: Record<string, string>; conf: boolean; escolha: number | null } | null> {
+  const chave = Deno.env.get("OPENAI_API_KEY");
+  if (!chave) return null;
+
+  const mesa = (offers ?? []).map((o: any, i: number) =>
+    `${i + 1}) ${o?.data} as ${o?.hora}`).join("; ") || "nada oferecido ainda";
+
+  try {
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: Deno.env.get("WA_INTERP_MODEL") ?? "gpt-4o-mini",
+        temperature: 0,
+        max_tokens: 200,
+        response_format: ESQUEMA_PEDIDO,
+        messages: [
+          {
+            role: "system",
+            content:
+              `Você converte a mensagem de um paciente sobre AGENDAMENTO em estrutura. ` +
+              `Não responda ao paciente, não invente horário, não escolha por ele.
+` +
+              `Hoje é ${hoje} (America/Sao_Paulo). Horários já oferecidos: ${mesa}.
+` +
+              `Regras:
+` +
+              `- confirmacao = true SÓ se a mensagem for apenas aceite ("sim", "pode ser", ` +
+              `"isso mesmo"). Se ela pedir qualquer coisa nova (outro dia, outro horário, ` +
+              `turno), confirmacao = false.
+` +
+              `- escolha = 1 ou 2 só quando a pessoa aponta uma das opções já oferecidas ` +
+              `("a primeira", "a de sexta").
+` +
+              `- data só quando houver dia claro; converta "quinta", "amanhã", "28/10".
+` +
+              `- "de manhã"/"de tarde" vão em turno; "depois das 15h" em hora_min; ` +
+              `"antes das 10" em hora_max; "às 15h" em hora.
+` +
+              `- o que não estiver na mensagem vai null.`,
+          },
+          { role: "user", content: texto },
+        ],
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    const bruto = j?.choices?.[0]?.message?.content;
+    if (!bruto) return null;
+    const p = JSON.parse(bruto);
+
+    const ped: Record<string, string> = {};
+    for (const k of ["data", "hora", "hora_min", "hora_max", "turno"]) {
+      if (p?.[k]) ped[k] = String(p[k]);
+    }
+    const escolha = Number.isInteger(p?.escolha) ? p.escolha : null;
+    return { ped, conf: p?.confirmacao === true, escolha };
+  } catch (e) {
+    console.error("interp:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 /** Agenda, preco, cupom, modalidade e remarcacao: responde o banco, nao o modelo. */
 async function doSistema(
   conv: string, texto: string, estado: string | null, ultimaIA: string,
@@ -332,7 +433,21 @@ async function doSistema(
       const { data: prof } = await sb.rpc("nx_conv_doctor", { p_conv: conv });
       if (!prof) return null;
     }
-    const { data } = await sb.rpc("nx_book_step", { p_conv: conv, p_text: texto });
+    // Interpretacao pelo modelo; o banco valida e decide.
+    const { data: conversa } = await sb.from("conversations")
+      .select("bot_ctx").eq("id", conv).maybeSingle();
+    const offers = (conversa?.bot_ctx as any)?.offers ?? [];
+    const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+    const lido = await interpretar(texto, offers, hoje);
+
+    const { data } = await sb.rpc("nx_book_step_ia", {
+      p_conv: conv,
+      p_texto: texto,
+      p_ped: lido ? lido.ped : null,
+      p_conf: lido ? lido.conf : null,
+      p_escolha: lido ? lido.escolha : null,
+      p_origem: lido ? "modelo" : "regra",
+    });
     return data ?? null;
   }
 
