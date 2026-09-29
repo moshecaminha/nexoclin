@@ -2172,7 +2172,12 @@ async function waSave(){
 // O popup devolve um codigo; a Edge Function wa-signup troca por token,
 // registra o numero, assina a WABA e aponta o webhook para ca.
 const WA_FB_APP_ID = '1501308275071442';
-const WA_FB_CONFIG = '1061690539809676';
+// ?wa_cfg=<id> troca a configuracao do login so naquela aba, para comparar
+// configuracoes no diagnostico. Aceita apenas numeros.
+const WA_FB_CONFIG = (function(){
+  try{ const c = new URLSearchParams(location.search).get('wa_cfg'); if (c && /^\d{6,20}$/.test(c)) return c; }catch(e){}
+  return '1061690539809676';
+})();
 let WA_ES = {};
 
 function waMsg(txt, cor){
