@@ -2197,6 +2197,9 @@ function waMsg(txt, cor){
 window.addEventListener('message', function(ev){
   var host; try{ host = new URL(ev.origin).hostname; }catch(e){ return; }
   if (host.indexOf('facebook.com') === -1) return;
+  var bruto = typeof ev.data === 'string' ? ev.data : (function(){ try{ return JSON.stringify(ev.data); }catch(e){ return String(ev.data); } })();
+  var ehJson = true; try{ JSON.parse(bruto); }catch(e){ ehJson = false; }
+  if (ehJson || /WA_|EMBEDDED|whatsapp/i.test(bruto)) waLog('meta_msg', { origem: ev.origin, dados: bruto.slice(0, 4000) });
   try{
     var d = JSON.parse(ev.data);
     if (d.type !== 'WA_EMBEDDED_SIGNUP') return;
@@ -2209,18 +2212,36 @@ window.addEventListener('message', function(ev){
   }catch(e){}
 });
 
+// Registro da tentativa no banco (wa_signup_log): o que a Meta devolveu em
+// cada etapa, para diagnosticar pela resposta dela. Nunca guarda o code.
+let WA_TENT = null, WA_LOGS = 0;
+function waLog(tipo, payload){
+  try{
+    if (!SB || !WA_TENT || WA_LOGS >= 60) return;
+    WA_LOGS++;
+    SB.rpc('nx_wa_signup_log', { p_clinic: NX.clinic || null, p_tentativa: WA_TENT, p_tipo: tipo,
+      p_payload: payload == null ? null : payload, p_pagina: location.href, p_navegador: navigator.userAgent })
+      .then(function(){}, function(){});
+  }catch(e){}
+}
+
 function waConectar(){
   if (!window.FB){ waMsg('Ainda carregando o cadastro da Meta. Tente de novo em alguns segundos.','err'); return; }
   waMsg('Abrindo o cadastro da Meta...');
   WA_ES = {};
+  WA_TENT = Date.now().toString(36) + Math.random().toString(36).slice(2,6); WA_LOGS = 0;
+  const opcoes = { config_id: WA_FB_CONFIG, response_type: 'code',
+       override_default_response_type: true,
+       extras: { setup:{}, featureType:'whatsapp_business_app_onboarding' } };
+  waLog('inicio', { app_id: WA_FB_APP_ID, opcoes: opcoes });
   FB.login(function(resp){
     var a = (resp && resp.authResponse) || {};
+    waLog('retorno_login', { status: resp && resp.status, tem_code: !!a.code, tem_token: !!a.accessToken,
+      campos: Object.keys(a), expira: a.expiresIn || null, es: WA_ES });
     if (!a.code && !a.accessToken){ waMsg('Cadastro cancelado ou sem permissao.','err'); return; }
     waMsg('Conectando o numero... isso leva alguns segundos.');
     waEnviarCodigo(a.code, a.accessToken);
-  }, { config_id: WA_FB_CONFIG, response_type: 'code',
-       override_default_response_type: true,
-       extras: { setup:{}, featureType:'whatsapp_business_app_onboarding' } });
+  }, opcoes);
 }
 
 async function waEnviarCodigo(code, token){
@@ -2234,6 +2255,7 @@ async function waEnviarCodigo(code, token){
         coexistencia: !!WA_ES.coexistencia })
     });
     const d = await r.json();
+    waLog('wa_signup', { http: r.status, resposta: d });
     if (d.ok){ waMsg('Conectado: '+(d.numero||''),'ok'); waLoad(); }
     else waMsg('Falhou: '+(d.erro||'')+' - '+JSON.stringify(d.passos||d.meta||d),'err');
   }catch(e){ waMsg('Erro: '+(e.message||e),'err'); }
