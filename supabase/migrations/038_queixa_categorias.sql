@@ -1,0 +1,212 @@
+-- Categorias de queixa da triagem pediatrica ("Primeiras perguntas apos queixa").
+-- O agente classifica cada queixa em uma categoria e faz as primeiras perguntas
+-- dela. As palavras de exemplo NAO sao lista fechada: o modelo reconhece
+-- sinonimos, erros de digitacao, diminutivos e descricoes equivalentes.
+-- Editar pergunta ou exemplo aqui muda o agente sem publicar codigo.
+
+create table if not exists public.nx_queixa_categorias (
+  codigo      text primary key,
+  nome        text not null,
+  exemplos    text not null default '',
+  perguntas   text[] not null default '{}',
+  objetivo    text,
+  regra       text,
+  ordem       int not null default 100,
+  ativo       boolean not null default true,
+  updated_at  timestamptz not null default now()
+);
+alter table public.nx_queixa_categorias enable row level security;
+drop policy if exists nx_queixa_categorias_ler on public.nx_queixa_categorias;
+create policy nx_queixa_categorias_ler on public.nx_queixa_categorias
+  for select to authenticated using (true);
+
+alter table public.conversations add column if not exists queixa_categoria text;
+
+insert into public.nx_queixa_categorias (codigo, nome, ordem, exemplos, perguntas, objetivo, regra) values
+('febre', 'Febre / prostração / mal-estar', 10,
+ 'febre, temperatura, quente, febril, febrinha, febre alta, febre baixa, febre que não passa, febre voltou, febre depois da vacina, calafrio, tremedeira, moleza, molinho, abatido, prostrado, sonolento, sonolência, irritado, irritabilidade, indisposto, mal-estar, "tá molinho", "meio caidinho", "muito paradinho", "não está com a mesma energia"',
+ array['Me envie o horário e a temperatura de cada febre nas últimas 24h.',
+       'Há quanto tempo está com febre?',
+       'Como a criança está agora: ativa ou mais sonolenta/prostrada?',
+       'Está mamando/comendo e urinando normalmente?',
+       'Tem algum outro sintoma importante?'],
+ 'Identificar febre de maior risco, principalmente conforme idade, estado geral e sintomas associados.', null),
+
+('respiratorio', 'Tosse / coriza / dificuldade respiratória', 20,
+ 'tosse, tossindo, catarro, secreção, coriza, nariz escorrendo, nariz entupido, congestionado, espirrando, gripe, resfriado, chiado, peito chiando, falta de ar, cansado para respirar, respiração rápida, respiração ofegante, puxando a respiração, costela entrando, peito afundando, lábio roxo, rouquidão, laringite, bronquiolite, bronquite, pneumonia, sinusite, nebulização, lavagem nasal, "tá puxando o ar", "a costelinha fica entrando", "tá cansando pra respirar", "parece que tá fazendo muita força"',
+ array['Há quanto tempo começaram os sintomas?',
+       'Está respirando normalmente ou está fazendo esforço para respirar?',
+       'Está mamando/comendo normalmente?',
+       'Tem febre?',
+       'Está muito sonolenta ou diferente do habitual?'],
+ 'Identificar rapidamente esforço respiratório, hipóxia ou comprometimento do estado geral.',
+ 'Qualquer descrição de esforço para respirar (mesmo sem a palavra "falta de ar") leva a investigar esforço respiratório.'),
+
+('gastro', 'Vômitos / diarreia / desidratação', 30,
+ 'vomitou, vômito, vomitando, enjoo, náusea, diarreia, cocô líquido, fezes líquidas, evacuação, evacuando muito, caganeira, gastroenterite, virose, intoxicação alimentar, sangue nas fezes, sangue no vômito, vômito verde, desidratação, não está fazendo xixi',
+ array['Quando começou?',
+       'Quantas vezes, mais ou menos, vomitou ou evacuou?',
+       'Está conseguindo beber/mamar e manter os líquidos?',
+       'Está urinando normalmente?',
+       'Tem sangue nas fezes ou no vômito, ou dor forte?'],
+ 'Avaliar principalmente desidratação e sinais de abdome agudo ou sangramento.', null),
+
+('dor', 'Dor', 40,
+ 'dor, dolorido, doendo, chorando de dor, reclama de dor, desconforto, incômodo, dor forte, dor intensa',
+ array['Onde exatamente está doendo?',
+       'Quando começou? Está piorando?',
+       'A dor impede a criança de brincar, comer ou dormir?',
+       'Tem febre, vômitos ou outro sintoma?',
+       'Houve alguma queda ou trauma?'],
+ 'Localizar a dor e identificar intensidade, evolução e sinais associados.', null),
+
+('alimentacao', 'Alimentação / recusa alimentar / seletividade', 50,
+ 'não quer comer, não está comendo, parou de comer, come pouco, recusa alimentar, recusa comida, seletividade, seletivo, não aceita, dificuldade para comer, engasga para comer, tosse com comida',
+ array['Quando isso começou?',
+       'Está aceitando líquidos?',
+       'Está urinando normalmente?',
+       'Tem febre, vômito ou dor de garganta?'],
+ 'Diferenciar alteração alimentar aguda de dificuldade alimentar crônica/nutricional.', null),
+
+('recem_nascido', 'Recém-nascido / amamentação', 60,
+ 'amamentação, leite fraco, pouco leite, não pega o peito, pega errada, fissura mamária, fissura no peito, dor para amamentar, ordenha, sonolento para mamar, icterícia, amarelinho, umbigo, cólica, regurgitação',
+ array['Vi que sua dúvida é sobre um recém-nascido. Seu bebê está conseguindo mamar?',
+       'O que está acontecendo com a mamada?',
+       'Está acordando para mamar e mamando bem?',
+       'Está urinando normalmente?',
+       'Tem febre, vômitos, dificuldade para respirar ou está muito sonolento?'],
+ 'Priorizar situações de risco no recém-nascido e dificuldades de alimentação/hidratação.', null),
+
+('sono', 'Sono', 70,
+ 'não dorme, não consegue dormir, dorme mal, acorda, acorda muito, desperta, despertares, acorda de madrugada, acorda cedo, sono, soneca, cochilo, rotina do sono, dorme no colo, dorme mamando, associação, cama dos pais, berço, quarto, pesadelo, terror noturno, ronco, ronca, respira pela boca, pausa respiratória, sono agitado, bruxismo',
+ array['Qual é a principal dificuldade?',
+       'Há quanto tempo isso acontece?',
+       'Quantas vezes costuma acordar durante a noite?',
+       'Ronca ou parece ter pausas na respiração?',
+       'Como fica durante o dia?'],
+ 'Separar questões comportamentais/de rotina de possíveis alterações respiratórias ou clínicas do sono.', null),
+
+('pele', 'Pele / manchas / feridas', 80,
+ 'pele, mancha, manchas, bolinha, bolinhas, vermelhidão, coceira, coçando, alergia, urticária, empolado, descamação, ressecada, eczema, dermatite, assadura, brotoeja, ferida, machucado, pus, secreção, impetigo, micose, verruga, molusco, picada, mordida',
+ array['Quando apareceu? Está aumentando ou se espalhando?',
+       'Coça, dói ou tem secreção?',
+       'Tem febre ou está diferente do habitual?',
+       'Teve alimento, medicamento ou produto novo?',
+       'Pode enviar uma foto da lesão?'],
+ 'Identificar infecção, reação alérgica e lesões potencialmente graves.', null),
+
+('alergia', 'Alergia / reação aguda', 90,
+ 'alergia, reação, reação alérgica, urticária, placas, manchas depois de comer, inchaço, lábio inchado, língua inchada, rosto inchado, garganta fechando, falta de ar, dificuldade para respirar, alergia a remédio, alergia a alimento, reação à vacina, reação a picada, anafilaxia',
+ array['O que aconteceu e há quanto tempo?',
+       'Começou depois de algum alimento, medicamento ou picada?',
+       'Está com dificuldade para respirar ou engolir?',
+       'Teve inchaço de boca, língua ou rosto?',
+       'Está vomitando, muito pálido, sonolento ou diferente do habitual?'],
+ 'Identificar rapidamente possível reação anafilática.', null),
+
+('otorrino', 'Ouvido / nariz / garganta / boca', 100,
+ 'ouvido, dor de ouvido, otite, ouvido tampado, cera, cerume, não escuta, perda de audição, nariz, sangramento nasal, nariz sangrando, garganta, dor de garganta, amigdalite, amígdala, pus na garganta, afta, boca, ferida na boca, mau hálito, halitose, adenoide, amígdala grande, dificuldade para engolir, baba, salivação',
+ array['Qual o principal sintoma e há quanto tempo começou?',
+       'Tem febre? Se tiver, me envie o diário das últimas 24h: horário, temperatura e remédio que foi dado.',
+       'Está conseguindo beber e comer normalmente?',
+       'Tem secreção, sangramento ou perda de audição?',
+       'Tem dificuldade para respirar ou engolir?'],
+ null, null),
+
+('olhos', 'Olhos', 110,
+ 'olho, olho vermelho, olhos vermelhos, conjuntivite, remela, secreção, lacrimejando, coçando o olho, olho inchado, pálpebra inchada, dor no olho, não consegue abrir o olho, não está enxergando, visão, estrabismo, trauma no olho, produto no olho',
+ array['É em um olho ou nos dois? Quando começou?',
+       'Tem secreção, dor ou alteração da visão?',
+       'Teve trauma ou contato com algum produto?',
+       'A criança consegue abrir o olho normalmente?',
+       'Tem febre ou está diferente do habitual?'],
+ null, null),
+
+('urina_genital', 'Urina / genital', 120,
+ 'xixi, urina, urinando, dor para fazer xixi, ardência, infecção urinária, ITU, xixi muitas vezes, não faz xixi, sangue no xixi, urina escura, cheiro forte, enurese, faz xixi na cama, pênis, vagina, vulva, fimose, balanite, balanopostite, vermelhidão, coceira, corrimento, sinéquia',
+ array['Qual o problema e há quanto tempo começou?',
+       'Está com dor ou dificuldade para urinar?',
+       'Tem febre ou sangue na urina?',
+       'Está conseguindo urinar normalmente?',
+       'Tem dor, inchaço ou alteração na região genital?'],
+ null, null),
+
+('trauma', 'Queda / trauma / acidente', 130,
+ 'caiu, queda, bateu, bateu a cabeça, cabeça, pancada, trauma, acidente, machucou, corte, ferimento, queimadura, queimou, mordida, picada, engasgou, engasgo, afogou, afogamento, corpo estranho, objeto no nariz, objeto no ouvido',
+ array['Qual parte do corpo foi atingida?',
+       'Houve perda de consciência, vômito ou convulsão?',
+       'A criança está agindo normalmente agora?'],
+ null,
+ 'Antes das perguntas, a primeira resposta deve conter este aviso: "Entendi que aconteceu um acidente. Se seu filho(a) está com alteração de consciência (sonolento, irritado ou desmaiado), com dificuldade de respirar, ou teve uma convulsão, procure agora um serviço de saúde para avaliação presencial urgente."'),
+
+('intoxicacao', 'Ingestão / intoxicação', 140,
+ 'engoliu, ingeriu, tomou, produto de limpeza, água sanitária, remédio, medicamento, comprimido, xarope, veneno, produto químico, álcool, cosmético, detergente, desinfetante, intoxicação, envenenamento',
+ array['O que a criança ingeriu?',
+       'Mais ou menos quanto, e há quanto tempo?',
+       'Qual a idade e o peso da criança?',
+       'Está com algum sintoma agora?',
+       'Está sonolenta, vomitando, com dificuldade para respirar ou diferente do habitual?'],
+ null,
+ 'Não fornecer conduta improvisada (não mandar provocar vômito, dar leite, água etc.). Colete as respostas, suba o risco para no mínimo urgente e encaminhe para humano (tipo clinico).'),
+
+('neurologico', 'Convulsão / desmaio / alteração neurológica', 150,
+ 'convulsão, crise, teve uma crise, tremeu, tremores, desmaiou, desmaio, apagou, perdeu a consciência, ficou inconsciente, não responde, confuso, comportamento estranho, movimento estranho, olho virando, rigidez, fraqueza, dor de cabeça forte, tontura, desequilíbrio',
+ array['O que aconteceu e quanto tempo durou?',
+       'Houve perda de consciência?',
+       'Está totalmente normal agora?',
+       'Teve febre ou trauma?',
+       'Já aconteceu antes?'],
+ null, null),
+
+('medicamentos', 'Medicamentos', 160,
+ 'remédio, medicamento, dose, dosagem, quanto dar, quantas gotas, quantos ml, intervalo, horário, pode dar, posso dar, pode tomar, esqueci, errei a dose, dei demais, vomitou o remédio, antibiótico, antialérgico, antitérmico, dipirona, paracetamol, ibuprofeno, corticoide, xarope, pomada, colírio, receita, prescrição',
+ array['Você já conferiu a última receita que o médico enviou?',
+       'Precisa que eu envie novamente a sua última receita?',
+       'Qual é exatamente a dúvida?'],
+ null,
+ 'Nunca informe dose, intervalo nem se pode ou não dar um remédio: isso é do médico. Toda dúvida de dose, intervalo ou uso de remédio vai para o médico: registre a dúvida em "dados" (chave pedido) e encaminhe (tipo clinico), mesmo que a pessoa recuse o reenvio da receita. Se pedirem a receita de novo, registre em "dados" a chave pedido com o valor "reenviar última receita" e encaminhe (tipo administrativo). Se disserem que deram dose a mais ("dei demais", "errei a dose"), trate como intoxicação.'),
+
+('vacinas', 'Vacinas', 170,
+ 'vacina, vacinação, carteira de vacinação, caderneta de vacina, vacina atrasada, dose atrasada, dose perdida, reação da vacina, febre depois da vacina, vacina particular, vacina do posto, calendário, pode vacinar',
+ array['Entendi que você precisa de ajuda com vacina. Posso te enviar o link para você atualizar as doses aplicadas até agora?',
+       'Está acontecendo alguma reação vacinal neste momento?'],
+ null,
+ 'Se aceitar o link, registre em "dados" a chave pedido com o valor "enviar link da caderneta de vacinas" e encaminhe (tipo administrativo). Se houver reação vacinal agora, siga as perguntas da categoria do sintoma (febre, pele, alergia).'),
+
+('exames', 'Exames', 180,
+ 'exame, exame alterado, hemograma, ferritina, ferro, colesterol, glicose, glicemia, TSH, T4, urina, fezes, IgE, ultrassom, USG, raio-X, radiografia, ressonância, tomografia',
+ array['Entendi que você quer falar de um exame. Foi o médico daqui da clínica que pediu esse exame?',
+       'Pode enviar o resultado completo em PDF?'],
+ null,
+ 'Você não interpreta exame: quem avalia é o médico. Recebido o resultado, encaminhe (tipo clinico).'),
+
+('saude_bucal', 'Saúde bucal', 190,
+ 'dente, dentição, nasceu dente, dente nascendo, dor de dente, cárie, dente quebrado, dente caiu, trauma no dente, gengiva, sangramento de gengiva',
+ array['Entendi que sua queixa é sobre dentes. Aconteceu alguma queda ou trauma com impacto no dente?',
+       'Teve impacto na cabeça?',
+       'Que horas foi o impacto?',
+       'Tem dor, inchaço ou sangramento?',
+       'Alguma parte do dente se soltou?'],
+ null,
+ 'Se houve impacto na cabeça, siga também o aviso da categoria Queda / trauma / acidente.'),
+
+('administrativo', 'Administrativo', 200,
+ 'consulta, agendar, disponibilidade, remarcar, cancelar, endereço, localização, estacionamento, teleconsulta, declaração, atestado',
+ array['Vi que você precisa de ajuda com algo administrativo. Me conte exatamente o que você precisa, que alguém da nossa equipe vai te ajudar.'],
+ null,
+ 'Não faça triagem clínica. Registre o pedido em "dados" (chave pedido) e encaminhe (tipo administrativo).'),
+
+('financeiro', 'Financeiro', 210,
+ 'valor, preço, pagamento, pagar, paguei, Pix, cartão, boleto, cobrança, cobrado, reembolso, estorno, comprovante, nota fiscal, recibo',
+ array['Vi que você precisa de ajuda com algo financeiro. Me conte exatamente o que você precisa, que alguém da nossa equipe vai te ajudar.'],
+ null,
+ 'Não informe valores. Não faça triagem clínica. Registre o pedido em "dados" (chave pedido) e encaminhe (tipo administrativo).'),
+
+('nao_classificado', 'Não classificado', 999,
+ '', array[]::text[],
+ null,
+ 'Use quando ainda não houver queixa (saudação, identificação da criança) ou quando a mensagem não se encaixar em nenhuma categoria. Nesse caso, pergunte com calma qual é a principal preocupação.')
+on conflict (codigo) do update set
+  nome = excluded.nome, ordem = excluded.ordem, exemplos = excluded.exemplos,
+  perguntas = excluded.perguntas, objetivo = excluded.objetivo, regra = excluded.regra,
+  updated_at = now();

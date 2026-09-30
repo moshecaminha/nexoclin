@@ -60,11 +60,58 @@ Nesses casos oriente ligar para o SAMU 192 ou ir ao pronto-socorro, avise que
 está chamando a equipe, e pare a triagem.
 
 # Triagem (uma pergunta por vez)
-Principal sintoma; desde quando; febre (quanto e como mediu); outros sintomas;
-se está bebendo líquido e fazendo xixi; doenças crônicas; remédios em uso,
-inclusive o que já deu para esse quadro; alergias.
+Depois da checagem de segurança, descubra a queixa principal e classifique-a em
+uma das CATEGORIAS DA QUEIXA (campo "categoria"). Faça as primeiras perguntas
+da categoria, na ordem, pulando o que a pessoa já respondeu. Depois delas, se
+ainda faltar: doenças crônicas; remédios em uso, inclusive o que já deu para
+esse quadro; alergias.
 Para criança pequena, não peça nota de dor de 0 a 10: pergunte o comportamento
 (brincando normal / mais quieta / muito abatida).`;
+
+// Categorias da queixa (tabela nx_queixa_categorias). Editar la muda o agente
+// sem publicar codigo; o cache evita uma consulta a cada mensagem.
+type Categoria = {
+  codigo: string; nome: string; exemplos: string; perguntas: string[];
+  objetivo: string | null; regra: string | null;
+};
+let CATS: { em: number; lista: Categoria[] } = { em: 0, lista: [] };
+async function categorias(): Promise<Categoria[]> {
+  if (CATS.lista.length && Date.now() - CATS.em < 5 * 60_000) return CATS.lista;
+  const { data, error } = await sb.from("nx_queixa_categorias")
+    .select("codigo, nome, exemplos, perguntas, objetivo, regra")
+    .eq("ativo", true).order("ordem");
+  if (error || !data?.length) {
+    console.error("agente: categorias indisponiveis", error?.message);
+    return CATS.lista; // ultimo cache bom; vazio = segue sem categorias
+  }
+  CATS = { em: Date.now(), lista: data as Categoria[] };
+  return CATS.lista;
+}
+
+function blocoCategorias(lista: Categoria[]): string {
+  const partes = lista.map((c) => {
+    const linhas = [`## ${c.nome} (${c.codigo})`];
+    if (c.exemplos) linhas.push(`Exemplos: ${c.exemplos}`);
+    if (c.perguntas?.length) {
+      linhas.push("Primeiras perguntas:", ...c.perguntas.map((p, i) => `${i + 1}. ${p}`));
+    }
+    if (c.objetivo) linhas.push(`Objetivo: ${c.objetivo}`);
+    if (c.regra) linhas.push(`Regra: ${c.regra}`);
+    return linhas.join("\n");
+  });
+  return `# Categorias da queixa
+As palavras de cada categoria são EXEMPLOS de linguagem, não lista fechada.
+Reconheça sinônimos, erros de digitação, abreviações, linguagem coloquial,
+diminutivos e descrições equivalentes. Exemplos: "tá molinho", "meio caidinho",
+"não está com a mesma energia" = alteração do estado geral (febre/prostração);
+"tá puxando o ar", "a costelinha fica entrando" = esforço respiratório, mesmo
+sem a palavra "falta de ar".
+Se a queixa mudar, mude a categoria. Se houver mais de uma, use a mais grave e
+pergunte da outra depois. Adapte a pergunta ao nome da criança e ao que já foi
+dito, sem mudar o sentido. Enquanto não houver queixa, use nao_classificado.
+
+${partes.join("\n\n")}`;
+}
 
 const GERAL = `Você é o atendimento virtual por WhatsApp de uma clínica médica no Brasil (atendimento geral).
 Acolhe, faz triagem e coleta informações para preparar o caso para o médico.
@@ -139,7 +186,7 @@ tipo_paciente, paciente_nome, paciente_idade, responsavel_nome, motivo,
 sintoma_principal, inicio, padrao, intensidade, localizacao, fatores, febre,
 sintomas_associados, historico_sintoma, doencas_cronicas, medicacoes_uso,
 alergias, red_flags, risco_sugerido, especialidade_sugerida, observacoes,
-exame_tipo, medicacao_solicitada, documento_tipo, preferencia, convenio
+exame_tipo, medicacao_solicitada, documento_tipo, preferencia, convenio, pedido
 
 Só inclua uma chave quando tiver a informação. Não invente.
 
@@ -174,6 +221,26 @@ Você continua respondendo até alguém da equipe assumir a conversa.
 - Nunca diga que alguém da equipe já está conversando com a pessoa.`;
 
 // Structured output: o modelo e obrigado a devolver exatamente este formato.
+// Com categorias (pediatria), "categoria" entra como campo obrigatorio.
+function formato(codigos: string[] | null) {
+  if (!codigos?.length) return FORMATO;
+  const s = FORMATO.json_schema.schema;
+  return {
+    ...FORMATO,
+    json_schema: {
+      ...FORMATO.json_schema,
+      schema: {
+        ...s,
+        properties: {
+          ...s.properties,
+          categoria: { type: "string", enum: codigos, description: "Categoria da queixa atual." },
+        },
+        required: [...s.required, "categoria"],
+      },
+    },
+  };
+}
+
 const FORMATO = {
   type: "json_schema",
   json_schema: {
@@ -621,13 +688,21 @@ export async function agente(conv: string, texto: string): Promise<string | null
     }))
     .filter((m: any) => m.content.length > 0);
 
-  const instrucoes = (ctx.modo === "pediatria" ? PEDIATRIA : GERAL) + "\n\n" + COMUM;
+  // Categorias da queixa valem no modo pediatria (o documento e pediatrico).
+  const cats = ctx.modo === "pediatria" ? await categorias() : [];
+  const instrucoes = (ctx.modo === "pediatria" ? PEDIATRIA : GERAL) + "\n\n" +
+    (cats.length ? blocoCategorias(cats) + "\n\n" : "") + COMUM;
+  const { data: convCat } = cats.length
+    ? await sb.from("conversations").select("queixa_categoria").eq("id", conv).maybeSingle()
+    : { data: null };
+  const catAtual: string | null = convCat?.queixa_categoria ?? null;
 
   const contexto =
     `Clínica: ${ctx.clinica ?? "—"}\n` +
     `Paciente já identificado: ${ctx.paciente_nome ?? "ainda não"}\n` +
     `Idade: ${ctx.paciente_idade ?? "ainda não"}\n` +
     familia(ctx.quem) +
+    (cats.length ? `Categoria da queixa até aqui: ${catAtual ?? "nao_classificado"}\n` : "") +
     `Já coletado: ${JSON.stringify(ctx.coletado ?? {})}\n` +
     `Situação: ${SITUACAO[ctx.status ?? ""] ?? "em triagem"}`;
 
@@ -638,7 +713,7 @@ export async function agente(conv: string, texto: string): Promise<string | null
       model: MODELO,
       temperature: 0.3,
       max_tokens: 800,
-      response_format: FORMATO,
+      response_format: formato(cats.length ? cats.map((c) => c.codigo) : null),
       messages: [
         { role: "system", content: instrucoes },
         { role: "system", content: contexto },
@@ -653,7 +728,7 @@ export async function agente(conv: string, texto: string): Promise<string | null
 
   let saida: {
     resposta: string; dados: any[]; risco: string;
-    encaminhar_humano: boolean; tipo_encaminhamento?: string;
+    encaminhar_humano: boolean; tipo_encaminhamento?: string; categoria?: string;
   };
   try {
     saida = JSON.parse(j.choices?.[0]?.message?.content ?? "{}");
@@ -664,15 +739,31 @@ export async function agente(conv: string, texto: string): Promise<string | null
 
   // o agente pode SUBIR o risco, nunca baixar abaixo do que ja estava
   const atual = ctx.risco ?? "nao_urgente";
-  const risco = (PESO[saida.risco] ?? 1) >= (PESO[atual] ?? 1) ? saida.risco : atual;
+  let risco = (PESO[saida.risco] ?? 1) >= (PESO[atual] ?? 1) ? saida.risco : atual;
+
+  // Categoria da queixa. "nao_classificado" nunca apaga uma categoria ja dada.
+  const cat = cats.find((c) => c.codigo === saida.categoria) ?? null;
+  const novaCat = cat && cat.codigo !== catAtual && (cat.codigo !== "nao_classificado" || !catAtual)
+    ? cat : null;
+  const dados = [...(saida.dados ?? [])];
+  if (novaCat) {
+    await sb.from("conversations").update({ queixa_categoria: novaCat.codigo }).eq("id", conv);
+    if (novaCat.codigo !== "nao_classificado") {
+      dados.push({ chave: "categoria", valor: novaCat.nome, atencao: false });
+    }
+  }
+  // Ingestao/intoxicacao: sem conduta improvisada, minimo urgente e vai para a equipe.
+  const intoxicacao = saida.categoria === "intoxicacao";
+  if (intoxicacao && (PESO[risco] ?? 1) < PESO.urgente) risco = "urgente";
 
   // Encaminhar nunca desliga a IA (so um humano desliga). Administrativo
   // (valor, confirmar horario) nem move a fila: so pede atencao da equipe.
-  const administrativo = saida.tipo_encaminhamento === "administrativo" && risco !== "emergencia";
+  const administrativo = saida.tipo_encaminhamento === "administrativo" && risco !== "emergencia" &&
+    !intoxicacao;
   await sb.rpc("nx_agent_aplicar", {
     p_conv: conv, p_risco: risco,
-    p_encaminhar: saida.encaminhar_humano || administrativo || risco === "emergencia",
-    p_dados: saida.dados ?? [],
+    p_encaminhar: saida.encaminhar_humano || administrativo || intoxicacao || risco === "emergencia",
+    p_dados: dados,
     p_manter_bot: administrativo,
   });
 

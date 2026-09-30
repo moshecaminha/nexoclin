@@ -1770,6 +1770,8 @@ function rcActions(){
 }
 function collKind(d){ const k=((d.chave||'')+'').toLowerCase(), v=((d.valor||'')+'').toLowerCase();
   if(k==='red_flags') return {tag:'RISCO',bg:'#FDE7E5',fg:'#c0392b',icon:'🔴'};
+  if(k==='categoria') return {tag:'QUEIXA',bg:'#FFF1E0',fg:'#B4600B',icon:'🏷'};
+  if(k==='pedido') return {tag:'PEDIDO',bg:'#EAF4F8',fg:'#1B87AB',icon:'📌'};
   if(k==='risco_sugerido'){ if(/emerg|muito/.test(v)) return {tag:'URGÊNCIA',bg:'#FDE7E5',fg:'#c0392b',icon:'🔴'}; if(/urgente/.test(v)) return {tag:'ATENÇÃO',bg:'#FCEFD6',fg:'#B4790B',icon:'🟠'}; return {tag:'ROTINA',bg:'#DCF3EA',fg:'#12996A',icon:'🟢'}; }
   if(/sintoma|inicio|intensidade|associad/.test(k)) return {tag:'SINTOMA',bg:'#E1F1F8',fg:'#146F8E',icon:'🩺'};
   if(k==='complementar'||/cronic|medica|alergia/.test(k)) return {tag:'HISTÓRICO',bg:'#EEE7FC',fg:'#5B4BD6',icon:'📋'};
