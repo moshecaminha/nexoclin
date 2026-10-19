@@ -65,7 +65,7 @@ async function configurarWebhook() {
 
 /** Contas de WhatsApp no profile da NexoClin na Zernio. */
 async function contasDoProfile(): Promise<any[]> {
-  const q = new URLSearchParams({ profileId: PROFILE, platform: "whatsapp", limit: "100" });
+  const q = new URLSearchParams({ profileId: PROFILE, platform: "whatsapp", page: "1", limit: "100" });
   const lista = await zernio(`/accounts?${q}`);
   return (lista.body?.accounts ?? []) as any[];
 }
@@ -158,14 +158,17 @@ Deno.serve(async (req) => {
     const conta = String(b?.account_id ?? "");
     if (!b?.estado || !conta) return json({ erro: "estado e account_id são obrigatórios" }, 400);
 
-    // Estado de uso unico, da mesma clinica, criado ha menos de 1h.
+    // Estado da mesma clinica, criado ha menos de 1h. So e consumido quando
+    // a gravacao da certo: uma falha nossa nao obriga a refazer o cadastro.
     const { data: est } = await admin.from("wa_zernio_estado")
-      .delete().eq("estado", b.estado).eq("clinic_id", clinic_id)
+      .select("modo").eq("estado", b.estado).eq("clinic_id", clinic_id)
       .gt("criado_em", new Date(Date.now() - 3600_000).toISOString())
-      .select("modo").maybeSingle();
+      .maybeSingle();
     if (!est) return json({ erro: "cadastro expirado ou de outra clínica. Comece de novo." }, 409);
 
-    return await gravarConta(admin, clinic_id, conta, est.modo === "coexistencia");
+    const resp = await gravarConta(admin, clinic_id, conta, est.modo === "coexistencia");
+    if (resp.ok) await admin.from("wa_zernio_estado").delete().eq("estado", b.estado);
+    return resp;
   }
 
   // 3) Contas conectadas direto no painel da Zernio ficam sem clinica: o

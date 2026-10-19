@@ -2217,37 +2217,75 @@ async function waVincular(conta){
   }catch(e){ toast('Erro: '+(e.message||e),'⚠'); }
 }
 
+// O cadastro abre numa janela por cima da NexoClin. Ela e aberta ja no
+// clique (antes do await) para o navegador nao bloquear; o endereco vem
+// depois. Se o navegador bloquear mesmo assim, cai no redirecionamento.
+let WA_JANELA = null;
 async function waConectar(modo){
   waMsg('Abrindo o cadastro do WhatsApp...');
+  const w = 520, h = 720;
+  WA_JANELA = window.open('', 'nx_wa_cadastro',
+    'width='+w+',height='+h+',left='+Math.max(0,(screen.width-w)/2)+',top='+Math.max(0,(screen.height-h)/2));
   try{
     const voltar = location.origin + location.pathname;
     const d = await waSignup({ acao:'iniciar', modo: modo==='api'?'api':'coexistencia', voltar });
-    if (!d.ok || !d.url){ waMsg('Falhou: '+(d.erro||JSON.stringify(d)),'err'); return; }
-    location.href = d.url;
-  }catch(e){ waMsg('Erro: '+(e.message||e),'err'); }
+    if (!d.ok || !d.url){
+      if (WA_JANELA) WA_JANELA.close();
+      waMsg('Falhou: '+(d.erro||JSON.stringify(d)),'err'); return;
+    }
+    if (WA_JANELA && !WA_JANELA.closed){
+      WA_JANELA.location.href = d.url;
+      waMsg('Conclua o cadastro na janela aberta. Ela fecha sozinha no final.');
+      const vigia = setInterval(function(){
+        if (!WA_JANELA || WA_JANELA.closed){ clearInterval(vigia);
+          const e=document.getElementById('waMsg'); if (e && /janela aberta/.test(e.textContent)) waMsg(''); }
+      }, 1000);
+    } else {
+      location.href = d.url;
+    }
+  }catch(e){ if (WA_JANELA) WA_JANELA.close(); waMsg('Erro: '+(e.message||e),'err'); }
 }
 
-// Volta do cadastro: espera o login e a clinica carregarem e conclui.
+// Conclui o cadastro na pagina principal (a que tem a clinica aberta).
+async function waConcluir(estado, conta, erro){
+  if (erro || !conta){
+    toast('Cadastro do WhatsApp não concluído: '+(erro==='connection_cancelled'?'cancelado':(erro||'sem conta')),'⚠');
+    waMsg(''); return;
+  }
+  waMsg('Finalizando a conexão...');
+  try{
+    const d = await waSignup({ acao:'concluir', estado, account_id: conta });
+    if (d.ok){ toast('WhatsApp conectado: '+(d.numero||''),'ok'); waMsg(''); }
+    else waMsg('Falhou: '+(d.erro||JSON.stringify(d)),'err');
+  }catch(e){ waMsg('Erro: '+(e.message||e),'err'); }
+  try{ waLoad(); }catch(e){}
+}
+
+window.addEventListener('message', function(ev){
+  if (ev.origin !== location.origin || !ev.data || ev.data.tipo !== 'nx_zernio') return;
+  waConcluir(ev.data.estado, ev.data.conta, ev.data.erro);
+});
+
+// Volta do cadastro. Dentro da janela: entrega o resultado para a pagina
+// que abriu e fecha. Sem janela (redirecionamento): espera o login e conclui.
 (function waRetornoZernio(){
   const q = new URLSearchParams(location.search);
   const estado = q.get('nx_zernio'); if (!estado) return;
   const conta = q.get('accountId'), erro = q.get('error');
   history.replaceState(null, '', location.pathname);
+  try{
+    if (window.opener && window.opener !== window && window.opener.location.origin === location.origin){
+      window.opener.postMessage({ tipo:'nx_zernio', estado, conta, erro }, location.origin);
+      window.close();
+      return;
+    }
+  }catch(e){}
   let tentativas = 0;
-  const t = setInterval(async function(){
+  const t = setInterval(function(){
     if (++tentativas > 60){ clearInterval(t); return; }
     if (typeof SB==='undefined' || !SB || !NX.clinic) return;
     clearInterval(t);
-    if (erro || !conta){
-      toast('Cadastro do WhatsApp não concluído: '+(erro==='connection_cancelled'?'cancelado':(erro||'sem conta')),'⚠');
-      return;
-    }
-    try{
-      const d = await waSignup({ acao:'concluir', estado, account_id: conta });
-      if (d.ok) toast('WhatsApp conectado: '+(d.numero||''),'ok');
-      else toast('Falhou: '+(d.erro||JSON.stringify(d)),'⚠');
-    }catch(e){ toast('Erro: '+(e.message||e),'⚠'); }
-    try{ waLoad(); }catch(e){}
+    waConcluir(estado, conta, erro);
   }, 500);
 })();
 
