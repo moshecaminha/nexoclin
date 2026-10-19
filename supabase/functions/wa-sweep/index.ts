@@ -18,6 +18,13 @@ const INTERNO = Deno.env.get("WA_INTERNAL_SECRET") ?? "";
 async function responder(conv: string, clinic: string, telefone: string, texto: string) {
   const { data: cl } = await sb.from("clinics").select("ia_pausada").eq("id", clinic).maybeSingle();
   if (cl?.ia_pausada === true) return null;
+  const { data: trava } = await sb.rpc("nx_wa_bot_lock", { p_conv: conv, p_seg: 90 });
+  if (trava !== true) return null;   // o webhook esta respondendo agora
+  try { return await responderTravado(conv, clinic, telefone, texto); }
+  finally { await sb.rpc("nx_wa_bot_unlock", { p_conv: conv }); }
+}
+
+async function responderTravado(conv: string, clinic: string, telefone: string, texto: string) {
   const r = await fetch(`${URL_SB}/functions/v1/wa-agent`, {
     method: "POST",
     headers: {

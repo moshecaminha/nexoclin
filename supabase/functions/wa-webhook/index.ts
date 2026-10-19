@@ -166,7 +166,7 @@ async function guardarMidia(
       const texto = await transcrever(bytes, mime ?? "audio/ogg");
       if (texto) {
         await sb.rpc("nx_wa_set_transcript", { p_wamid: wamid, p_texto: texto });
-        await responderBot(conv, texto, telefone, clinic);
+        await responderBot(conv, texto, telefone, clinic, wamid);
       } else if (!(await iaPausada(clinic))) {
         // sem chave ou falha: nao deixa a pessoa sem resposta
         await enviarTexto(clinic, conv, telefone,
@@ -194,19 +194,28 @@ const ESPERA_RAJADA_MS = 7000;
  * Espera a pessoa terminar de escrever. Se chegou mensagem nova depois desta,
  * quem responde e a ultima - esta sai de cena. Devolve o texto acumulado.
  */
-async function aguardarRajada(conv: string, texto: string): Promise<string | null> {
+async function aguardarRajada(conv: string, texto: string, wamid?: string | null): Promise<string | null> {
   const marca = new Date().toISOString();
   await new Promise((r) => setTimeout(r, ESPERA_RAJADA_MS));
 
-  const { data: novas } = await sb.from("messages").select("body")
-    .eq("conversation_id", conv).eq("direction", "in")
-    .gt("created_at", marca).order("created_at", { ascending: true });
-
-  // chegou mensagem depois desta: quem responde e a ultima da rajada
-  if (novas?.length) return null;
+  if (wamid) {
+    // A ultima da rajada e a de horario mais recente, nao a que chegou por
+    // ultimo: a Zernio pode entregar fora de ordem e com atraso (o "Rafa"
+    // enviado primeiro chegou depois do "Ve la").
+    const { data: ultima } = await sb.from("messages").select("wa_message_id")
+      .eq("conversation_id", conv).eq("direction", "in")
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (ultima?.wa_message_id && ultima.wa_message_id !== wamid) return null;
+  } else {
+    const { data: novas } = await sb.from("messages").select("body")
+      .eq("conversation_id", conv).eq("direction", "in")
+      .gt("created_at", marca).order("created_at", { ascending: true });
+    // chegou mensagem depois desta: quem responde e a ultima da rajada
+    if (novas?.length) return null;
+  }
 
   // junta o que a pessoa escreveu em sequencia nos ultimos segundos
-  const desde = new Date(Date.now() - ESPERA_RAJADA_MS * 3).toISOString();
+  const desde = new Date(Date.now() - ESPERA_RAJADA_MS * 4).toISOString();
   const { data: rajada } = await sb.from("messages").select("body, created_at")
     .eq("conversation_id", conv).eq("direction", "in")
     .gte("created_at", desde).order("created_at", { ascending: true });
@@ -222,12 +231,21 @@ async function iaPausada(clinic: string): Promise<boolean> {
   return data?.ia_pausada === true;
 }
 
-async function responderBot(conv: string, texto: string, telefone: string, clinic: string) {
+async function responderBot(
+  conv: string, texto: string, telefone: string, clinic: string, wamid?: string | null,
+) {
+  let travou = false;
   try {
     if (await iaPausada(clinic)) return;
-    const juntado = await aguardarRajada(conv, texto);
+    const juntado = await aguardarRajada(conv, texto, wamid);
     if (juntado === null) return;   // outra mensagem chegou; ela e que responde
     texto = juntado;
+
+    // Uma resposta por vez na conversa: entrega repetida do webhook ou a
+    // wa-sweep ao mesmo tempo mandavam o "So para confirmar" em dobro.
+    const { data: trava } = await sb.rpc("nx_wa_bot_lock", { p_conv: conv, p_seg: 90 });
+    if (trava !== true) return;
+    travou = true;
 
     // O agente (wa-agent) decide o que responder. Ele ja aplica risco,
     // dados coletados e encaminhamento no banco antes de devolver o texto.
@@ -247,6 +265,8 @@ async function responderBot(conv: string, texto: string, telefone: string, clini
     await enviarTexto(clinic, conv, telefone, j.resposta, "assistente");
   } catch (e) {
     console.error("bot:", e instanceof Error ? e.message : e);
+  } finally {
+    if (travou) await sb.rpc("nx_wa_bot_unlock", { p_conv: conv });
   }
 }
 
@@ -467,7 +487,7 @@ async function webhookUazapi(chave: string, req: Request): Promise<Response> {
       if (!ctx?.conversation_id || !ctx?.clinic_id) continue;
 
       if (texto) {
-        EdgeRuntime.waitUntil(responderBot(ctx.conversation_id, texto, fone, ctx.clinic_id));
+        EdgeRuntime.waitUntil(responderBot(ctx.conversation_id, texto, fone, ctx.clinic_id, wamid));
       } else if (temMidia && tipo !== "audio") {
         EdgeRuntime.waitUntil(avisarMidia(ctx.conversation_id, ctx.clinic_id, fone, tipo));
       }
@@ -622,7 +642,7 @@ async function webhookZernio(req: Request): Promise<Response> {
 
     if (ctx?.conversation_id && ctx?.clinic_id) {
       if (texto) {
-        EdgeRuntime.waitUntil(responderBot(ctx.conversation_id, texto, fone, ctx.clinic_id));
+        EdgeRuntime.waitUntil(responderBot(ctx.conversation_id, texto, fone, ctx.clinic_id, wamid));
       } else if (anexo && tipo !== "audio") {
         EdgeRuntime.waitUntil(avisarMidia(ctx.conversation_id, ctx.clinic_id, fone, tipo));
       }
@@ -756,7 +776,7 @@ Deno.serve(async (req) => {
             const texto = corpoDe(msg);
             if (texto) {
               EdgeRuntime.waitUntil(
-                responderBot(ctx.conversation_id, texto, msg.from, ctx.clinic_id),
+                responderBot(ctx.conversation_id, texto, msg.from, ctx.clinic_id, msg.id),
               );
             } else if (mid && msg.type !== "audio") {
               // arquivo sem legenda: confirma o recebimento em vez de ficar mudo.
