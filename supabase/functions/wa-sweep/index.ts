@@ -8,6 +8,7 @@
 //
 // Esta funcao roda por cron, acha as conversas nessa situacao e responde.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { CAMPOS_CONEXAO, ehUazapi, enviarTextoCanal, uazapi } from "../_shared/canal.ts";
 
 const URL_SB = Deno.env.get("SUPABASE_URL")!;
 const sb = createClient(URL_SB, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -28,22 +29,14 @@ async function responder(conv: string, clinic: string, telefone: string, texto: 
   if (!r.ok || !j?.resposta) return null;
 
   const { data: conn } = await sb.from("clinic_whatsapp")
-    .select("access_token, phone_number_id").eq("clinic_id", clinic).single();
+    .select(CAMPOS_CONEXAO).eq("clinic_id", clinic).single();
   if (!conn?.access_token) return null;
 
-  const env = await fetch(`${GRAPH}/${conn.phone_number_id}/messages`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${conn.access_token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      messaging_product: "whatsapp", to: telefone, type: "text", text: { body: j.resposta },
-    }),
-  });
-  const out = await env.json().catch(() => ({}));
-  if (!env.ok) { console.error("sweep envio:", JSON.stringify(out?.error ?? out)); return null; }
+  const env = await enviarTextoCanal(conn, telefone, j.resposta);
+  if (!env.ok) { console.error("sweep envio:", JSON.stringify(env.erro)); return null; }
 
   await sb.rpc("nx_wa_record_out", {
-    p_conv: conv, p_body: j.resposta,
-    p_wamid: out?.messages?.[0]?.id ?? null, p_type: "text", p_author: "assistente",
+    p_conv: conv, p_body: j.resposta, p_wamid: env.id, p_type: "text", p_author: "assistente",
   });
   return j.resposta as string;
 }
@@ -68,11 +61,29 @@ function mesmaUrl(a?: string | null, b?: string | null) {
 
 async function checarConexoes() {
   const { data: conns } = await sb.from("clinic_whatsapp")
-    .select("clinic_id, phone_number_id, access_token")
+    .select(`clinic_id, ${CAMPOS_CONEXAO}`)
     .eq("status", "conectado");
   let alteradas = 0;
   for (const c of conns ?? []) {
     if (!c.phone_number_id || !c.access_token) continue;
+
+    // uazapi: a pergunta e a instancia, nao a Meta.
+    if (ehUazapi(c)) {
+      const st = await uazapi(c, "/instance/status").catch(() => null);
+      const agora = new Date().toISOString();
+      if (!st || st.status >= 500) {
+        await sb.from("clinic_whatsapp").update({ conexao_erro: "checagem: uazapi sem resposta", verificado_em: agora })
+          .eq("clinic_id", c.clinic_id);
+        continue;
+      }
+      const conectado = st.body?.status?.connected === true || st.body?.instance?.status === "connected";
+      await sb.from("clinic_whatsapp").update({
+        verificado_em: agora,
+        ...(conectado ? { conexao_erro: null } : { status: "pendente", conexao_erro: "instância uazapi desconectada" }),
+      }).eq("clinic_id", c.clinic_id);
+      if (!conectado) alteradas++;
+      continue;
+    }
     const r = await fetch(
       `${GRAPH}/${c.phone_number_id}?fields=webhook_configuration,is_on_biz_app,platform_type`,
       { headers: { Authorization: `Bearer ${c.access_token}` } });

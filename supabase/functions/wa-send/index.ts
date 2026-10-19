@@ -2,6 +2,17 @@
 // Envio de mensagem pelo cockpit. Chamada pelo front COM o JWT do atendente.
 // O token da clinica nunca chega ao navegador: quem le e esta funcao.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { CAMPOS_CONEXAO, ehUazapi, enviarTextoCanal } from "../_shared/canal.ts";
+
+/** Template aprovado vira texto na uazapi: troca {{1}}, {{2}}... pelos parametros. */
+function textoDoTemplate(corpo: string, template: any): string {
+  const params: string[] = [];
+  for (const comp of template?.components ?? []) {
+    if (String(comp?.type ?? "").toLowerCase() !== "body") continue;
+    for (const p of comp?.parameters ?? []) params.push(String(p?.text ?? ""));
+  }
+  return corpo.replace(/\{\{(\d+)\}\}/g, (_, n) => params[Number(n) - 1] ?? "");
+}
 
 const URL_SB  = Deno.env.get("SUPABASE_URL")!;
 const SRV     = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -64,6 +75,37 @@ Deno.serve(async (req) => {
   }
   if (!ctx?.phone_number_id) return json({ erro: "clínica sem WhatsApp conectado" }, 409);
 
+  // 3) Token da clinica: so aqui, com service_role.
+  const admin = createClient(URL_SB, SRV);
+  const { data: conn } = await admin
+    .from("clinic_whatsapp").select(CAMPOS_CONEXAO)
+    .eq("clinic_id", ctx.clinic_id).single();
+  if (!conn?.access_token) return json({ erro: "clínica sem token configurado" }, 409);
+
+  // uazapi: sem janela de 24h e sem template da Meta. Template vira texto.
+  if (ehUazapi(conn)) {
+    let corpo = text as string | null;
+    if (!corpo && template) {
+      const { data: t } = await admin.from("wa_templates").select("body")
+        .eq("name", template?.name ?? "").or(`clinic_id.eq.${ctx.clinic_id},clinic_id.is.null`)
+        .limit(1).maybeSingle();
+      if (!t?.body) return json({ erro: "template não encontrado", template: template?.name }, 404);
+      corpo = textoDoTemplate(t.body, template);
+    }
+    const env = await enviarTextoCanal(conn, ctx.telefone, corpo!);
+    if (!env.ok) return json({ erro: "uazapi_recusou", detalhe: env.erro }, 502);
+    if (!conversation_id) return json({ ok: true, wamid: env.id });
+    const { data: msgIdU } = await admin.rpc("nx_wa_record_out", {
+      p_conv: conversation_id, p_body: corpo, p_wamid: env.id, p_type: "text",
+    });
+    if (body?.sistema !== true) {
+      await admin.from("conversations")
+        .update({ bot_active: false, updated_at: new Date().toISOString() })
+        .eq("id", conversation_id);
+    }
+    return json({ ok: true, wamid: env.id, message_id: msgIdU });
+  }
+
   // 2) Fora da janela de 24h a Meta so aceita template. Avisa em vez de falhar feio.
   if (text && !ctx.janela_aberta) {
     return json({
@@ -72,13 +114,6 @@ Deno.serve(async (req) => {
       ultima_entrada: ctx.ultima_entrada,
     }, 409);
   }
-
-  // 3) Token da clinica: so aqui, com service_role.
-  const admin = createClient(URL_SB, SRV);
-  const { data: conn } = await admin
-    .from("clinic_whatsapp").select("access_token, phone_number_id")
-    .eq("clinic_id", ctx.clinic_id).single();
-  if (!conn?.access_token) return json({ erro: "clínica sem token configurado" }, 409);
 
   // 4) Graph API
   const payload = text

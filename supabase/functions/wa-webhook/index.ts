@@ -1,7 +1,9 @@
 // supabase/functions/wa-webhook/index.ts
 // Webhook unico da NexoClin para a WhatsApp Cloud API (app Tech Provider).
 // Roteia por phone_number_id: a Meta entrega TODAS as WABAs nesta mesma URL.
+// Tambem recebe a uazapi (API nao oficial) em ?uaz=<segredo da conexao>.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { CAMPOS_CONEXAO, enviarTextoCanal, uazapi, type Conexao } from "../_shared/canal.ts";
 
 const sb = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -25,6 +27,24 @@ async function confere(raw: string, recebido: string, appSecret: string) {
 }
 
 /**
+ * App secret de cada clinica conectada por um app PROPRIO do medico (token
+ * gerado na BM dele, sem passar pelo cadastro do MVF). Fica em
+ * clinic_whatsapp.app_secret. Cache curto: a lista muda raramente.
+ */
+let cacheSegredos: { em: number; lista: string[] } = { em: 0, lista: [] };
+async function segredosDasClinicas(): Promise<string[]> {
+  if (Date.now() - cacheSegredos.em < 5 * 60_000) return cacheSegredos.lista;
+  try {
+    const { data } = await sb.from("clinic_whatsapp").select("app_secret").not("app_secret", "is", null);
+    const lista = [...new Set((data ?? []).map((r: any) => r.app_secret).filter(Boolean))] as string[];
+    cacheSegredos = { em: Date.now(), lista };
+  } catch (e) {
+    console.error("segredosDasClinicas", e instanceof Error ? e.message : e);
+  }
+  return cacheSegredos.lista;
+}
+
+/**
  * Aceita mais de um app secret. Enquanto a NexoClin nao tiver Tech Provider
  * proprio, uma clinica pode estar conectada pelo app do MVF — e ai a Meta
  * assina com o secret DAQUELE app, nao com o desta.
@@ -35,6 +55,7 @@ async function assinaturaValida(raw: string, header: string | null) {
   const segredos = [
     Deno.env.get("WA_APP_SECRET"),
     Deno.env.get("WA_APP_SECRET_MVF"),
+    ...(await segredosDasClinicas()),
   ].filter(Boolean) as string[];
   for (const s of segredos) {
     if (await confere(raw, recebido, s)) return true;
@@ -98,19 +119,48 @@ async function baixarMidia(
     const bin = await fetch(info.url, { headers: { Authorization: `Bearer ${token}` } });
     if (!bin.ok) { console.error("midia: download falhou", mediaId, bin.status); return; }
     const bytes = new Uint8Array(await bin.arrayBuffer());
+    await guardarMidia(bytes, info.mime_type ?? mime, filename, wamid, clinic, conv, telefone);
+  } catch (e) {
+    console.error("midia:", e instanceof Error ? e.message : e);
+  }
+}
 
-    const ext = extDe(info.mime_type ?? mime, filename);
+/** Midia recebida pela uazapi: POST /message/download devolve a URL do arquivo. */
+async function baixarMidiaUazapi(
+  c: Conexao, idDownload: string, wamid: string, clinic: string, conv: string,
+  telefone: string, mime?: string, filename?: string,
+) {
+  try {
+    const d = await uazapi(c, "/message/download", { id: idDownload });
+    const url = d.body?.fileURL ?? d.body?.url;
+    if (!d.ok || !url) { console.error("midia uazapi: sem url", idDownload, JSON.stringify(d.body)); return; }
+    const bin = await fetch(url);
+    if (!bin.ok) { console.error("midia uazapi: download falhou", bin.status); return; }
+    const bytes = new Uint8Array(await bin.arrayBuffer());
+    await guardarMidia(bytes, d.body?.mimetype ?? mime, d.body?.fileName ?? filename, wamid, clinic, conv, telefone);
+  } catch (e) {
+    console.error("midia uazapi:", e instanceof Error ? e.message : e);
+  }
+}
+
+/** Guarda o arquivo no bucket, liga na mensagem e, se for audio, transcreve. */
+async function guardarMidia(
+  bytes: Uint8Array, mime: string | undefined, filename: string | undefined,
+  wamid: string, clinic: string, conv: string, telefone: string,
+) {
+  try {
+    const ext = extDe(mime, filename);
     const path = `${clinic}/${conv}/${Date.now()}_${crypto.randomUUID().slice(0, 5)}.${ext}`;
     const { error } = await sb.storage.from("documentos")
-      .upload(path, bytes, { contentType: info.mime_type ?? mime ?? "application/octet-stream", upsert: false });
+      .upload(path, bytes, { contentType: mime ?? "application/octet-stream", upsert: false });
     if (error) { console.error("midia: upload falhou", error.message); return; }
 
     await sb.rpc("nx_wa_media_set", { p_wamid: wamid, p_path: path });
 
     // Audio: transcreve e joga o texto na triagem, como se a pessoa tivesse
     // digitado. E o unico caminho para o bot entender quem manda audio.
-    if ((info.mime_type ?? mime ?? "").startsWith("audio")) {
-      const texto = await transcrever(bytes, info.mime_type ?? mime ?? "audio/ogg");
+    if ((mime ?? "").startsWith("audio")) {
+      const texto = await transcrever(bytes, mime ?? "audio/ogg");
       if (texto) {
         await sb.rpc("nx_wa_set_transcript", { p_wamid: wamid, p_texto: texto });
         await responderBot(conv, texto, telefone, clinic);
@@ -208,7 +258,7 @@ async function zerarConversa(phoneId: string, telefone: string): Promise<boolean
     });
     if (eReset) console.error("zerar:", eReset.message);
     const { data: conn } = await sb.from("clinic_whatsapp")
-      .select("access_token, phone_number_id").eq("phone_number_id", phoneId).single();
+      .select(CAMPOS_CONEXAO).eq("phone_number_id", phoneId).single();
     if (!conn?.access_token) return true;
 
     const n = r?.conversas_apagadas ?? 0;
@@ -216,11 +266,7 @@ async function zerarConversa(phoneId: string, telefone: string): Promise<boolean
       ? `🧹 Conversa zerada (${r.mensagens} mensagens apagadas).${"\n"}Manda qualquer coisa que a triagem começa do zero.`
       : `🧹 Já estava limpo. Manda qualquer coisa que a triagem começa.`;
 
-    await fetch(`${GRAPH}/${conn.phone_number_id}/messages`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${conn.access_token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ messaging_product: "whatsapp", to: telefone, type: "text", text: { body: texto } }),
-    });
+    await enviarTextoCanal(conn, telefone, texto);
   } catch (e) {
     console.error("zerar:", e instanceof Error ? e.message : e);
   }
@@ -231,22 +277,14 @@ async function zerarConversa(phoneId: string, telefone: string): Promise<boolean
 /** Manda um texto pelo numero da clinica e registra a mensagem enviada. */
 async function enviarTexto(clinic: string, conv: string, telefone: string, texto: string, autor: string) {
   const { data: conn } = await sb.from("clinic_whatsapp")
-    .select("access_token, phone_number_id").eq("clinic_id", clinic).single();
+    .select(CAMPOS_CONEXAO).eq("clinic_id", clinic).single();
   if (!conn?.access_token) { console.error("envio: clinica sem token"); return; }
 
-  const r = await fetch(`${GRAPH}/${conn.phone_number_id}/messages`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${conn.access_token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      messaging_product: "whatsapp", to: telefone, type: "text", text: { body: texto },
-    }),
-  });
-  const out = await r.json().catch(() => ({}));
-  if (!r.ok) { console.error("envio: Meta recusou", JSON.stringify(out?.error ?? out)); return; }
+  const env = await enviarTextoCanal(conn, telefone, texto);
+  if (!env.ok) { console.error("envio: recusado", conn.provider, JSON.stringify(env.erro)); return; }
 
   await sb.rpc("nx_wa_record_out", {
-    p_conv: conv, p_body: texto,
-    p_wamid: out?.messages?.[0]?.id ?? null, p_type: "text", p_author: autor,
+    p_conv: conv, p_body: texto, p_wamid: env.id, p_type: "text", p_author: autor,
   });
 }
 
@@ -306,8 +344,141 @@ async function transcrever(bytes: Uint8Array, mime: string): Promise<string | nu
   }
 }
 
+// ---------------------------------------------------------------------------
+// uazapi (API nao oficial). Formato do webhook (evento "messages"):
+// { EventType:"messages", message:{ chatid:"5521...@s.whatsapp.net", sender,
+//   senderName, fromMe, wasSentByApi, isGroup, messageType, mediaType, text,
+//   messageid, id:"<dono>:<messageid>", messageTimestamp }, chat, owner, token }
+// Mesmas pegadinhas tratadas no MVF: o numero real vem no chatid (o sender
+// costuma ser um @lid), e o que a propria API enviou volta como fromMe.
+
+const UAZ_PULAR = new Set([
+  "reactionmessage", "reaction", "protocolmessage", "senderkeydistributionmessage",
+  "pollupdatemessage", "ephemeralmessage",
+]);
+
+function uazNumero(m: any): string {
+  const jid = String(m?.chatid ?? m?.chat ?? m?.key?.remoteJid ?? m?.sender ?? "");
+  if (/@lid/i.test(jid) && !/@s\.whatsapp\.net/i.test(jid)) {
+    const alt = String(m?.sender_pn ?? m?.sender ?? "");
+    return /@s\.whatsapp\.net/i.test(alt) ? alt.replace(/@.*/, "").replace(/\D/g, "") : "";
+  }
+  return jid.replace(/@.*/, "").replace(/\D/g, "");
+}
+
+function uazTipo(m: any): string {
+  const t = String(m?.mediaType ?? m?.messageType ?? m?.type ?? "").toLowerCase();
+  if (/audio|ptt/.test(t)) return "audio";
+  if (/image|sticker/.test(t)) return "image";
+  if (/video/.test(t)) return "video";
+  if (/document/.test(t)) return "document";
+  return "text";
+}
+
+/** DDD + 8 ultimos digitos: casa o numero com ou sem 55 e com ou sem o 9. */
+function chaveFone(n: string): string {
+  let d = String(n).replace(/\D/g, "");
+  if (d.length > 11 && d.startsWith("55")) d = d.slice(2);
+  return d.slice(0, 2) + d.slice(-8);
+}
+
+async function webhookUazapi(chave: string, req: Request): Promise<Response> {
+  const { data: conn } = await sb.from("clinic_whatsapp")
+    .select(`clinic_id, numeros_permitidos, ${CAMPOS_CONEXAO}`)
+    .eq("provider", "uazapi").eq("verify_token", chave).maybeSingle();
+  if (!conn) return new Response("forbidden", { status: 403 });
+
+  let body: any;
+  try { body = await req.json(); } catch { return new Response("ok", { status: 200 }); }
+
+  // Registro cru so do que vai entrar no sistema: o numero pode receber
+  // mensagem pessoal e de grupo, que nao deve ficar gravada na clinica.
+  let registrado = false;
+  const registrar = async () => {
+    if (registrado) return;
+    registrado = true;
+    try {
+      await sb.from("webhook_events").insert({
+        event_type: "whatsapp", origem: "uazapi", clinic_id: conn.clinic_id, payload: body,
+      });
+    } catch (e) {
+      console.error("webhook_events uazapi", e instanceof Error ? e.message : e);
+    }
+  };
+
+  const evento = String(body?.EventType ?? body?.event ?? "").toLowerCase();
+  if (evento !== "messages") return new Response("ok", { status: 200 });
+
+  // Numero de teste: so os telefones da lista entram no sistema.
+  const permitidos = ((conn.numeros_permitidos ?? []) as string[]).map(chaveFone);
+  const phoneId = String(conn.phone_number_id);
+
+  try {
+    const lista = body?.messages ?? (body?.message ? [body.message] : []);
+    for (const m of Array.isArray(lista) ? lista : []) {
+      if (m?.isGroup === true || /@g\.us/i.test(String(m?.chatid ?? ""))) continue;
+      const tipoBruto = String(m?.messageType ?? m?.type ?? "").toLowerCase();
+      if (UAZ_PULAR.has(tipoBruto) || m?.reaction) continue;
+      if (m?.wasSentByApi) continue;   // o que a propria NexoClin enviou
+
+      const fone = uazNumero(m);
+      if (!fone) continue;
+      if (permitidos.length && !permitidos.includes(chaveFone(fone))) continue;
+      await registrar();
+
+      const tipo = uazTipo(m);
+      const texto = String(m?.text ?? m?.content?.text ?? m?.caption ?? m?.content?.caption ?? "").trim() || null;
+      const wamid = String(m?.messageid ?? m?.id ?? "") || null;
+      const idDownload = String(m?.id ?? m?.messageid ?? "");
+      const tsBruto = Number(m?.messageTimestamp ?? 0);
+      const ts = tsBruto > 1e12 ? Math.floor(tsBruto / 1000) : tsBruto;
+      const temMidia = tipo !== "text";
+
+      // Equipe respondeu pelo celular: entra como saida da equipe e pausa a IA.
+      if (m?.fromMe) {
+        await sb.rpc("nx_wa_eco", {
+          p_phone_number_id: phoneId, p_to: fone, p_type: tipo,
+          p_body: texto ?? `[${tipo} enviada pelo celular]`, p_wamid: wamid, p_ts: ts, p_media_id: null,
+        });
+        continue;
+      }
+
+      if (CMD_ZERAR.includes((texto ?? "").toLowerCase())) {
+        EdgeRuntime.waitUntil(zerarConversa(phoneId, fone));
+        continue;
+      }
+
+      const { data: ctx } = await sb.rpc("nx_wa_ingest", {
+        p_phone_number_id: phoneId, p_from: fone, p_nome: m?.senderName ?? null,
+        p_type: tipo, p_body: texto, p_wamid: wamid, p_ts: ts, p_payload: m,
+        p_media_id: temMidia ? idDownload : null,
+      });
+      if (!ctx?.conversation_id || !ctx?.clinic_id) continue;
+
+      if (texto) {
+        EdgeRuntime.waitUntil(responderBot(ctx.conversation_id, texto, fone, ctx.clinic_id));
+      } else if (temMidia && tipo !== "audio") {
+        EdgeRuntime.waitUntil(avisarMidia(ctx.conversation_id, ctx.clinic_id, fone, tipo));
+      }
+      if (temMidia && wamid) {
+        EdgeRuntime.waitUntil(baixarMidiaUazapi(
+          conn, idDownload, wamid, ctx.clinic_id, ctx.conversation_id, fone,
+          m?.mimetype ?? m?.content?.mimetype, m?.fileName ?? m?.content?.fileName,
+        ));
+      }
+    }
+  } catch (e) {
+    console.error("wa-webhook uazapi", e instanceof Error ? e.message : e);
+  }
+  return new Response("ok", { status: 200 });
+}
+
 Deno.serve(async (req) => {
   const url = new URL(req.url);
+
+  // uazapi: o segredo da conexao vem na URL (a uazapi nao assina o webhook).
+  const uazChave = url.searchParams.get("uaz");
+  if (uazChave && req.method === "POST") return await webhookUazapi(uazChave, req);
 
   // 0) Saude: diz se os segredos estao configurados, sem revelar valor algum.
   if (url.pathname.endsWith("/health")) {
