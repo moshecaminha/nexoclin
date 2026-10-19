@@ -2153,7 +2153,8 @@ function waRender(d,tpls){
       ${d.conexao_erro?`<p class="wa-hint" style="color:var(--coral)">${String(d.conexao_erro).replace(/</g,'&lt;')}</p>`:''}
       <p class="wa-hint">Conecte o WhatsApp da cl&iacute;nica. Se o n&uacute;mero j&aacute; est&aacute; no app <b>WhatsApp Business</b>, ele continua funcionando no celular (coexist&ecirc;ncia): no meio do cadastro voc&ecirc; escaneia um QR code com o app.</p>
       <button class="cl-btn pri" style="margin:0;background:#25D366;border:0;width:100%;padding:13px" onclick="waConectar()">Conectar mantendo o app WhatsApp Business</button>
-      <button class="rc-b2" style="margin-top:8px;width:100%" onclick="waConectar('api')">Conectar n&uacute;mero s&oacute; na API (sem o app)</button>`}
+      <button class="rc-b2" style="margin-top:8px;width:100%" onclick="waConectar('api')">Conectar n&uacute;mero s&oacute; na API (sem o app)</button>
+      <div id="waLivres"></div>`}
     <div id="waMsg" style="margin-top:12px"></div>
     <details style="margin-top:14px">
       <summary style="cursor:pointer;color:var(--mute);font-size:12.5px">Conex&atilde;o manual (avan&ccedil;ado)</summary>
@@ -2164,6 +2165,7 @@ function waRender(d,tpls){
     </details>
     <div class="cl-sec2" style="margin-top:16px">Biblioteca de templates (${tpls.length})</div>
     <div class="wa-tpls">${tpls.map(t=>`<div class="wa-tpl"><div class="wa-tpl-h"><b>${t.name}</b><span class="wa-cat wa-${t.category}">${t.category}</span></div><div class="wa-tpl-b">${(t.body||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>${t.descricao?`<div class="wa-tpl-d">${t.descricao}</div>`:''}</div>`).join('')}</div>`;
+  if(st!=='conectado') waContasLivres();
 }
 async function waSave(){
   const g=id=>((document.getElementById(id)||{}).value||'').trim();
@@ -2189,6 +2191,30 @@ async function waSignup(corpo){
     body: JSON.stringify(Object.assign({ clinic_id:NX.clinic }, corpo))
   });
   return r.json();
+}
+
+// Numero conectado direto no painel da Zernio fica sem clinica. So o admin
+// da plataforma recebe a lista (para os outros a funcao responde 403).
+async function waContasLivres(){
+  const box=document.getElementById('waLivres'); if(!box) return;
+  try{
+    const d = await waSignup({ acao:'contas_livres' });
+    if (!d.ok || !(d.contas||[]).length){ box.innerHTML=''; return; }
+    box.innerHTML = `<div style="margin-top:14px;padding:12px 14px;border:1px dashed var(--line);border-radius:10px">
+      <div style="font-size:12.5px;color:var(--mute);margin-bottom:8px">Admin da plataforma: n&uacute;meros conectados na Zernio sem cl&iacute;nica</div>
+      ${d.contas.map(c=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px">
+        <span><b>${String(c.numero||'').replace(/</g,'&lt;')}</b> &middot; ${String(c.nome||'').replace(/</g,'&lt;')}${c.coexistencia?' &middot; coexist&ecirc;ncia':''}</span>
+        <button class="rc-b2" onclick="waVincular('${String(c.account_id).replace(/[^\w]/g,'')}')">Vincular a esta cl&iacute;nica</button></div>`).join('')}
+    </div>`;
+  }catch(e){ box.innerHTML=''; }
+}
+async function waVincular(conta){
+  if (!confirm('Vincular este número a esta clínica? A IA passa a responder as mensagens que chegarem nele.')) return;
+  try{
+    const d = await waSignup({ acao:'vincular', account_id: conta });
+    if (d.ok){ toast('WhatsApp vinculado: '+(d.numero||''),'ok'); waLoad(); }
+    else toast('Falhou: '+(d.erro||JSON.stringify(d)),'⚠');
+  }catch(e){ toast('Erro: '+(e.message||e),'⚠'); }
 }
 
 async function waConectar(modo){

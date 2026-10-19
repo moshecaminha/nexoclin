@@ -8,6 +8,8 @@
 //               Gera o link do cadastro. `voltar` e a pagina que recebe o
 //               retorno; vai com um estado de uso unico (?nx_zernio=).
 //   concluir    { clinic_id, estado, account_id }  -> grava a conexao
+//   contas_livres { clinic_id }  (admin da plataforma) contas da Zernio sem clinica
+//   vincular    { clinic_id, account_id }  (admin da plataforma) liga uma delas
 //   configurar  (x-nx-internal) cadastra/atualiza o webhook da Zernio.
 //
 // Travas: so gestor/admin conecta; a conta tem de estar no profile da
@@ -59,6 +61,45 @@ async function configurarWebhook() {
     ok: r.ok && !errKey, acao: atual ? "atualizado" : "criado", zernio: r.body,
     vault: errKey ? errKey.message : "ok",
   }, r.ok ? 200 : 502);
+}
+
+/** Contas de WhatsApp no profile da NexoClin na Zernio. */
+async function contasDoProfile(): Promise<any[]> {
+  const q = new URLSearchParams({ profileId: PROFILE, platform: "whatsapp", limit: "100" });
+  const lista = await zernio(`/accounts?${q}`);
+  return (lista.body?.accounts ?? []) as any[];
+}
+
+/**
+ * Liga a conta da Zernio a clinica. `coex` null = le da propria Zernio
+ * (metadata.isCoexistence), para contas vinculadas fora do cadastro.
+ */
+// deno-lint-ignore no-explicit-any
+async function gravarConta(admin: any, clinic_id: string, conta: string, coex: boolean | null) {
+  const acc = (await contasDoProfile()).find((a) => String(a?._id) === conta);
+  if (!acc) return json({ erro: "conta não encontrada na Zernio" }, 404);
+
+  const phoneId = `zernio:${conta}`;
+  const { data: dono } = await admin.from("clinic_whatsapp")
+    .select("clinic_id").eq("phone_number_id", phoneId).neq("clinic_id", clinic_id).limit(1);
+  if (dono?.length) return json({ erro: "este número já está conectado em outra clínica da NexoClin." }, 409);
+
+  const coexistencia = coex ?? (acc?.metadata?.isCoexistence === true);
+  const agora = new Date().toISOString();
+  const { error: errUp } = await admin.from("clinic_whatsapp").upsert({
+    clinic_id, provider: "zernio",
+    phone_number_id: phoneId, access_token: conta,
+    waba_id: acc?.metadata?.wabaId ?? null, app_secret: null, api_url: null,
+    display_number: acc?.username ?? acc?.displayName ?? null,
+    status: acc?.isActive === false ? "pendente" : "conectado",
+    coexistencia, is_on_biz_app: coexistencia,
+    sync_contatos_id: null, sync_historico_id: null, sync_em: null,
+    conexao_erro: acc?.isActive === false ? "conta inativa na Zernio" : null,
+    verificado_em: agora, connected_at: agora, updated_at: agora,
+  }, { onConflict: "clinic_id" });
+  if (errUp) return json({ erro: "falha ao gravar", detalhe: errUp.message }, 500);
+
+  return json({ ok: true, status: "conectado", numero: acc?.username, coexistencia });
 }
 
 Deno.serve(async (req) => {
@@ -124,33 +165,33 @@ Deno.serve(async (req) => {
       .select("modo").maybeSingle();
     if (!est) return json({ erro: "cadastro expirado ou de outra clínica. Comece de novo." }, 409);
 
-    // A conta tem de estar no profile da NexoClin.
-    const q = new URLSearchParams({ profileId: PROFILE, platform: "whatsapp", limit: "100" });
-    const lista = await zernio(`/accounts?${q}`);
-    const acc = ((lista.body?.accounts ?? []) as any[]).find((a) => String(a?._id) === conta);
-    if (!acc) return json({ erro: "conta não encontrada na Zernio", zernio: lista.ok ? undefined : lista.body }, 404);
+    return await gravarConta(admin, clinic_id, conta, est.modo === "coexistencia");
+  }
 
-    const phoneId = `zernio:${conta}`;
-    const { data: dono } = await admin.from("clinic_whatsapp")
-      .select("clinic_id").eq("phone_number_id", phoneId).neq("clinic_id", clinic_id).limit(1);
-    if (dono?.length) return json({ erro: "este número já está conectado em outra clínica da NexoClin." }, 409);
+  // 3) Contas conectadas direto no painel da Zernio ficam sem clinica: o
+  //    webhook chega e e descartado. So o admin da plataforma ve e vincula,
+  //    para um gestor nao pegar o numero de outra clinica.
+  if (b?.acao === "contas_livres" || b?.acao === "vincular") {
+    const { data: padmin } = await comoUsuario.rpc("is_platform_admin");
+    if (padmin !== true) return json({ erro: "só o admin da plataforma" }, 403);
 
-    const agora = new Date().toISOString();
-    const { error: errUp } = await admin.from("clinic_whatsapp").upsert({
-      clinic_id, provider: "zernio",
-      phone_number_id: phoneId, access_token: conta,
-      waba_id: acc?.metadata?.wabaId ?? null, app_secret: null, api_url: null,
-      display_number: acc?.username ?? acc?.displayName ?? null,
-      status: acc?.isActive === false ? "pendente" : "conectado",
-      coexistencia: est.modo === "coexistencia",
-      is_on_biz_app: est.modo === "coexistencia",
-      sync_contatos_id: null, sync_historico_id: null, sync_em: null,
-      conexao_erro: acc?.isActive === false ? "conta inativa na Zernio" : null,
-      verificado_em: agora, connected_at: agora, updated_at: agora,
-    }, { onConflict: "clinic_id" });
-    if (errUp) return json({ erro: "falha ao gravar", detalhe: errUp.message }, 500);
+    if (b.acao === "vincular") {
+      const conta = String(b?.account_id ?? "");
+      if (!conta) return json({ erro: "account_id é obrigatório" }, 400);
+      return await gravarConta(admin, clinic_id, conta, null);
+    }
 
-    return json({ ok: true, status: "conectado", numero: acc?.username, coexistencia: est.modo === "coexistencia" });
+    const contas = await contasDoProfile();
+    const { data: usadas } = await admin.from("clinic_whatsapp")
+      .select("phone_number_id").like("phone_number_id", "zernio:%");
+    const ligadas = new Set((usadas ?? []).map((u: any) => String(u.phone_number_id).slice(7)));
+    return json({
+      ok: true,
+      contas: contas.filter((a) => !ligadas.has(String(a?._id))).map((a) => ({
+        account_id: a._id, numero: a.username, nome: a.displayName,
+        coexistencia: a?.metadata?.isCoexistence === true, ativa: a?.isActive !== false,
+      })),
+    });
   }
 
   return json({ erro: "ação inválida" }, 400);
