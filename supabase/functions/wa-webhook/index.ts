@@ -167,7 +167,7 @@ async function guardarMidia(
       if (texto) {
         await sb.rpc("nx_wa_set_transcript", { p_wamid: wamid, p_texto: texto });
         await responderBot(conv, texto, telefone, clinic, wamid);
-      } else if (!(await iaPausada(clinic))) {
+      } else if (!(await iaPausada(clinic, telefone))) {
         // sem chave ou falha: nao deixa a pessoa sem resposta
         await enviarTexto(clinic, conv, telefone,
           "📎 Recebi o áudio! Ainda não consegui ouvir por aqui. "
@@ -225,10 +225,11 @@ async function aguardarRajada(conv: string, texto: string, wamid?: string | null
   return partes.length > 1 ? partes.join(". ") : texto;
 }
 
-/** Pausa geral da IA na clinica (clinics.ia_pausada): nada automatico sai. */
-async function iaPausada(clinic: string): Promise<boolean> {
-  const { data } = await sb.from("clinics").select("ia_pausada").eq("id", clinic).maybeSingle();
-  return data?.ia_pausada === true;
+/** Pausa geral da IA na clinica (clinics.ia_pausada): nada automatico sai,
+ *  exceto para os numeros liberados em clinic_whatsapp.numeros_permitidos. */
+async function iaPausada(clinic: string, telefone: string): Promise<boolean> {
+  const { data } = await sb.rpc("nx_ia_liberada", { p_clinic: clinic, p_telefone: telefone });
+  return data === false;
 }
 
 async function responderBot(
@@ -236,7 +237,7 @@ async function responderBot(
 ) {
   let travou = false;
   try {
-    if (await iaPausada(clinic)) return;
+    if (await iaPausada(clinic, telefone)) return;
     const juntado = await aguardarRajada(conv, texto, wamid);
     if (juntado === null) return;   // outra mensagem chegou; ela e que responde
     texto = juntado;
@@ -324,7 +325,7 @@ async function enviarTexto(clinic: string, conv: string, telefone: string, texto
  */
 async function avisarMidia(conv: string, clinic: string, telefone: string, tipo: string) {
   try {
-    if (await iaPausada(clinic)) return;
+    if (await iaPausada(clinic, telefone)) return;
     // Com consulta esperando pagamento, foto ou PDF quase sempre e o
     // comprovante. Registra e chama a equipe para conferir - a IA nunca
     // dá um pagamento por confirmado.

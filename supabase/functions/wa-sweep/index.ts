@@ -16,8 +16,8 @@ const GRAPH = `https://graph.facebook.com/${Deno.env.get("WA_GRAPH_VERSION") ?? 
 const INTERNO = Deno.env.get("WA_INTERNAL_SECRET") ?? "";
 
 async function responder(conv: string, clinic: string, telefone: string, texto: string) {
-  const { data: cl } = await sb.from("clinics").select("ia_pausada").eq("id", clinic).maybeSingle();
-  if (cl?.ia_pausada === true) return null;
+  const { data: liberada } = await sb.rpc("nx_ia_liberada", { p_clinic: clinic, p_telefone: telefone });
+  if (liberada === false) return null;
   const { data: trava } = await sb.rpc("nx_wa_bot_lock", { p_conv: conv, p_seg: 90 });
   if (trava !== true) return null;   // o webhook esta respondendo agora
   try { return await responderTravado(conv, clinic, telefone, texto); }
