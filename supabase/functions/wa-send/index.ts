@@ -2,7 +2,9 @@
 // Envio de mensagem pelo cockpit. Chamada pelo front COM o JWT do atendente.
 // O token da clinica nunca chega ao navegador: quem le e esta funcao.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { CAMPOS_CONEXAO, ehUazapi, enviarTextoCanal } from "../_shared/canal.ts";
+import {
+  CAMPOS_CONEXAO, ehUazapi, ehZernio, enviarTemplateZernio, enviarTextoCanal,
+} from "../_shared/canal.ts";
 
 /** Template aprovado vira texto na uazapi: troca {{1}}, {{2}}... pelos parametros. */
 function textoDoTemplate(corpo: string, template: any): string {
@@ -113,6 +115,25 @@ Deno.serve(async (req) => {
       mensagem: "Passaram-se mais de 24h desde a última mensagem do paciente. Use um template aprovado.",
       ultima_entrada: ctx.ultima_entrada,
     }, 409);
+  }
+
+  // Zernio: mesma API oficial, outro caminho. Template vai pelo nome aprovado.
+  if (ehZernio(conn)) {
+    const env = text
+      ? await enviarTextoCanal(conn, ctx.telefone, text)
+      : await enviarTemplateZernio(conn, ctx.telefone, template);
+    if (!env.ok) return json({ erro: "zernio_recusou", meta: env.erro }, 502);
+    if (!conversation_id) return json({ ok: true, wamid: env.id });
+    const { data: msgIdZ } = await admin.rpc("nx_wa_record_out", {
+      p_conv: conversation_id, p_body: text ?? `[template ${template?.name ?? ""}]`,
+      p_wamid: env.id, p_type: "text",
+    });
+    if (body?.sistema !== true) {
+      await admin.from("conversations")
+        .update({ bot_active: false, updated_at: new Date().toISOString() })
+        .eq("id", conversation_id);
+    }
+    return json({ ok: true, wamid: env.id, message_id: msgIdZ });
   }
 
   // 4) Graph API

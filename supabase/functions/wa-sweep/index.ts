@@ -8,7 +8,7 @@
 //
 // Esta funcao roda por cron, acha as conversas nessa situacao e responde.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { CAMPOS_CONEXAO, ehUazapi, enviarTextoCanal, uazapi } from "../_shared/canal.ts";
+import { CAMPOS_CONEXAO, ehUazapi, ehZernio, enviarTextoCanal, uazapi, zernio } from "../_shared/canal.ts";
 
 const URL_SB = Deno.env.get("SUPABASE_URL")!;
 const sb = createClient(URL_SB, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -82,6 +82,26 @@ async function checarConexoes() {
         ...(conectado ? { conexao_erro: null } : { status: "pendente", conexao_erro: "instância uazapi desconectada" }),
       }).eq("clinic_id", c.clinic_id);
       if (!conectado) alteradas++;
+      continue;
+    }
+    // Zernio: pergunta a saude da conta. Erro de leitura so e registrado.
+    if (ehZernio(c)) {
+      const h = await zernio(`/accounts/${encodeURIComponent(String(c.access_token))}/health`).catch(() => null);
+      const agora = new Date().toISOString();
+      if (!h || (!h.ok && h.status !== 404)) {
+        await sb.from("clinic_whatsapp").update({
+          conexao_erro: "checagem: Zernio " + (h ? `HTTP ${h.status}` : "sem resposta"), verificado_em: agora,
+        }).eq("clinic_id", c.clinic_id);
+        continue;
+      }
+      const motivo = h.status === 404 ? "conta removida da Zernio"
+        : h.body?.status === "error" ? "Zernio: " + JSON.stringify(h.body?.issues ?? "conta com erro").slice(0, 300)
+        : null;
+      await sb.from("clinic_whatsapp").update({
+        verificado_em: agora,
+        ...(motivo ? { status: "pendente", conexao_erro: motivo } : { conexao_erro: null }),
+      }).eq("clinic_id", c.clinic_id);
+      if (motivo) alteradas++;
       continue;
     }
     const r = await fetch(

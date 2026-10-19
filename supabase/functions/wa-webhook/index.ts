@@ -1,9 +1,12 @@
 // supabase/functions/wa-webhook/index.ts
 // Webhook unico da NexoClin para a WhatsApp Cloud API (app Tech Provider).
 // Roteia por phone_number_id: a Meta entrega TODAS as WABAs nesta mesma URL.
-// Tambem recebe a uazapi (API nao oficial) em ?uaz=<segredo da conexao>.
+// Tambem recebe a uazapi (API nao oficial) em ?uaz=<segredo da conexao> e a
+// Zernio (API oficial intermediada), reconhecida pelo header X-Zernio-Signature.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { CAMPOS_CONEXAO, enviarTextoCanal, uazapi, type Conexao } from "../_shared/canal.ts";
+import {
+  CAMPOS_CONEXAO, enviarTextoCanal, lembrarConversaZernio, uazapi, type Conexao,
+} from "../_shared/canal.ts";
 
 const sb = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -473,12 +476,170 @@ async function webhookUazapi(chave: string, req: Request): Promise<Response> {
   return new Response("ok", { status: 200 });
 }
 
+// ---------------------------------------------------------------------------
+// Zernio (API oficial da Meta, intermediada). Um webhook so para todas as
+// clinicas: a conta vem em account.accountId e casa com
+// clinic_whatsapp.phone_number_id = "zernio:<accountId>".
+// Assinatura: X-Zernio-Signature = HMAC-SHA256 hex do corpo cru, com o
+// secret cadastrado no POST /v1/webhooks/settings (ZERNIO_WEBHOOK_SECRET).
+
+/** Tipo da mensagem no vocabulario da Meta, que e o do banco (msg_type). */
+function zernioTipo(m: any): string {
+  const t = String(m?.attachments?.[0]?.type ?? "").toLowerCase();
+  if (!t) return "text";
+  if (t === "file") return "document";
+  if (["image", "video", "audio", "sticker"].includes(t)) return t;
+  return "document";
+}
+
+const STATUS_ZERNIO: Record<string, string> = {
+  "message.delivered": "delivered", "message.read": "read", "message.failed": "failed",
+};
+
+/** Midia recebida pela Zernio: a URL e da propria Zernio e pede a API key. */
+async function baixarMidiaZernio(
+  url: string, wamid: string, clinic: string, conv: string,
+  telefone: string, mime?: string, filename?: string,
+) {
+  try {
+    const bin = await fetch(url, { headers: { Authorization: `Bearer ${Deno.env.get("ZERNIO_API_KEY") ?? ""}` } });
+    if (!bin.ok) { console.error("midia zernio: download falhou", bin.status); return; }
+    const tipo = bin.headers.get("content-type") ?? mime;
+    const bytes = new Uint8Array(await bin.arrayBuffer());
+    await guardarMidia(bytes, tipo ?? undefined, filename, wamid, clinic, conv, telefone);
+  } catch (e) {
+    console.error("midia zernio:", e instanceof Error ? e.message : e);
+  }
+}
+
+async function webhookZernio(req: Request): Promise<Response> {
+  const raw = await req.text();
+  const segredo = Deno.env.get("ZERNIO_WEBHOOK_SECRET") ?? "";
+  const assinatura = (req.headers.get("x-zernio-signature") ?? "").toLowerCase();
+  if (!segredo || !(await confere(raw, assinatura, segredo))) {
+    return new Response("invalid signature", { status: 401 });
+  }
+
+  let body: any;
+  try { body = JSON.parse(raw); } catch { return new Response("ok", { status: 200 }); }
+
+  const evento = String(body?.event ?? "");
+  const conta = String(body?.account?.accountId ?? body?.account?.id ?? "");
+  const phoneId = `zernio:${conta}`;
+
+  const { data: conn } = conta
+    ? await sb.from("clinic_whatsapp").select("clinic_id").eq("phone_number_id", phoneId).maybeSingle()
+    : { data: null };
+
+  try {
+    await sb.from("webhook_events").insert({
+      event_type: evento || "zernio", origem: "zernio", clinic_id: conn?.clinic_id ?? null, payload: body,
+    });
+  } catch (e) {
+    console.error("webhook_events zernio", e instanceof Error ? e.message : e);
+  }
+  if (!conn || body?.test === true) return new Response("ok", { status: 200 });
+
+  try {
+    const m = body?.message ?? {};
+    const convZernio = String(body?.conversation?.id ?? m?.conversationId ?? "");
+
+    if (evento === "account.disconnected") {
+      await sb.from("clinic_whatsapp").update({
+        status: "pendente", conexao_erro: "Zernio: " + (body?.account?.reason ?? "conta desconectada"),
+        verificado_em: new Date().toISOString(),
+      }).eq("clinic_id", conn.clinic_id);
+      return new Response("ok", { status: 200 });
+    }
+
+    if (STATUS_ZERNIO[evento]) {
+      const e = body?.error;
+      await sb.rpc("nx_wa_status", {
+        p_phone_number_id: phoneId,
+        p_wamid: m?.platformMessageId ?? null,
+        p_status: STATUS_ZERNIO[evento],
+        p_ts: Math.floor(Date.parse(body?.statusAt ?? "") / 1000) || 0,
+        p_erro: e ? { code: e.code, title: e.title, message: e.message } : null,
+      });
+      return new Response("ok", { status: 200 });
+    }
+
+    // Equipe respondeu pelo app do celular (coexistencia): entra como saida
+    // da equipe e pausa a IA. O que a propria NexoClin mandou ja foi gravado.
+    if (evento === "message.sent") {
+      if (m?.source !== "whatsapp_business_app") return new Response("ok", { status: 200 });
+      const para = String(body?.conversation?.participantId ?? "").replace(/\D/g, "");
+      if (!para) return new Response("ok", { status: 200 });
+      await lembrarConversaZernio(conta, para, convZernio);
+      const tipo = zernioTipo(m);
+      await sb.rpc("nx_wa_eco", {
+        p_phone_number_id: phoneId, p_to: para, p_type: tipo,
+        p_body: m?.text ?? `[${tipo} enviada pelo celular]`,
+        p_wamid: m?.platformMessageId ?? null,
+        p_ts: Math.floor(Date.parse(m?.sentAt ?? "") / 1000) || 0,
+        p_media_id: null,
+      });
+      return new Response("ok", { status: 200 });
+    }
+
+    if (evento !== "message.received" || m?.platform !== "whatsapp") return new Response("ok", { status: 200 });
+    // Outro agente (Meta Business Agent) esta com a conversa: so observa.
+    if (body?.metadata?.standby === true) return new Response("ok", { status: 200 });
+
+    const fone = String(m?.sender?.phoneNumber ?? m?.sender?.id ?? body?.conversation?.participantId ?? "")
+      .replace(/\D/g, "");
+    if (!fone) return new Response("ok", { status: 200 });
+    await lembrarConversaZernio(conta, fone, convZernio);
+
+    const texto = (m?.text ?? "").trim() || null;
+    if (CMD_ZERAR.includes((texto ?? "").toLowerCase())) {
+      EdgeRuntime.waitUntil(zerarConversa(phoneId, fone));
+      return new Response("ok", { status: 200 });
+    }
+
+    const tipo = zernioTipo(m);
+    const anexo = m?.attachments?.[0] ?? null;
+    const wamid = m?.platformMessageId ?? null;
+    const { data: ctx } = await sb.rpc("nx_wa_ingest", {
+      p_phone_number_id: phoneId,
+      p_from: fone,
+      p_nome: m?.sender?.name ?? body?.conversation?.participantName ?? null,
+      p_type: tipo,
+      p_body: texto,
+      p_wamid: wamid,                     // idempotencia: a Zernio reentrega
+      p_ts: Math.floor(Date.parse(m?.sentAt ?? "") / 1000) || 0,
+      p_payload: m,
+      p_media_id: anexo?.url ?? null,
+    });
+
+    if (ctx?.conversation_id && ctx?.clinic_id) {
+      if (texto) {
+        EdgeRuntime.waitUntil(responderBot(ctx.conversation_id, texto, fone, ctx.clinic_id));
+      } else if (anexo && tipo !== "audio") {
+        EdgeRuntime.waitUntil(avisarMidia(ctx.conversation_id, ctx.clinic_id, fone, tipo));
+      }
+      // A Meta apaga a midia depois de um tempo: baixa ja.
+      if (anexo?.url && wamid) {
+        EdgeRuntime.waitUntil(baixarMidiaZernio(
+          anexo.url, wamid, ctx.clinic_id, ctx.conversation_id, fone, anexo?.mimeType, anexo?.payload?.filename,
+        ));
+      }
+    }
+  } catch (e) {
+    console.error("wa-webhook zernio", e instanceof Error ? e.message : e);
+  }
+  return new Response("ok", { status: 200 });
+}
+
 Deno.serve(async (req) => {
   const url = new URL(req.url);
 
   // uazapi: o segredo da conexao vem na URL (a uazapi nao assina o webhook).
   const uazChave = url.searchParams.get("uaz");
   if (uazChave && req.method === "POST") return await webhookUazapi(uazChave, req);
+
+  // Zernio: assina com header proprio.
+  if (req.method === "POST" && req.headers.has("x-zernio-signature")) return await webhookZernio(req);
 
   // 0) Saude: diz se os segredos estao configurados, sem revelar valor algum.
   if (url.pathname.endsWith("/health")) {
@@ -487,6 +648,8 @@ Deno.serve(async (req) => {
       app_secret_configurado: !!Deno.env.get("WA_APP_SECRET"),
       app_secret_mvf_configurado: !!Deno.env.get("WA_APP_SECRET_MVF"),
       verify_token_configurado: !!Deno.env.get("WA_VERIFY_TOKEN"),
+      zernio_api_key_configurada: !!Deno.env.get("ZERNIO_API_KEY"),
+      zernio_webhook_secret_configurado: !!Deno.env.get("ZERNIO_WEBHOOK_SECRET"),
     });
   }
 

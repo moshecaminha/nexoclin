@@ -2100,7 +2100,7 @@ function rolesLegend(){
   return `<div class="eq-legend"><div class="eq-lg-t">Entenda os perfis</div><div class="eq-lg-grid">${items.map(it=>`<div class="eq-lg-item"><b>${it[0]}</b><span>${it[1]}</span></div>`).join('')}</div><div class="eq-lg-note">Somente o <b>Médico</b> (e o Gestor, quando também for médico) pode <b>assinar</b> documentos — a validação digital é sempre de quem assina.</div></div>`;
 }
 async function clCepLookup(){ const el=document.getElementById('clCep'); if(!el)return; const cep=(el.value||'').replace(/\D/g,''); if(cep.length!==8)return; try{ const r=await fetch('https://viacep.com.br/ws/'+cep+'/json/'); const j=await r.json(); if(!j.erro){ const s2=(id,v)=>{const e=document.getElementById(id); if(e&&v)e.value=v;}; s2('clEnd',j.logradouro); s2('clBairro',j.bairro); s2('clCid',j.localidade); s2('clUf',j.uf); } }catch(e){} }
-function waCardShell(){ return `<div class="cl-ct">Conexão WhatsApp <span class="rc-super">Meta Cloud API</span></div>
+function waCardShell(){ return `<div class="cl-ct">Conexão WhatsApp <span class="rc-super">API oficial</span></div>
   <div class="cl-cs">Conecte o número oficial do consultório (WhatsApp Business Cloud API) para receber e enviar mensagens automaticamente. Apenas o gestor gerencia esta conexão.</div>
   <div id="waBox" style="margin-top:10px"><div class="rc-empty">Carregando…</div></div>`; }
 async function waLoad(){
@@ -2143,15 +2143,17 @@ function waRender(d,tpls){
     ${st==='conectado'?`
       <div class="cl-2">
         <div class="cl-field"><label>N&uacute;mero</label><div class="cl-inp"><code>${d.display_number||'&mdash;'}</code></div></div>
-        <div class="cl-field"><label>Phone Number ID</label><div class="cl-inp"><code>${d.phone_number_id||'&mdash;'}</code></div></div>
+        <div class="cl-field"><label>Conex&atilde;o</label><div class="cl-inp"><code>${d.provider==='zernio'?(d.coexistencia?'Zernio &middot; coexist&ecirc;ncia':'Zernio &middot; s&oacute; API'):(d.phone_number_id||'&mdash;')}</code></div></div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
         <button class="cl-btn" style="margin:0;background:#25D366;color:#fff;border:0" onclick="waConectar()">Reconectar</button>
         <button class="rc-b2" onclick="waDisconnect()">Desconectar</button>
       </div>`
     :`
-      <p class="wa-hint">Conecte o WhatsApp da cl&iacute;nica. Voc&ecirc; ser&aacute; levado ao cadastro da Meta para informar o n&uacute;mero e confirmar o c&oacute;digo por SMS.</p>
-      <button class="cl-btn pri" style="margin:0;background:#25D366;border:0;width:100%;padding:13px" onclick="waConectar()">Conectar com o WhatsApp</button>`}
+      ${d.conexao_erro?`<p class="wa-hint" style="color:var(--coral)">${String(d.conexao_erro).replace(/</g,'&lt;')}</p>`:''}
+      <p class="wa-hint">Conecte o WhatsApp da cl&iacute;nica. Se o n&uacute;mero j&aacute; est&aacute; no app <b>WhatsApp Business</b>, ele continua funcionando no celular (coexist&ecirc;ncia): no meio do cadastro voc&ecirc; escaneia um QR code com o app.</p>
+      <button class="cl-btn pri" style="margin:0;background:#25D366;border:0;width:100%;padding:13px" onclick="waConectar()">Conectar mantendo o app WhatsApp Business</button>
+      <button class="rc-b2" style="margin-top:8px;width:100%" onclick="waConectar('api')">Conectar n&uacute;mero s&oacute; na API (sem o app)</button>`}
     <div id="waMsg" style="margin-top:12px"></div>
     <details style="margin-top:14px">
       <summary style="cursor:pointer;color:var(--mute);font-size:12.5px">Conex&atilde;o manual (avan&ccedil;ado)</summary>
@@ -2170,103 +2172,58 @@ async function waSave(){
   catch(e){ toast('Erro: '+(e.message||e),'!'); }
 }
 
-// ===== Conexao pelo cadastro incorporado da Meta (Embedded Signup) =====
-// O popup devolve um codigo; a Edge Function wa-signup troca por token,
-// registra o numero, assina a WABA e aponta o webhook para ca.
-const WA_FB_APP_ID = '1501308275071442';
-// ?wa_cfg=<id> troca a configuracao do login so naquela aba, para comparar
-// configuracoes no diagnostico. Aceita apenas numeros.
-const WA_FB_CONFIG = (function(){
-  try{ const c = new URLSearchParams(location.search).get('wa_cfg'); if (c && /^\d{6,20}$/.test(c)) return c; }catch(e){}
-  return '1061690539809676';
-})();
-let WA_ES = {};
-
+// ===== Conexao pelo cadastro da Zernio =====
+// A Zernio roda o cadastro da Meta numa pagina dela (com o QR da coexistencia)
+// e devolve a pessoa para ca com ?nx_zernio=<estado>&accountId=... A Edge
+// Function wa-signup confere o estado e grava a conexao.
 function waMsg(txt, cor){
   const e=document.getElementById('waMsg'); if(!e) return;
   e.innerHTML = txt ? `<div style="padding:10px 14px;border-radius:9px;font-size:13.5px;background:${cor==='ok'?'#E6F7F1':cor==='err'?'#FDECEB':'#EAF7FB'};color:${cor==='ok'?'#12996A':cor==='err'?'#D9403A':'#1596BE'}">${txt}</div>` : '';
 }
 
-// O SDK carrega no load da pagina. Dentro do clique, o await quebra o gesto
-// do usuario e o navegador bloqueia o popup silenciosamente.
-(function carregaFbSdk(){
-  if (document.getElementById('fb-sdk')) return;
-  window.fbAsyncInit = function(){
-    FB.init({ appId: WA_FB_APP_ID, cookie:true, xfbml:false, version:'v21.0' });
-  };
-  var js = document.createElement('script');
-  js.id = 'fb-sdk'; js.async = true; js.defer = true;
-  js.src = 'https://connect.facebook.net/pt_BR/sdk.js';
-  document.head.appendChild(js);
-})();
-
-// O popup manda WABA e numero por postMessage antes de devolver o codigo.
-window.addEventListener('message', function(ev){
-  var host; try{ host = new URL(ev.origin).hostname; }catch(e){ return; }
-  if (host.indexOf('facebook.com') === -1) return;
-  var bruto = typeof ev.data === 'string' ? ev.data : (function(){ try{ return JSON.stringify(ev.data); }catch(e){ return String(ev.data); } })();
-  var ehJson = true; try{ JSON.parse(bruto); }catch(e){ ehJson = false; }
-  if (ehJson || /WA_|EMBEDDED|whatsapp/i.test(bruto)) waLog('meta_msg', { origem: ev.origin, dados: bruto.slice(0, 4000) });
-  try{
-    var d = JSON.parse(ev.data);
-    if (d.type !== 'WA_EMBEDDED_SIGNUP') return;
-    // Coexistencia: numero que ja estava no app WhatsApp Business
-    if (d.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING') WA_ES.coexistencia = true;
-    if (d.data){
-      if (d.data.waba_id)         WA_ES.waba_id = d.data.waba_id;
-      if (d.data.phone_number_id) WA_ES.phone_number_id = d.data.phone_number_id;
-    }
-  }catch(e){}
-});
-
-// Registro da tentativa no banco (wa_signup_log): o que a Meta devolveu em
-// cada etapa, para diagnosticar pela resposta dela. Nunca guarda o code.
-let WA_TENT = null, WA_LOGS = 0;
-function waLog(tipo, payload){
-  try{
-    if (!SB || !WA_TENT || WA_LOGS >= 60) return;
-    WA_LOGS++;
-    SB.rpc('nx_wa_signup_log', { p_clinic: NX.clinic || null, p_tentativa: WA_TENT, p_tipo: tipo,
-      p_payload: payload == null ? null : payload, p_pagina: location.href, p_navegador: navigator.userAgent })
-      .then(function(){}, function(){});
-  }catch(e){}
+async function waSignup(corpo){
+  const { data:sess } = await SB.auth.getSession();
+  const r = await fetch(SB_URL+'/functions/v1/wa-signup',{
+    method:'POST',
+    headers:{'Authorization':'Bearer '+sess.session.access_token,'Content-Type':'application/json'},
+    body: JSON.stringify(Object.assign({ clinic_id:NX.clinic }, corpo))
+  });
+  return r.json();
 }
 
-function waConectar(){
-  if (!window.FB){ waMsg('Ainda carregando o cadastro da Meta. Tente de novo em alguns segundos.','err'); return; }
-  waMsg('Abrindo o cadastro da Meta...');
-  WA_ES = {};
-  WA_TENT = Date.now().toString(36) + Math.random().toString(36).slice(2,6); WA_LOGS = 0;
-  const opcoes = { config_id: WA_FB_CONFIG, response_type: 'code',
-       override_default_response_type: true,
-       extras: { setup:{}, featureType:'whatsapp_business_app_onboarding' } };
-  waLog('inicio', { app_id: WA_FB_APP_ID, opcoes: opcoes });
-  FB.login(function(resp){
-    var a = (resp && resp.authResponse) || {};
-    waLog('retorno_login', { status: resp && resp.status, tem_code: !!a.code, tem_token: !!a.accessToken,
-      campos: Object.keys(a), expira: a.expiresIn || null, es: WA_ES });
-    if (!a.code && !a.accessToken){ waMsg('Cadastro cancelado ou sem permissao.','err'); return; }
-    waMsg('Conectando o numero... isso leva alguns segundos.');
-    waEnviarCodigo(a.code, a.accessToken);
-  }, opcoes);
-}
-
-async function waEnviarCodigo(code, token){
+async function waConectar(modo){
+  waMsg('Abrindo o cadastro do WhatsApp...');
   try{
-    const { data:sess } = await SB.auth.getSession();
-    const r = await fetch(SB_URL+'/functions/v1/wa-signup',{
-      method:'POST',
-      headers:{'Authorization':'Bearer '+sess.session.access_token,'Content-Type':'application/json'},
-      body: JSON.stringify({ clinic_id:NX.clinic, code:code||null, token:token||null,
-        waba_id:WA_ES.waba_id, phone_number_id:WA_ES.phone_number_id,
-        coexistencia: !!WA_ES.coexistencia })
-    });
-    const d = await r.json();
-    waLog('wa_signup', { http: r.status, resposta: d });
-    if (d.ok){ waMsg('Conectado: '+(d.numero||''),'ok'); waLoad(); }
-    else waMsg('Falhou: '+(d.erro||'')+' - '+JSON.stringify(d.passos||d.meta||d),'err');
+    const voltar = location.origin + location.pathname;
+    const d = await waSignup({ acao:'iniciar', modo: modo==='api'?'api':'coexistencia', voltar });
+    if (!d.ok || !d.url){ waMsg('Falhou: '+(d.erro||JSON.stringify(d)),'err'); return; }
+    location.href = d.url;
   }catch(e){ waMsg('Erro: '+(e.message||e),'err'); }
 }
+
+// Volta do cadastro: espera o login e a clinica carregarem e conclui.
+(function waRetornoZernio(){
+  const q = new URLSearchParams(location.search);
+  const estado = q.get('nx_zernio'); if (!estado) return;
+  const conta = q.get('accountId'), erro = q.get('error');
+  history.replaceState(null, '', location.pathname);
+  let tentativas = 0;
+  const t = setInterval(async function(){
+    if (++tentativas > 60){ clearInterval(t); return; }
+    if (typeof SB==='undefined' || !SB || !NX.clinic) return;
+    clearInterval(t);
+    if (erro || !conta){
+      toast('Cadastro do WhatsApp não concluído: '+(erro==='connection_cancelled'?'cancelado':(erro||'sem conta')),'⚠');
+      return;
+    }
+    try{
+      const d = await waSignup({ acao:'concluir', estado, account_id: conta });
+      if (d.ok) toast('WhatsApp conectado: '+(d.numero||''),'ok');
+      else toast('Falhou: '+(d.erro||JSON.stringify(d)),'⚠');
+    }catch(e){ toast('Erro: '+(e.message||e),'⚠'); }
+    try{ waLoad(); }catch(e){}
+  }, 500);
+})();
 
 async function waDisconnect(){ try{ await SB.rpc('nx_wa_disconnect',{p_clinic:NX.clinic}); toast('WhatsApp desconectado'); waLoad(); }catch(e){ toast('Erro','⚠'); } }
 async function waRotate(){ try{ await SB.rpc('nx_wa_rotate_verify',{p_clinic:NX.clinic}); toast('Novo verify token gerado'); waLoad(); }catch(e){ toast('Erro','⚠'); } }
