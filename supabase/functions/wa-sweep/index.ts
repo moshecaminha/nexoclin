@@ -16,6 +16,8 @@ const GRAPH = `https://graph.facebook.com/${Deno.env.get("WA_GRAPH_VERSION") ?? 
 const INTERNO = Deno.env.get("WA_INTERNAL_SECRET") ?? "";
 
 async function responder(conv: string, clinic: string, telefone: string, texto: string) {
+  const { data: cl } = await sb.from("clinics").select("ia_pausada").eq("id", clinic).maybeSingle();
+  if (cl?.ia_pausada === true) return null;
   const r = await fetch(`${URL_SB}/functions/v1/wa-agent`, {
     method: "POST",
     headers: {

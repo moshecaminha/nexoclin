@@ -167,7 +167,7 @@ async function guardarMidia(
       if (texto) {
         await sb.rpc("nx_wa_set_transcript", { p_wamid: wamid, p_texto: texto });
         await responderBot(conv, texto, telefone, clinic);
-      } else {
+      } else if (!(await iaPausada(clinic))) {
         // sem chave ou falha: nao deixa a pessoa sem resposta
         await enviarTexto(clinic, conv, telefone,
           "📎 Recebi o áudio! Ainda não consegui ouvir por aqui. "
@@ -216,8 +216,15 @@ async function aguardarRajada(conv: string, texto: string): Promise<string | nul
   return partes.length > 1 ? partes.join(". ") : texto;
 }
 
+/** Pausa geral da IA na clinica (clinics.ia_pausada): nada automatico sai. */
+async function iaPausada(clinic: string): Promise<boolean> {
+  const { data } = await sb.from("clinics").select("ia_pausada").eq("id", clinic).maybeSingle();
+  return data?.ia_pausada === true;
+}
+
 async function responderBot(conv: string, texto: string, telefone: string, clinic: string) {
   try {
+    if (await iaPausada(clinic)) return;
     const juntado = await aguardarRajada(conv, texto);
     if (juntado === null) return;   // outra mensagem chegou; ela e que responde
     texto = juntado;
@@ -297,6 +304,7 @@ async function enviarTexto(clinic: string, conv: string, telefone: string, texto
  */
 async function avisarMidia(conv: string, clinic: string, telefone: string, tipo: string) {
   try {
+    if (await iaPausada(clinic)) return;
     // Com consulta esperando pagamento, foto ou PDF quase sempre e o
     // comprovante. Registra e chama a equipe para conferir - a IA nunca
     // dá um pagamento por confirmado.
