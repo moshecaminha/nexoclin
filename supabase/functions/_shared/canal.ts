@@ -86,14 +86,40 @@ async function conversaZernio(conta: string, fone: string): Promise<string | nul
     .eq("account_id", conta).eq("fone_key", chaveFone(fone)).maybeSingle();
   if (data?.zernio_conversation_id) return data.zernio_conversation_id as string;
 
+  // A busca casa o numero por trecho: os 8 ultimos digitos pegam o numero com
+  // e sem o 9. Cada item vem como { conversation: { id, participantUsername } }.
   const digitos = String(fone).replace(/\D/g, "");
-  const q = new URLSearchParams({ accountId: conta, platform: "whatsapp", query: digitos, limit: "20" });
+  const q = new URLSearchParams({ accountId: conta, platform: "whatsapp", query: digitos.slice(-8), limit: "20" });
   const r = await zernio(`/inbox/conversations/search?${q}`);
-  const achada = ((r.body?.data ?? []) as any[])
-    .find((c) => chaveFone(String(c?.participantId ?? "")) === chaveFone(digitos));
-  const id = achada?.id ?? achada?.conversationId ?? null;
+  const achada = ((r.body?.data ?? []) as any[]).map((d) => d?.conversation ?? d)
+    .find((c) => [c?.participantUsername, c?.participantId, c?.id]
+      .some((x) => x && chaveFone(String(x)) === chaveFone(digitos)));
+  const id = achada?.id ?? null;
   if (id) await lembrarConversaZernio(conta, digitos, id);
   return id;
+}
+
+export type FalaHistorico = { quem: "contato" | "dono"; texto: string; em: string };
+
+/**
+ * Historico da conversa no proprio WhatsApp (coexistencia): o que o contato e
+ * o dono do numero conversaram antes, inclusive pelo celular. Mais antigo
+ * primeiro. Vazio se a Zernio nao tiver nada.
+ */
+export async function historicoZernio(conta: string, fone: string, n = 30): Promise<FalaHistorico[]> {
+  const conv = await conversaZernio(conta, fone);
+  if (!conv) return [];
+  const q = new URLSearchParams({ accountId: conta, limit: String(n), sortOrder: "desc" });
+  const r = await zernio(`/inbox/conversations/${encodeURIComponent(conv)}/messages?${q}`);
+  return ((r.body?.messages ?? []) as any[]).reverse().map((m) => {
+    const anexo = m?.attachments?.[0]?.type;
+    const texto = String(m?.message ?? "").trim() || (anexo ? `[${anexo}]` : "");
+    return {
+      quem: m?.direction === "outgoing" ? "dono" : "contato",
+      texto: texto.slice(0, 400),
+      em: String(m?.createdAt ?? m?.sentAt ?? ""),
+    } as FalaHistorico;
+  }).filter((f) => f.texto);
 }
 
 /** Envia texto. Devolve o id da mensagem para gravar, ou o erro do provedor. */

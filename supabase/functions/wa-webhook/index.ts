@@ -146,7 +146,12 @@ async function baixarMidiaUazapi(
   }
 }
 
-/** Guarda o arquivo no bucket, liga na mensagem e, se for audio, transcreve. */
+/**
+ * Guarda o arquivo no bucket e entrega o conteudo a IA como texto: audio
+ * transcrito, foto descrita, nome do arquivo. Midia nunca recebe resposta
+ * pronta ("recebi a foto, ja anexei"): quem decide o que dizer, e se deve
+ * dizer algo, e o agente, com o contexto da conversa.
+ */
 async function guardarMidia(
   bytes: Uint8Array, mime: string | undefined, filename: string | undefined,
   wamid: string, clinic: string, conv: string, telefone: string,
@@ -156,26 +161,80 @@ async function guardarMidia(
     const path = `${clinic}/${conv}/${Date.now()}_${crypto.randomUUID().slice(0, 5)}.${ext}`;
     const { error } = await sb.storage.from("documentos")
       .upload(path, bytes, { contentType: mime ?? "application/octet-stream", upsert: false });
-    if (error) { console.error("midia: upload falhou", error.message); return; }
+    if (error) console.error("midia: upload falhou", error.message);
+    else await sb.rpc("nx_wa_media_set", { p_wamid: wamid, p_path: path });
 
-    await sb.rpc("nx_wa_media_set", { p_wamid: wamid, p_path: path });
+    const { data: msg } = await sb.from("messages").select("body, type")
+      .eq("wa_message_id", wamid).maybeSingle();
+    const legenda = String(msg?.body ?? "").trim();
+    const tipo = String(msg?.type ?? "");
+    const base = (mime ?? "").split(";")[0].trim();
+    if (tipo === "sticker") return;   // figurinha nao pede resposta
 
-    // Audio: transcreve e joga o texto na triagem, como se a pessoa tivesse
-    // digitado. E o unico caminho para o bot entender quem manda audio.
-    if ((mime ?? "").startsWith("audio")) {
-      const texto = await transcrever(bytes, mime ?? "audio/ogg");
-      if (texto) {
-        await sb.rpc("nx_wa_set_transcript", { p_wamid: wamid, p_texto: texto });
-        await responderBot(conv, texto, telefone, clinic, wamid);
-      } else if (!(await iaPausada(clinic, telefone))) {
-        // sem chave ou falha: nao deixa a pessoa sem resposta
-        await enviarTexto(clinic, conv, telefone,
-          "📎 Recebi o áudio! Ainda não consegui ouvir por aqui. "
-          + "Pode escrever em texto, por favor?", "assistente");
-      }
+    let conteudo: string;
+    if (base.startsWith("audio")) {
+      const ouvido = await transcrever(bytes, mime ?? "audio/ogg");
+      conteudo = ouvido ?? "[áudio que não foi possível ouvir]";
+    } else if (base.startsWith("image")) {
+      const visto = await descreverImagem(bytes, base);
+      conteudo = `[Foto enviada: ${visto ?? "não foi possível ver o conteúdo"}]`;
+    } else if (base.startsWith("video")) {
+      conteudo = "[Vídeo enviado]";
+    } else {
+      conteudo = `[Arquivo enviado: ${filename ?? ext.toUpperCase()}]`;
     }
+    await sb.rpc("nx_wa_set_transcript", { p_wamid: wamid, p_texto: conteudo });
+
+    if (await iaPausada(clinic, telefone)) return;
+
+    // Com consulta esperando pagamento, foto ou PDF quase sempre e o
+    // comprovante: registra e chama a equipe. A IA nunca da pagamento por certo.
+    if (base.startsWith("image") || base === "application/pdf") {
+      const { data: comp } = await sb.rpc("nx_pagamento_comprovante", { p_conv: conv });
+      if (comp) { await enviarTexto(clinic, conv, telefone, comp, "assistente"); return; }
+    }
+
+    const texto = legenda && legenda !== conteudo ? `${conteudo}\nLegenda: ${legenda}` : conteudo;
+    await responderBot(conv, texto, telefone, clinic, wamid);
   } catch (e) {
     console.error("midia:", e instanceof Error ? e.message : e);
+  }
+}
+
+/** Descricao objetiva da foto para a IA. null se nao der para ver. */
+async function descreverImagem(bytes: Uint8Array, mime: string): Promise<string | null> {
+  const chave = Deno.env.get("OPENAI_API_KEY");
+  if (!chave || bytes.length > 15_000_000) return null;
+  try {
+    let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: Deno.env.get("WA_VISAO_MODEL") ?? "gpt-4o-mini",
+        temperature: 0,
+        max_tokens: 160,
+        messages: [{
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Descreva em até 2 frases, em português, o que esta foto mostra, de forma " +
+                "objetiva. Se for documento (exame, receita, comprovante, carteirinha), diga o tipo " +
+                "e as informações principais legíveis. Não faça diagnóstico.",
+            },
+            { type: "image_url", image_url: { url: `data:${mime};base64,${btoa(bin)}`, detail: "low" } },
+          ],
+        }],
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { console.error("visao:", JSON.stringify(j?.error ?? j)); return null; }
+    return String(j?.choices?.[0]?.message?.content ?? "").trim() || null;
+  } catch (e) {
+    console.error("visao:", e instanceof Error ? e.message : e);
+    return null;
   }
 }
 
@@ -198,31 +257,41 @@ async function aguardarRajada(conv: string, texto: string, wamid?: string | null
   const marca = new Date().toISOString();
   await new Promise((r) => setTimeout(r, ESPERA_RAJADA_MS));
 
-  if (wamid) {
-    // A ultima da rajada e a de horario mais recente, nao a que chegou por
-    // ultimo: a Zernio pode entregar fora de ordem e com atraso (o "Rafa"
-    // enviado primeiro chegou depois do "Ve la").
-    const { data: ultima } = await sb.from("messages").select("wa_message_id")
-      .eq("conversation_id", conv).eq("direction", "in")
-      .order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (ultima?.wa_message_id && ultima.wa_message_id !== wamid) return null;
-  } else {
+  if (!wamid) {
     const { data: novas } = await sb.from("messages").select("body")
       .eq("conversation_id", conv).eq("direction", "in")
       .gt("created_at", marca).order("created_at", { ascending: true });
     // chegou mensagem depois desta: quem responde e a ultima da rajada
-    if (novas?.length) return null;
+    return novas?.length ? null : texto;
   }
 
-  // junta o que a pessoa escreveu em sequencia nos ultimos segundos
-  const desde = new Date(Date.now() - ESPERA_RAJADA_MS * 4).toISOString();
-  const { data: rajada } = await sb.from("messages").select("body, created_at")
+  // A ultima da rajada e a de horario mais recente, nao a que chegou por
+  // ultimo: a Zernio entrega fora de ordem e com ate ~30s de atraso.
+  const { data: ultima } = await sb.from("messages").select("wa_message_id, created_at")
     .eq("conversation_id", conv).eq("direction", "in")
-    .gte("created_at", desde).order("created_at", { ascending: true });
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (ultima?.wa_message_id && ultima.wa_message_id !== wamid) return null;
 
-  const partes = (rajada ?? []).map((m: { body: string | null }) => (m.body ?? "").trim())
-    .filter((b: string) => b.length > 0);
-  return partes.length > 1 ? partes.join(". ") : texto;
+  // Mensagem enviada ANTES da ultima resposta e entregue depois dela: nao
+  // gera resposta nova. Fica no historico e entra na proxima resposta.
+  const { data: saida } = await sb.from("messages").select("created_at")
+    .eq("conversation_id", conv).eq("direction", "out")
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (saida && ultima && ultima.created_at < saida.created_at) return null;
+
+  // Responde a tudo que a pessoa mandou desde a ultima fala nossa (ate 8).
+  let q = sb.from("messages").select("body, transcript, type")
+    .eq("conversation_id", conv).eq("direction", "in");
+  if (saida) q = q.gt("created_at", saida.created_at);
+  const { data: rajada } = await q.order("created_at", { ascending: false }).limit(8);
+
+  const partes = (rajada ?? []).reverse().map((m: any) => {
+    const corpo = String(m.body ?? "").trim();
+    const conteudo = String(m.transcript ?? "").trim();
+    if (m.type !== "text" && conteudo) return corpo && corpo !== conteudo ? `${conteudo} Legenda: ${corpo}` : conteudo;
+    return corpo || conteudo;
+  }).filter((b: string) => b.length > 0);
+  return partes.length > 1 ? partes.join("\n") : texto;
 }
 
 /** Pausa geral da IA na clinica (clinics.ia_pausada): nada automatico sai,
@@ -319,27 +388,6 @@ async function enviarTexto(clinic: string, conv: string, telefone: string, texto
   });
 }
 
-/**
- * Arquivo recebido sem legenda. Sem resposta, a pessoa nao sabe se chegou:
- * reenvia, ou desiste. Confirma o recebimento e reconduz a conversa.
- */
-async function avisarMidia(conv: string, clinic: string, telefone: string, tipo: string) {
-  try {
-    if (await iaPausada(clinic, telefone)) return;
-    // Com consulta esperando pagamento, foto ou PDF quase sempre e o
-    // comprovante. Registra e chama a equipe para conferir - a IA nunca
-    // dá um pagamento por confirmado.
-    if (tipo === "image" || tipo === "document") {
-      const { data: comp } = await sb.rpc("nx_pagamento_comprovante", { p_conv: conv });
-      if (comp) { await enviarTexto(clinic, conv, telefone, comp, "assistente"); return; }
-    }
-
-    const { data: texto } = await sb.rpc("nx_wa_midia_ack", { p_conv: conv, p_tipo: tipo });
-    if (texto) await enviarTexto(clinic, conv, telefone, texto, "assistente");
-  } catch (e) {
-    console.error("ack midia:", e instanceof Error ? e.message : e);
-  }
-}
 
 
 /**
@@ -487,10 +535,9 @@ async function webhookUazapi(chave: string, req: Request): Promise<Response> {
       });
       if (!ctx?.conversation_id || !ctx?.clinic_id) continue;
 
-      if (texto) {
+      // Midia (com ou sem legenda) responde depois de baixada, ja com o conteudo.
+      if (texto && !temMidia) {
         EdgeRuntime.waitUntil(responderBot(ctx.conversation_id, texto, fone, ctx.clinic_id, wamid));
-      } else if (temMidia && tipo !== "audio") {
-        EdgeRuntime.waitUntil(avisarMidia(ctx.conversation_id, ctx.clinic_id, fone, tipo));
       }
       if (temMidia && wamid) {
         EdgeRuntime.waitUntil(baixarMidiaUazapi(
@@ -642,10 +689,9 @@ async function webhookZernio(req: Request): Promise<Response> {
     });
 
     if (ctx?.conversation_id && ctx?.clinic_id) {
-      if (texto) {
+      // Midia (com ou sem legenda) responde depois de baixada, ja com o conteudo.
+      if (texto && !anexo) {
         EdgeRuntime.waitUntil(responderBot(ctx.conversation_id, texto, fone, ctx.clinic_id, wamid));
-      } else if (anexo && tipo !== "audio") {
-        EdgeRuntime.waitUntil(avisarMidia(ctx.conversation_id, ctx.clinic_id, fone, tipo));
       }
       // A Meta apaga a midia depois de um tempo: baixa ja.
       if (anexo?.url && wamid) {
@@ -775,15 +821,10 @@ Deno.serve(async (req) => {
           // Tambem fora da resposta do webhook, pelo mesmo motivo da midia.
           if (ctx?.conversation_id && ctx?.clinic_id) {
             const texto = corpoDe(msg);
-            if (texto) {
+            // Midia (com ou sem legenda) responde depois de baixada, ja com o conteudo.
+            if (texto && !mid) {
               EdgeRuntime.waitUntil(
                 responderBot(ctx.conversation_id, texto, msg.from, ctx.clinic_id, msg.id),
-              );
-            } else if (mid && msg.type !== "audio") {
-              // arquivo sem legenda: confirma o recebimento em vez de ficar mudo.
-              // audio fica de fora: quem responde e a transcricao, mais adiante.
-              EdgeRuntime.waitUntil(
-                avisarMidia(ctx.conversation_id, ctx.clinic_id, msg.from, msg.type),
               );
             }
           }

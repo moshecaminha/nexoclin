@@ -6,6 +6,8 @@
 //   - geral: fala com o proprio paciente.
 //
 // Ordem de decisao, da mais dura para a mais livre:
+//   0. porteiro: num numero compartilhado com o celular do medico, o primeiro
+//      contato e classificado (paciente / pessoal / duvida) antes de a IA falar
 //   1. confirmacao de presenca          (vale mesmo com a IA pausada)
 //   2. saude mental e bandeira vermelha (valem SEMPRE, inclusive com humano)
 //   3. humano pausou ou assumiu -> para aqui (so um humano desliga a IA)
@@ -15,6 +17,7 @@
 // O modelo nunca informa horario, valor nem reserva: isso vem do banco. E so
 // pode SUBIR a gravidade, nunca baixar.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { historicoZernio, type FalaHistorico } from "../_shared/canal.ts";
 
 const sb = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -477,6 +480,220 @@ async function interpretar(
   }
 }
 
+// ---- porteiro ----
+// O numero do medico (coexistencia ou uazapi) recebe amigos, familia, escola,
+// fornecedores. A IA so entra em conversa de PACIENTE; na duvida, fica calada.
+const ESQUEMA_PORTEIRO = {
+  type: "json_schema",
+  json_schema: {
+    name: "porteiro",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["tipo", "motivo"],
+      properties: {
+        tipo: { type: "string", enum: ["paciente", "pessoal", "duvida"] },
+        motivo: { type: "string", description: "Uma frase curta explicando a decisão." },
+      },
+    },
+  },
+} as const;
+
+async function classificar(
+  clinica: string, historico: FalaHistorico[], novas: string,
+): Promise<{ tipo: string; motivo: string } | null> {
+  const chave = Deno.env.get("OPENAI_API_KEY");
+  if (!chave) return null;
+  const linhas = historico.slice(-30)
+    .map((f) => `${f.em.slice(0, 10)} ${f.quem === "dono" ? "MÉDICO" : "CONTATO"}: ${f.texto}`)
+    .join("\n") || "(nenhuma conversa anterior)";
+  try {
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: Deno.env.get("WA_PORTEIRO_MODEL") ?? "gpt-4o-mini",
+        temperature: 0,
+        max_tokens: 120,
+        response_format: ESQUEMA_PORTEIRO,
+        messages: [
+          {
+            role: "system",
+            content:
+`Este é o WhatsApp pessoal de um médico (${clinica}), usado também para atender pacientes.
+Uma assistente virtual atende os PACIENTES. Você decide se ela deve entrar nesta conversa.
+
+- paciente: alguém procurando a clínica como paciente ou responsável: marcar consulta,
+  sintoma, retorno, exame, receita, valor, horário. Primeiro contato sem relação anterior
+  com o médico, falando de atendimento, é paciente.
+- pessoal: a conversa anterior mostra relação pessoal ou profissional com o médico
+  (amigo, família, colega, escola, igreja, fornecedor, trabalho), ou a mensagem segue um
+  assunto já em andamento com ele, ou o contato chama o médico pelo apelido/primeiro nome
+  em tom pessoal. Amigo pedindo um conselho de saúde ao médico também é pessoal: quem
+  responde é ele.
+- duvida: não dá para saber com segurança.
+
+Mensagens automáticas da clínica no histórico (lembrete, confirmação de consulta,
+valor, link de pagamento) indicam paciente.
+Foto, áudio ou arquivo sozinhos não fazem de ninguém paciente: decida pelo contexto.
+Na dúvida entre paciente e pessoal, responda duvida.`,
+          },
+          {
+            role: "user",
+            content: `Conversa anterior (mais antiga primeiro):\n${linhas}\n\nMensagens novas do CONTATO:\n${novas}`,
+          },
+        ],
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    const bruto = j?.choices?.[0]?.message?.content;
+    return bruto ? JSON.parse(bruto) : null;
+  } catch (e) {
+    console.error("porteiro:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+/**
+ * true = a IA pode atender. Decide uma vez por conversa e grava em
+ * contexto_tipo. Conversa pessoal ou em duvida fica com a IA desligada; se
+ * a equipe religar no cockpit, a decisao e respeitada.
+ */
+async function porteiro(conv: string, texto: string): Promise<boolean> {
+  const { data: c } = await sb.from("conversations")
+    .select("clinic_id, telefone, bot_active, contexto_tipo").eq("id", conv).maybeSingle();
+  if (!c) return false;
+  if (c.contexto_tipo) return c.contexto_tipo === "paciente" || c.bot_active === true;
+
+  const marcar = async (tipo: string, motivo: string) => {
+    await sb.from("conversations").update({ contexto_tipo: tipo, contexto_motivo: motivo.slice(0, 300) })
+      .eq("id", conv);
+  };
+
+  // Numero so da clinica: todo contato e paciente.
+  const { data: w } = await sb.from("clinic_whatsapp")
+    .select("provider, access_token, coexistencia").eq("clinic_id", c.clinic_id).maybeSingle();
+  const compartilhado = w?.coexistencia === true || w?.provider === "uazapi";
+  if (!compartilhado) { await marcar("paciente", "número exclusivo da clínica"); return true; }
+
+  // Atendimento que ja estava em curso antes do porteiro existir.
+  const { count } = await sb.from("messages").select("id", { count: "exact", head: true })
+    .eq("conversation_id", conv).eq("author", "assistente");
+  if (count) { await marcar("paciente", "atendimento já em andamento"); return true; }
+
+  // Historico: o do proprio WhatsApp (Zernio) e o que ja esta na NexoClin.
+  let hist: FalaHistorico[] = [];
+  if (w?.provider === "zernio" && w?.access_token) {
+    hist = await historicoZernio(String(w.access_token), String(c.telefone ?? ""), 30).catch(() => []);
+  }
+  if (!hist.length) {
+    const { data: loc } = await sb.from("messages").select("direction, body, transcript, created_at")
+      .eq("conversation_id", conv).order("created_at", { ascending: false }).limit(30);
+    hist = (loc ?? []).reverse().map((m: any) => ({
+      quem: m.direction === "out" ? "dono" : "contato",
+      texto: String(m.body || m.transcript || "").slice(0, 400),
+      em: String(m.created_at ?? ""),
+    } as FalaHistorico)).filter((f) => f.texto);
+  }
+
+  const { data: cl } = await sb.from("clinics").select("nome").eq("id", c.clinic_id).maybeSingle();
+  const d = await classificar(cl?.nome ?? "clínica", hist, texto);
+  const tipo = d?.tipo ?? "duvida";
+  await marcar(tipo, d?.motivo ?? "classificação indisponível");
+  if (tipo === "paciente") return true;
+
+  // pessoal ou duvida: a IA sai desta conversa. Duvida chama a equipe.
+  await sb.from("conversations")
+    .update({ bot_active: false, ...(tipo === "duvida" ? { attention: true } : {}) }).eq("id", conv);
+  return false;
+}
+
+// ---- nome e idade no agendamento ----
+const ESQUEMA_QUEM = {
+  type: "json_schema",
+  json_schema: {
+    name: "quem",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["nome", "idade", "outras_informacoes"],
+      properties: {
+        nome: { type: ["string", "null"], description: "Só o nome do paciente" },
+        idade: { type: ["string", "null"], description: "Ex.: '4 anos', '8 meses'" },
+        outras_informacoes: {
+          type: ["string", "null"],
+          description: "Sintoma ou outra informação de saúde que veio junto",
+        },
+      },
+    },
+  },
+} as const;
+
+/** "Pedro. tem 4 anos. ele esta com febre" -> nome Pedro, idade 4 anos, febre. */
+async function extrairQuem(texto: string) {
+  const chave = Deno.env.get("OPENAI_API_KEY");
+  if (!chave) return null;
+  try {
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: Deno.env.get("WA_INTERP_MODEL") ?? "gpt-4o-mini",
+        temperature: 0,
+        max_tokens: 120,
+        response_format: ESQUEMA_QUEM,
+        messages: [
+          {
+            role: "system",
+            content: "Extraia do texto do responsável o nome e a idade do paciente e qualquer " +
+              "informação de saúde mencionada. O que não estiver no texto vai null. Não invente.",
+          },
+          { role: "user", content: texto },
+        ],
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    const bruto = j?.choices?.[0]?.message?.content;
+    return bruto ? JSON.parse(bruto) as { nome: string | null; idade: string | null; outras_informacoes: string | null } : null;
+  } catch (e) {
+    console.error("extrairQuem:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+// Respostas sem dia/turno/horario que ainda assim seguem o agendamento.
+const RE_INDIFERENTE =
+  /(tanto faz|qualquer|indiferente|pode ser|o mais (cedo|r[áa]pido|pr[óo]ximo)|primeir|^\s*(sim|ok|isso|beleza|certo)\b)/;
+// Passos em que o banco aceitava qualquer texto: agora so seguem com algo de agenda.
+const PASSO_LIVRE = new Set(["ag_turno", "ag_offer", "agenda_pref"]);
+
+/**
+ * Comeca o agendamento. Se a pessoa ja disse para quem e ("para minha filha
+ * Maria, 2 anos"), responde o passo do "para quem" na mesma hora, em vez de
+ * perguntar de novo o que ela acabou de dizer.
+ */
+async function iniciarAgenda(conv: string, texto: string): Promise<string | null> {
+  const { data: inicio } = await sb.rpc("nx_book_start", { p_conv: conv });
+  const { data: st } = await sb.from("conversations").select("bot_state").eq("id", conv).maybeSingle();
+  if (st?.bot_state !== "ag_quem") return inicio ?? null;
+
+  const q = await extrairQuem(texto);
+  if (q?.outras_informacoes) {
+    await sb.rpc("nx_agent_aplicar", {
+      p_conv: conv, p_risco: "", p_encaminhar: false, p_manter_bot: true,
+      p_dados: [{ chave: "sintoma_principal", valor: q.outras_informacoes.slice(0, 300), atencao: false }],
+    });
+  }
+  if (!q?.nome) return inicio ?? null;
+  const { data } = await sb.rpc("nx_book_step_ia", {
+    p_conv: conv, p_texto: [q.nome, q.idade].filter(Boolean).join(" "),
+    p_ped: null, p_conf: null, p_escolha: null, p_origem: "modelo",
+  });
+  return data ?? inicio ?? null;
+}
+
 /** Agenda, preco, cupom, modalidade e remarcacao: responde o banco, nao o modelo. */
 async function doSistema(
   conv: string, texto: string, estado: string | null, ultimaIA: string,
@@ -487,7 +704,7 @@ async function doSistema(
   // passo antigo. Sem isto a conversa morria no passo e o modelo respondia
   // "vou pedir para a equipe verificar os horarios".
   if (estado && RE_AGENDAR.test(t)) {
-    const { data } = await sb.rpc("nx_book_start", { p_conv: conv });
+    const data = await iniciarAgenda(conv, texto);
     if (data) return data;
   }
 
@@ -505,11 +722,31 @@ async function doSistema(
       .select("bot_ctx").eq("id", conv).maybeSingle();
     const offers = (conversa?.bot_ctx as any)?.offers ?? [];
     const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
-    const lido = await interpretar(texto, offers, hoje);
+
+    // Quem e o paciente: o modelo separa nome, idade e o que mais veio junto
+    // (a regra do banco lia "Pedro. tem 4 anos" como o nome "Pedro tem").
+    let textoPasso = texto;
+    if (estado === "ag_quem") {
+      const q = await extrairQuem(texto);
+      if (q?.nome) textoPasso = [q.nome, q.idade].filter(Boolean).join(" ");
+      if (q?.outras_informacoes) {
+        await sb.rpc("nx_agent_aplicar", {
+          p_conv: conv, p_risco: "", p_encaminhar: false, p_manter_bot: true,
+          p_dados: [{ chave: "sintoma_principal", valor: q.outras_informacoes.slice(0, 300), atencao: false }],
+        });
+      }
+    }
+    const lido = estado === "ag_quem" ? null : await interpretar(texto, offers, hoje);
+
+    // Turno, oferta e preferencia aceitavam qualquer texto: "febre desde ontem"
+    // virava escolha de horario. Sem nada de agenda na frase, quem responde e
+    // a triagem, e o passo fica onde esta.
+    const semAgenda = lido && !Object.keys(lido.ped).length && !lido.conf && lido.escolha === null;
+    if (PASSO_LIVRE.has(estado!) && semAgenda && !RE_INDIFERENTE.test(t)) return null;
 
     const { data } = await sb.rpc("nx_book_step_ia", {
       p_conv: conv,
-      p_texto: texto,
+      p_texto: textoPasso,
       p_ped: lido ? lido.ped : null,
       p_conf: lido ? lido.conf : null,
       p_escolha: lido ? lido.escolha : null,
@@ -522,7 +759,7 @@ async function doSistema(
   const escolheuAgenda = (u.includes("verificar horários") && RE_SO_1.test(t)) ||
     (u.includes("5) marcar") && RE_SO_5.test(t));
   if (escolheuAgenda) {
-    const { data } = await sb.rpc("nx_book_start", { p_conv: conv });
+    const data = await iniciarAgenda(conv, texto);
     return data ?? null;
   }
 
@@ -530,7 +767,7 @@ async function doSistema(
   const { data: ai } = await sb.rpc("nx_ai_answer", { p_conv: conv, p_texto: texto });
   if (ai?.matched && ai.intent !== "agenda") return ai.answer ?? null;
   if (ai?.intent === "agenda" || RE_AGENDAR.test(t)) {
-    const { data } = await sb.rpc("nx_book_start", { p_conv: conv });
+    const data = await iniciarAgenda(conv, texto);
     return data ?? null;
   }
   return null;
@@ -581,6 +818,9 @@ const FORA_DA_TRIAGEM = new Set(["encaminhamento", "consentimento", "consentimen
 /** Decide e responde. Devolve o texto a enviar, ou null se o bot deve calar. */
 export async function agente(conv: string, texto: string): Promise<string | null> {
   const t = texto.toLowerCase();
+
+  // 0) Porteiro: conversa pessoal do medico nao e atendimento.
+  if (!(await porteiro(conv, texto))) return null;
 
   // 1) Confirmacao de presenca. Vale com a IA pausada: quem so responde
   //    "confirmo" a um lembrete precisa de retorno.
@@ -681,11 +921,15 @@ export async function agente(conv: string, texto: string): Promise<string | null
   const chave = Deno.env.get("OPENAI_API_KEY");
   if (!chave) { console.error("agente: OPENAI_API_KEY ausente"); return null; }
 
+  // Quem disse o que: a fala do medico ou da equipe (pelo celular ou pelo
+  // cockpit) nao e da IA, e a IA precisa saber disso para nao contradizer.
   const historico = (ctx.historico ?? [])
-    .map((m: any) => ({
-      role: m.direction === "in" ? "user" : "assistant",
-      content: String(m.body ?? ""),
-    }))
+    .map((m: any) => {
+      const corpo = String(m.body ?? "");
+      if (m.direction === "in") return { role: "user", content: corpo };
+      if (m.author === "assistente") return { role: "assistant", content: corpo };
+      return { role: "user", content: `[Mensagem da equipe/médico para o paciente, não sua]: ${corpo}` };
+    })
     .filter((m: any) => m.content.length > 0);
 
   // Categorias da queixa valem no modo pediatria (o documento e pediatrico).
@@ -704,7 +948,11 @@ export async function agente(conv: string, texto: string): Promise<string | null
     familia(ctx.quem) +
     (cats.length ? `Categoria da queixa até aqui: ${catAtual ?? "nao_classificado"}\n` : "") +
     `Já coletado: ${JSON.stringify(ctx.coletado ?? {})}\n` +
-    `Situação: ${SITUACAO[ctx.status ?? ""] ?? "em triagem"}`;
+    `Situação: ${SITUACAO[ctx.status ?? ""] ?? "em triagem"}` +
+    ((conversa.bot_state ?? "").startsWith("ag_")
+      ? `\nHá um agendamento em andamento. Acolha o que a pessoa disse (anote em "dados") ` +
+        `e, no fim, repita a pergunta pendente do agendamento: "${ultimaIA}"`
+      : "");
 
   const r = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
