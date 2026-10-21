@@ -674,6 +674,139 @@ const RE_INDIFERENTE =
 // Passos em que o banco aceitava qualquer texto: agora so seguem com algo de agenda.
 const PASSO_LIVRE = new Set(["ag_turno", "ag_offer", "agenda_pref"]);
 
+// ---- cadastro do paciente depois de marcar ----
+// Consulta marcada sem cadastro deixava a clinica sem nome completo, data de
+// nascimento e responsavel (nota, prontuario, pagamento). Depois de confirmar
+// o horario a IA pede o que falta e grava no prontuario.
+const ESQUEMA_CADASTRO = {
+  type: "json_schema",
+  json_schema: {
+    name: "cadastro",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["paciente_nome_completo", "data_nascimento", "responsavel_nome", "responsavel_cpf"],
+      properties: {
+        paciente_nome_completo: { type: ["string", "null"] },
+        data_nascimento: { type: ["string", "null"], description: "AAAA-MM-DD" },
+        responsavel_nome: { type: ["string", "null"], description: "Nome completo do responsável" },
+        responsavel_cpf: { type: ["string", "null"], description: "Só os 11 dígitos" },
+      },
+    },
+  },
+} as const;
+
+const ROTULO_CAD: Record<string, string> = {
+  paciente_nome_completo: "Nome completo do paciente",
+  data_nascimento: "Data de nascimento",
+  responsavel_nome: "Nome completo do responsável",
+  responsavel_cpf: "CPF do responsável",
+};
+
+const nomeCompleto = (n?: string | null) => String(n ?? "").trim().split(/\s+/).filter(Boolean).length >= 2;
+
+/** O que falta no cadastro desta conversa (paciente + responsavel pelo telefone). */
+async function faltaCadastro(conv: string) {
+  const { data: c } = await sb.from("conversations")
+    .select("clinic_id, telefone, patient_id, paciente_nome").eq("id", conv).maybeSingle();
+  if (!c) return { falta: [] as string[], c: null, pac: null, resp: null };
+  const { data: pac } = c.patient_id
+    ? await sb.from("patients").select("id, nome, nascimento, responsavel_id").eq("id", c.patient_id).maybeSingle()
+    : { data: null };
+  const tel = String(c.telefone ?? "").replace(/\D/g, "");
+  const { data: resps } = await sb.from("responsaveis").select("id, nome, cpf, telefone").eq("clinic_id", c.clinic_id);
+  const resp = (resps ?? []).find((r: any) => String(r.telefone ?? "").replace(/\D/g, "") === tel) ?? null;
+  const falta: string[] = [];
+  if (!nomeCompleto(pac?.nome ?? c.paciente_nome)) falta.push("paciente_nome_completo");
+  if (!pac?.nascimento) falta.push("data_nascimento");
+  if (!nomeCompleto(resp?.nome)) falta.push("responsavel_nome");
+  if (String(resp?.cpf ?? "").replace(/\D/g, "").length !== 11) falta.push("responsavel_cpf");
+  return { falta, c, pac, resp };
+}
+
+function pedidoCadastro(falta: string[], quem: string | null): string {
+  return `📋 Para deixar o cadastro${quem ? ` de *${quem}*` : ""} completo, me envie por favor:\n` +
+    falta.map((k) => `• ${ROTULO_CAD[k]}`).join("\n");
+}
+
+/** Le os dados do cadastro na mensagem, grava e diz o que ainda falta. */
+async function passoCadastro(conv: string, texto: string): Promise<string | null> {
+  const chave = Deno.env.get("OPENAI_API_KEY");
+  if (!chave) return null;
+  const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  let d: Record<string, string | null> = {};
+  try {
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: Deno.env.get("WA_INTERP_MODEL") ?? "gpt-4o-mini",
+        temperature: 0, max_tokens: 150, response_format: ESQUEMA_CADASTRO,
+        messages: [
+          { role: "system", content: `Extraia os dados de cadastro da mensagem. Hoje é ${hoje}. ` +
+            "Data de nascimento em AAAA-MM-DD. O que não estiver na mensagem vai null. Não invente." },
+          { role: "user", content: texto },
+        ],
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    d = JSON.parse(j?.choices?.[0]?.message?.content ?? "{}");
+  } catch (e) {
+    console.error("cadastro:", e instanceof Error ? e.message : e);
+    return null;
+  }
+  const veio = Object.values(d).some((v) => v);
+  const { c, pac, resp } = await faltaCadastro(conv);
+  if (!c) return null;
+  if (!veio) return null;   // falou de outra coisa: segue o fluxo normal
+
+  const tel = String(c.telefone ?? "").replace(/\D/g, "");
+  let respId = resp?.id ?? pac?.responsavel_id ?? null;
+  const cpf = String(d.responsavel_cpf ?? "").replace(/\D/g, "");
+  const dadosResp: Record<string, string> = {};
+  if (d.responsavel_nome) dadosResp.nome = d.responsavel_nome;
+  if (cpf.length === 11) dadosResp.cpf = cpf;
+  if (Object.keys(dadosResp).length) {
+    if (respId) await sb.from("responsaveis").update(dadosResp).eq("id", respId);
+    else {
+      const { data: novo } = await sb.from("responsaveis")
+        .insert({ clinic_id: c.clinic_id, telefone: tel, ...dadosResp }).select("id").single();
+      respId = novo?.id ?? null;
+    }
+  }
+  if (pac?.id) {
+    const dadosPac: Record<string, unknown> = {};
+    if (d.paciente_nome_completo && nomeCompleto(d.paciente_nome_completo)) dadosPac.nome = d.paciente_nome_completo;
+    if (d.data_nascimento && /^\d{4}-\d{2}-\d{2}$/.test(d.data_nascimento)) dadosPac.nascimento = d.data_nascimento;
+    if (respId) dadosPac.responsavel_id = respId;
+    if (Object.keys(dadosPac).length) await sb.from("patients").update(dadosPac).eq("id", pac.id);
+    if (dadosPac.nome) await sb.from("conversations").update({ paciente_nome: dadosPac.nome }).eq("id", conv);
+    if (dadosPac.nascimento) {
+      await sb.from("pt_ficha").upsert({ patient_id: pac.id, clinic_id: c.clinic_id, data_nascimento: dadosPac.nascimento },
+        { onConflict: "patient_id" });
+    }
+  }
+
+  const depois = await faltaCadastro(conv);
+  if (!depois.falta.length) {
+    await sb.from("conversations").update({ bot_state: null }).eq("id", conv);
+    return "Cadastro completo! ✅ Obrigado. Qualquer dúvida até a consulta, é só chamar por aqui. 💙";
+  }
+  const cpfInvalido = d.responsavel_cpf && cpf.length !== 11 ? "O CPF precisa ter 11 números. " : "";
+  return `${cpfInvalido}Anotei! ${pedidoCadastro(depois.falta, null).replace("📋 ", "")}`;
+}
+
+/** Depois de "Prontinho! Consulta marcada": pede o cadastro que faltar. */
+async function aposMarcar(conv: string, resposta: string): Promise<string> {
+  if (!/marcad[ao] para/i.test(resposta)) return resposta;
+  const { falta, c, pac } = await faltaCadastro(conv);
+  if (!c || !falta.length) return resposta;
+  await sb.from("conversations").update({ bot_state: "cad" }).eq("id", conv);
+  const quem = String(pac?.nome ?? c.paciente_nome ?? "").split(" (")[0] || null;
+  return `${resposta}\n\n${pedidoCadastro(falta, quem)}`;
+}
+
 /**
  * Passo "para quem e a consulta". O modelo separa nome, idade e o que mais
  * veio junto. Sem idade nao segue: a idade muda o que e grave e o medico
@@ -796,7 +929,7 @@ async function doSistema(
       p_escolha: lido ? lido.escolha : null,
       p_origem: lido ? "modelo" : "regra",
     });
-    return data ?? null;
+    return data ? await aposMarcar(conv, data) : null;
   }
 
   const u = ultimaIA.toLowerCase();
@@ -955,6 +1088,12 @@ export async function agente(conv: string, texto: string): Promise<string | null
     .filter((m: any) => m.direction === "out")
     .map((m: any) => String(m.body ?? ""));
   const ultimaIA = falasIA[falasIA.length - 1] ?? "";
+
+  // 3.5) Cadastro pedido depois de marcar.
+  if (conversa.bot_state === "cad") {
+    const cad = await passoCadastro(conv, texto);
+    if (cad) return cad;
+  }
 
   // 4) Sistema
   const sistema = await doSistema(conv, texto, conversa.bot_state ?? null, ultimaIA);
