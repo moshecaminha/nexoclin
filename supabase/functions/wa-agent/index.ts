@@ -661,7 +661,14 @@ async function extrairQuem(texto: string) {
     });
     const j = await r.json().catch(() => ({}));
     const bruto = j?.choices?.[0]?.message?.content;
-    return bruto ? JSON.parse(bruto) as { nome: string | null; idade: string | null; outras_informacoes: string | null } : null;
+    if (!bruto) return null;
+    // o modelo as vezes devolve o texto "null" no lugar de null
+    const limpo = (v: unknown) => {
+      const t = String(v ?? "").trim();
+      return t && !/^(null|undefined|n\/a|-)$/i.test(t) ? t : null;
+    };
+    const p = JSON.parse(bruto);
+    return { nome: limpo(p?.nome), idade: limpo(p?.idade), outras_informacoes: limpo(p?.outras_informacoes) };
   } catch (e) {
     console.error("extrairQuem:", e instanceof Error ? e.message : e);
     return null;
