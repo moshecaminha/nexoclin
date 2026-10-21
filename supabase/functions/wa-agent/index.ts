@@ -534,8 +534,9 @@ Uma assistente virtual atende os PACIENTES. Você decide se ela deve entrar nest
   responde é ele.
 - duvida: não dá para saber com segurança.
 
-Mensagens automáticas da clínica no histórico (lembrete, confirmação de consulta,
-valor, link de pagamento) indicam paciente.
+Lembrete ou confirmação de uma consulta marcada no histórico indicam paciente.
+Mensagens da assistente virtual (boas-vindas, "podemos começar?", "da última vez
+falamos sobre...") NÃO provam nada: ela já respondeu amigos por engano.
 Foto, áudio ou arquivo sozinhos não fazem de ninguém paciente: decida pelo contexto.
 Na dúvida entre paciente e pessoal, responda duvida.`,
           },
@@ -564,7 +565,6 @@ async function porteiro(conv: string, texto: string): Promise<boolean> {
   const { data: c } = await sb.from("conversations")
     .select("clinic_id, telefone, bot_active, contexto_tipo").eq("id", conv).maybeSingle();
   if (!c) return false;
-  if (c.contexto_tipo) return c.contexto_tipo === "paciente" || c.bot_active === true;
 
   const marcar = async (tipo: string, motivo: string) => {
     await sb.from("conversations").update({ contexto_tipo: tipo, contexto_motivo: motivo.slice(0, 300) })
@@ -575,12 +575,15 @@ async function porteiro(conv: string, texto: string): Promise<boolean> {
   const { data: w } = await sb.from("clinic_whatsapp")
     .select("provider, access_token, coexistencia").eq("clinic_id", c.clinic_id).maybeSingle();
   const compartilhado = w?.coexistencia === true || w?.provider === "uazapi";
-  if (!compartilhado) { await marcar("paciente", "número exclusivo da clínica"); return true; }
+  if (!compartilhado) {
+    if (!c.contexto_tipo) await marcar("paciente", "número exclusivo da clínica");
+    return true;
+  }
 
-  // Atendimento que ja estava em curso antes do porteiro existir.
-  const { count } = await sb.from("messages").select("id", { count: "exact", head: true })
-    .eq("conversation_id", conv).eq("author", "assistente");
-  if (count) { await marcar("paciente", "atendimento já em andamento"); return true; }
+  // No numero do medico, IA desligada e silencio total: nada de retomada,
+  // confirmacao ou aviso automatico numa conversa que um humano conduz.
+  if (c.bot_active === false) return false;
+  if (c.contexto_tipo) return c.contexto_tipo === "paciente" || c.bot_active === true;
 
   // Historico: o do proprio WhatsApp (Zernio) e o que ja esta na NexoClin.
   let hist: FalaHistorico[] = [];
@@ -872,7 +875,8 @@ export async function agente(conv: string, texto: string): Promise<string | null
   // 2.5) Conversa parada ha mais de 12h: pergunta se e para continuar o
   //      assunto anterior ou abrir outro. So depois volta a triagem.
   const estadoConv = conversa.bot_state ?? null;
-  if (estadoConv === "retomar" || estadoConv === "retomar_resp") {
+  const { data: ativa } = await sb.from("conversations").select("bot_active").eq("id", conv).maybeSingle();
+  if ((estadoConv === "retomar" || estadoConv === "retomar_resp") && ativa?.bot_active !== false) {
     const { data: ret } = await sb.rpc("nx_conv_retomar", { p_conv: conv, p_text: texto });
     if (ret?.texto) return ret.texto;
   }
