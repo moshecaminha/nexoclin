@@ -338,7 +338,7 @@ const MSG_AGUARDA =
 const RE_DIRETA =
   /(pre[çc]o|valor da consulta|quanto (custa|[ée]|fica|sai)|honor[áa]rio|cupom|desconto|remarc|desmarc|cancelar|teleconsulta|telemedicin|por v[ií]deo|online|presencial)/;
 const RE_AGENDAR =
-  /(agendar|marcar (uma )?consulta|quero marcar|hor[áa]rios? (livres?|dispon[íi]ve(l|is))|tem vaga)/;
+  /(agendar|marcar (uma )?consulta|quero marcar|hor[áa]rios? (livres?|dispon[íi]ve(l|is))|tem vaga|(pode|consegue|d[áa] (pra|para)) (me )?atender|encaix|consulta (pra|para|amanh|hoje|dia|segunda|ter[çc]a|quarta|quinta|sexta|s[áa]bado))/;
 
 // Cara de resposta a cada passo do agendamento. Se a mae voltou a falar do
 // sintoma no meio ("39 de febre"), a triagem responde e o passo fica onde esta.
@@ -532,6 +532,8 @@ Uma assistente virtual atende os PACIENTES. Você decide se ela deve entrar nest
   assunto já em andamento com ele, ou o contato chama o médico pelo apelido/primeiro nome
   em tom pessoal. Amigo pedindo um conselho de saúde ao médico também é pessoal: quem
   responde é ele.
+- Pedido de CONSULTA ou horário (para si ou para filho/familiar) é paciente, mesmo
+  vindo de amigo ou conhecido: "pode atender o José amanhã às 13h?" é paciente.
 - duvida: não dá para saber com segurança.
 
 Lembrete ou confirmação de uma consulta marcada no histórico indicam paciente.
@@ -673,6 +675,64 @@ const RE_INDIFERENTE =
 const PASSO_LIVRE = new Set(["ag_turno", "ag_offer", "agenda_pref"]);
 
 /**
+ * Passo "para quem e a consulta". O modelo separa nome, idade e o que mais
+ * veio junto. Sem idade nao segue: a idade muda o que e grave e o medico
+ * precisa dela. Se o pedido original ja trazia dia/hora ("amanha as 13h"),
+ * aplica depois de identificar o paciente.
+ */
+async function passoQuem(conv: string, texto: string, pedido?: string): Promise<string | null> {
+  // "1", "2)": escolha na lista de criancas ja cadastradas, o banco decide.
+  if (/^\s*[0-9]\s*[).]?\s*$/.test(texto)) {
+    const { data } = await sb.rpc("nx_book_step_ia", {
+      p_conv: conv, p_texto: texto, p_ped: null, p_conf: null, p_escolha: null, p_origem: "regra",
+    });
+    return data ?? null;
+  }
+
+  const { data: cv } = await sb.from("conversations").select("bot_ctx").eq("id", conv).maybeSingle();
+  const guardado = (cv?.bot_ctx ?? {}) as Record<string, any>;
+  const q = await extrairQuem(texto);
+  if (q?.outras_informacoes) {
+    await sb.rpc("nx_agent_aplicar", {
+      p_conv: conv, p_risco: "", p_encaminhar: false, p_manter_bot: true,
+      p_dados: [{ chave: "sintoma_principal", valor: q.outras_informacoes.slice(0, 300), atencao: false }],
+    });
+  }
+  const nome = q?.nome ?? guardado.quem_nome ?? null;
+  const idade = q?.idade ?? null;
+  const pedidoOriginal = pedido ?? guardado.quem_pedido ?? null;
+  if (!nome) return null;
+
+  if (!idade) {
+    await sb.from("conversations").update({
+      bot_ctx: { ...guardado, quem_nome: nome, ...(pedidoOriginal ? { quem_pedido: pedidoOriginal } : {}) },
+    }).eq("id", conv);
+    return `Qual a *idade* de ${nome}?`;
+  }
+
+  const { data: r } = await sb.rpc("nx_book_step_ia", {
+    p_conv: conv, p_texto: `${nome} ${idade}`, p_ped: null, p_conf: null, p_escolha: null, p_origem: "modelo",
+  });
+
+  // O pedido ja dizia dia/hora: segue direto para esse horario.
+  if (pedidoOriginal) {
+    const { data: st } = await sb.from("conversations").select("bot_state").eq("id", conv).maybeSingle();
+    if (st?.bot_state && st.bot_state !== "ag_quem" && st.bot_state !== "ag_prof" && st.bot_state !== "ag_mod") {
+      const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+      const lido = await interpretar(pedidoOriginal, [], hoje);
+      if (lido && Object.keys(lido.ped).length) {
+        const { data: r2 } = await sb.rpc("nx_book_step_ia", {
+          p_conv: conv, p_texto: pedidoOriginal, p_ped: lido.ped, p_conf: false, p_escolha: null,
+          p_origem: "modelo",
+        });
+        if (r2) return r2;
+      }
+    }
+  }
+  return r ?? null;
+}
+
+/**
  * Comeca o agendamento. Se a pessoa ja disse para quem e ("para minha filha
  * Maria, 2 anos"), responde o passo do "para quem" na mesma hora, em vez de
  * perguntar de novo o que ela acabou de dizer.
@@ -681,20 +741,7 @@ async function iniciarAgenda(conv: string, texto: string): Promise<string | null
   const { data: inicio } = await sb.rpc("nx_book_start", { p_conv: conv });
   const { data: st } = await sb.from("conversations").select("bot_state").eq("id", conv).maybeSingle();
   if (st?.bot_state !== "ag_quem") return inicio ?? null;
-
-  const q = await extrairQuem(texto);
-  if (q?.outras_informacoes) {
-    await sb.rpc("nx_agent_aplicar", {
-      p_conv: conv, p_risco: "", p_encaminhar: false, p_manter_bot: true,
-      p_dados: [{ chave: "sintoma_principal", valor: q.outras_informacoes.slice(0, 300), atencao: false }],
-    });
-  }
-  if (!q?.nome) return inicio ?? null;
-  const { data } = await sb.rpc("nx_book_step_ia", {
-    p_conv: conv, p_texto: [q.nome, q.idade].filter(Boolean).join(" "),
-    p_ped: null, p_conf: null, p_escolha: null, p_origem: "modelo",
-  });
-  return data ?? inicio ?? null;
+  return (await passoQuem(conv, texto, texto)) ?? inicio ?? null;
 }
 
 /** Agenda, preco, cupom, modalidade e remarcacao: responde o banco, nao o modelo. */
@@ -728,17 +775,11 @@ async function doSistema(
 
     // Quem e o paciente: o modelo separa nome, idade e o que mais veio junto
     // (a regra do banco lia "Pedro. tem 4 anos" como o nome "Pedro tem").
-    let textoPasso = texto;
     if (estado === "ag_quem") {
-      const q = await extrairQuem(texto);
-      if (q?.nome) textoPasso = [q.nome, q.idade].filter(Boolean).join(" ");
-      if (q?.outras_informacoes) {
-        await sb.rpc("nx_agent_aplicar", {
-          p_conv: conv, p_risco: "", p_encaminhar: false, p_manter_bot: true,
-          p_dados: [{ chave: "sintoma_principal", valor: q.outras_informacoes.slice(0, 300), atencao: false }],
-        });
-      }
+      const r = await passoQuem(conv, texto);
+      if (r) return r;
     }
+    const textoPasso = texto;
     const lido = estado === "ag_quem" ? null : await interpretar(texto, offers, hoje);
 
     // Turno, oferta e preferencia aceitavam qualquer texto: "febre desde ontem"
@@ -875,8 +916,22 @@ export async function agente(conv: string, texto: string): Promise<string | null
   // 2.5) Conversa parada ha mais de 12h: pergunta se e para continuar o
   //      assunto anterior ou abrir outro. So depois volta a triagem.
   const estadoConv = conversa.bot_state ?? null;
-  const { data: ativa } = await sb.from("conversations").select("bot_active").eq("id", conv).maybeSingle();
-  if ((estadoConv === "retomar" || estadoConv === "retomar_resp") && ativa?.bot_active !== false) {
+  const { data: ativa } = await sb.from("conversations")
+    .select("bot_active, paciente_nome").eq("id", conv).maybeSingle();
+  if (estadoConv === "retomar" || estadoConv === "retomar_resp") {
+    // So pergunta "continuar o anterior?" quando houve atendimento de verdade
+    // (paciente identificado ou triagem). Sem isso, ou se a pessoa ja chega
+    // pedindo consulta, comeca do inicio.
+    const { count: dados } = await sb.from("collected_data").select("chave", { count: "exact", head: true })
+      .eq("conversation_id", conv).not("chave", "in", "(consentimento,consentimento_recusado,encaminhamento)");
+    const pac = String(ativa?.paciente_nome ?? "").toLowerCase();
+    const teveAtendimento = (!!pac && !pac.startsWith("paciente")) || !!dados;
+    if (!teveAtendimento || (estadoConv === "retomar" && RE_AGENDAR.test(t))) {
+      await sb.from("conversations").update({ bot_state: null }).eq("id", conv);
+      conversa.bot_state = null;
+    }
+  }
+  if ((conversa.bot_state === "retomar" || conversa.bot_state === "retomar_resp") && ativa?.bot_active !== false) {
     const { data: ret } = await sb.rpc("nx_conv_retomar", { p_conv: conv, p_text: texto });
     if (ret?.texto) return ret.texto;
   }
