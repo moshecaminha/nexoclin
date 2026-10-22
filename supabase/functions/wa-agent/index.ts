@@ -798,20 +798,38 @@ async function passoCadastro(conv: string, texto: string): Promise<string | null
   const depois = await faltaCadastro(conv);
   if (!depois.falta.length) {
     await sb.from("conversations").update({ bot_state: null }).eq("id", conv);
-    return "Cadastro completo! ✅ Obrigado. Qualquer dúvida até a consulta, é só chamar por aqui. 💙";
+    const pag = await mensagemPagamento(conv);
+    return "Cadastro completo! ✅ Obrigado." + (pag ? `\n\n${pag}` : " Qualquer dúvida até a consulta, é só chamar por aqui. 💙");
   }
   const cpfInvalido = d.responsavel_cpf && cpf.length !== 11 ? "O CPF precisa ter 11 números. " : "";
   return `${cpfInvalido}Anotei! ${pedidoCadastro(depois.falta, null).replace("📋 ", "")}`;
 }
 
-/** Depois de "Prontinho! Consulta marcada": pede o cadastro que faltar. */
+/** Cobranca da consulta mais recente deste telefone (valor + PIX ou link). */
+async function mensagemPagamento(conv: string): Promise<string | null> {
+  const { data: c } = await sb.from("conversations").select("clinic_id, telefone").eq("id", conv).maybeSingle();
+  if (!c) return null;
+  const { data: appt } = await sb.from("appointments").select("id")
+    .eq("clinic_id", c.clinic_id).eq("telefone", c.telefone).in("status", ["agendada", "confirmada"])
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (!appt) return null;
+  const { data: pag } = await sb.rpc("nx_pagamento_msg", { p_appt: appt.id });
+  return pag?.texto ?? null;
+}
+
+/**
+ * Depois de "Prontinho! Consulta marcada": cadastro primeiro, pagamento
+ * depois. A cobranca que o banco junta na confirmacao sai daqui e volta
+ * quando o cadastro estiver completo.
+ */
 async function aposMarcar(conv: string, resposta: string): Promise<string> {
   if (!/marcad[ao] para/i.test(resposta)) return resposta;
   const { falta, c, pac } = await faltaCadastro(conv);
   if (!c || !falta.length) return resposta;
   await sb.from("conversations").update({ bot_state: "cad" }).eq("id", conv);
   const quem = String(pac?.nome ?? c.paciente_nome ?? "").split(" (")[0] || null;
-  return `${resposta}\n\n${pedidoCadastro(falta, quem)}`;
+  const semCobranca = resposta.replace(/\n+\s*(O valor da consulta|O valor e|Sobre o pagamento)[\s\S]*$/i, "").trimEnd();
+  return `${semCobranca}\n\n${pedidoCadastro(falta, quem)}`;
 }
 
 /**
