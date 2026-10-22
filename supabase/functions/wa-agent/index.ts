@@ -828,7 +828,11 @@ async function aposMarcar(conv: string, resposta: string): Promise<string> {
   if (!c || !falta.length) return resposta;
   await sb.from("conversations").update({ bot_state: "cad" }).eq("id", conv);
   const quem = String(pac?.nome ?? c.paciente_nome ?? "").split(" (")[0] || null;
-  const semCobranca = resposta.replace(/\n+\s*(O valor da consulta|O valor e|Sobre o pagamento)[\s\S]*$/i, "").trimEnd();
+  // tira exatamente o texto da cobranca (a mensagem pode ser a personalizada da clinica)
+  const pag = await mensagemPagamento(conv);
+  const semCobranca = (pag && resposta.includes(pag) ? resposta.replace(pag, "") : resposta)
+    .replace(/\n+\s*(O valor da consulta|O valor e|Valor da consulta|Sobre o pagamento)[\s\S]*$/i, "")
+    .trimEnd();
   return `${semCobranca}\n\n${pedidoCadastro(falta, quem)}`;
 }
 
