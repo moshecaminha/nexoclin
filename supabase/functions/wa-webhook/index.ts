@@ -425,6 +425,38 @@ async function transcrever(bytes: Uint8Array, mime: string): Promise<string | nu
 }
 
 // ---------------------------------------------------------------------------
+// Comando do medico pelo celular, na conversa com o contato:
+//   #ia  -> o contato e paciente: a IA assume (e responde o que estiver pendente)
+//   #off -> a IA sai deste contato de vez
+// Vale para as proximas conversas do mesmo telefone (wa_contato_ia).
+async function comandoIA(phoneId: string, para: string, texto: string | null): Promise<boolean> {
+  const t = String(texto ?? "").trim().toLowerCase();
+  const modo = t === "#ia" ? "paciente" : t === "#off" ? "off" : null;
+  if (!modo || !para) return false;
+  const { data: conv, error } = await sb.rpc("nx_wa_comando_ia", {
+    p_phone_number_id: phoneId, p_to: para, p_modo: modo,
+  });
+  if (error) console.error("comando ia:", error.message);
+  if (modo === "paciente" && conv) EdgeRuntime.waitUntil(assumirConversa(conv, para));
+  return true;
+}
+
+/** Depois do #ia: se a ultima mensagem e do contato e ficou sem resposta, a IA responde. */
+async function assumirConversa(conv: string, para: string) {
+  try {
+    const { data: ult } = await sb.from("messages").select("direction, body, transcript, wa_message_id")
+      .eq("conversation_id", conv).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (!ult || ult.direction !== "in") return;
+    const texto = String(ult.body || ult.transcript || "").trim();
+    if (!texto) return;
+    const { data: cv } = await sb.from("conversations").select("clinic_id").eq("id", conv).single();
+    if (cv?.clinic_id) await responderBot(conv, texto, para, cv.clinic_id, ult.wa_message_id);
+  } catch (e) {
+    console.error("assumir:", e instanceof Error ? e.message : e);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // uazapi (API nao oficial). Formato do webhook (evento "messages"):
 // { EventType:"messages", message:{ chatid:"5521...@s.whatsapp.net", sender,
 //   senderName, fromMe, wasSentByApi, isGroup, messageType, mediaType, text,
@@ -516,6 +548,7 @@ async function webhookUazapi(chave: string, req: Request): Promise<Response> {
 
       // Equipe respondeu pelo celular: entra como saida da equipe e pausa a IA.
       if (m?.fromMe) {
+        if (await comandoIA(phoneId, fone, texto)) continue;
         await sb.rpc("nx_wa_eco", {
           p_phone_number_id: phoneId, p_to: fone, p_type: tipo,
           p_body: texto ?? `[${tipo} enviada pelo celular]`, p_wamid: wamid, p_ts: ts, p_media_id: null,
@@ -647,6 +680,7 @@ async function webhookZernio(req: Request): Promise<Response> {
       const para = String(body?.conversation?.participantId ?? "").replace(/\D/g, "");
       if (!para) return new Response("ok", { status: 200 });
       await lembrarConversaZernio(conta, para, convZernio);
+      if (await comandoIA(phoneId, para, m?.text ?? null)) return new Response("ok", { status: 200 });
       const tipo = zernioTipo(m);
       await sb.rpc("nx_wa_eco", {
         p_phone_number_id: phoneId, p_to: para, p_type: tipo,
@@ -777,6 +811,7 @@ Deno.serve(async (req) => {
           for (const eco of ve.message_echoes ?? []) {
             // edicao e exclusao nao sao mensagem nova
             if (eco?.type === "edit" || eco?.type === "revoke") continue;
+            if (await comandoIA(phoneEco, String(eco?.to ?? ""), corpoDe(eco))) continue;
             await sb.rpc("nx_wa_eco", {
               p_phone_number_id: phoneEco,
               p_to: String(eco?.to ?? ""),

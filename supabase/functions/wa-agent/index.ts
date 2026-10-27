@@ -480,6 +480,15 @@ async function interpretar(
   }
 }
 
+/** Mesma chave do nx_fone_key do banco: 55 + DDD + 8 ultimos digitos. */
+function chaveFoneBR(t: string): string | null {
+  const n = t.replace(/\D/g, "");
+  if (!n) return null;
+  if ((n.length === 12 || n.length === 13) && n.startsWith("55")) return "55" + n.slice(2, 4) + n.slice(-8);
+  if (n.length === 10 || n.length === 11) return "55" + n.slice(0, 2) + n.slice(-8);
+  return n;
+}
+
 // ---- porteiro ----
 // O numero do medico (coexistencia ou uazapi) recebe amigos, familia, escola,
 // fornecedores. A IA so entra em conversa de PACIENTE; na duvida, fica calada.
@@ -580,6 +589,21 @@ async function porteiro(conv: string, texto: string): Promise<boolean> {
   if (!compartilhado) {
     if (!c.contexto_tipo) await marcar("paciente", "número exclusivo da clínica");
     return true;
+  }
+
+  // Marcacao do medico pelo celular (#ia / #off) vale acima de tudo.
+  const { data: marca } = await sb.from("wa_contato_ia").select("modo")
+    .eq("clinic_id", c.clinic_id).eq("fone_key", chaveFoneBR(String(c.telefone ?? ""))).maybeSingle();
+  if (marca?.modo === "off") {
+    if (c.bot_active !== false || c.contexto_tipo !== "pessoal") {
+      await sb.from("conversations").update({ bot_active: false, contexto_tipo: "pessoal",
+        contexto_motivo: "IA desligada pelo médico (#off)" }).eq("id", conv);
+    }
+    return false;
+  }
+  if (marca?.modo === "paciente") {
+    if (!c.contexto_tipo) await marcar("paciente", "sinalizado pelo médico (#ia)");
+    return c.bot_active !== false;
   }
 
   // No numero do medico, IA desligada e silencio total: nada de retomada,
