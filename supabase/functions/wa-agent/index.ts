@@ -321,7 +321,7 @@ function abertura(modo: string, clinica: string | null): string {
   const lgpd = modo === "pediatria"
     ? "_Os dados são usados só para o cuidado (LGPD)._"
     : "_Seus dados são usados só para o seu cuidado (LGPD)._";
-  return `Olá! 👋 Você chegou ao atendimento virtual da ${nome}.\n` +
+  return `Olá! 👋 Você chegou ao atendimento virtual de ${nome}.\n` +
     `Vou fazer algumas perguntinhas rápidas para já preparar ${quem} com o médico. ` +
     `Podemos começar?\n\n1️⃣ Sim, pode seguir\n2️⃣ Prefiro falar com uma pessoa\n\n${lgpd}`;
 }
@@ -487,6 +487,27 @@ function chaveFoneBR(t: string): string | null {
   if ((n.length === 12 || n.length === 13) && n.startsWith("55")) return "55" + n.slice(2, 4) + n.slice(-8);
   if (n.length === 10 || n.length === 11) return "55" + n.slice(0, 2) + n.slice(-8);
   return n;
+}
+
+/**
+ * Numero do proprio medico (coexistencia / uazapi): ali a conversa e
+ * continua, como no WhatsApp dele. Paciente que ja conversa com o medico
+ * (marcado com #ia ou com historico com ele) nao recebe boas-vindas,
+ * consentimento nem "da ultima vez falamos sobre": a IA segue o assunto.
+ */
+async function canalDoMedico(conv: string) {
+  const { data: c } = await sb.from("conversations")
+    .select("clinic_id, telefone, contexto_motivo").eq("id", conv).maybeSingle();
+  if (!c) return { compartilhado: false, historico: [] as FalaHistorico[], jaConhece: false };
+  const { data: w } = await sb.from("clinic_whatsapp")
+    .select("provider, access_token, coexistencia").eq("clinic_id", c.clinic_id).maybeSingle();
+  const compartilhado = w?.coexistencia === true || w?.provider === "uazapi";
+  if (!compartilhado) return { compartilhado, historico: [] as FalaHistorico[], jaConhece: false };
+  const historico = w?.provider === "zernio" && w?.access_token
+    ? await historicoZernio(String(w.access_token), String(c.telefone ?? ""), 25).catch(() => [])
+    : [];
+  const jaConhece = String(c.contexto_motivo ?? "").includes("#ia") || historico.some((f) => f.quem === "dono");
+  return { compartilhado, historico, jaConhece };
 }
 
 // ---- porteiro ----
@@ -1104,7 +1125,12 @@ export async function agente(conv: string, texto: string): Promise<string | null
   const estadoConv = conversa.bot_state ?? null;
   const { data: ativa } = await sb.from("conversations")
     .select("bot_active, paciente_nome").eq("id", conv).maybeSingle();
-  if (estadoConv === "retomar" || estadoConv === "retomar_resp") {
+  const canal = await canalDoMedico(conv);
+  if ((estadoConv === "retomar" || estadoConv === "retomar_resp") && canal.compartilhado) {
+    // No WhatsApp do medico a conversa e uma so: nada de "da ultima vez...".
+    await sb.from("conversations").update({ bot_state: null }).eq("id", conv);
+    conversa.bot_state = null;
+  } else if (estadoConv === "retomar" || estadoConv === "retomar_resp") {
     // So pergunta "continuar o anterior?" quando houve atendimento de verdade
     // (paciente identificado ou triagem). Sem isso, ou se a pessoa ja chega
     // pedindo consulta, comeca do inicio.
@@ -1163,6 +1189,13 @@ export async function agente(conv: string, texto: string): Promise<string | null
   const agendando = (conversa.bot_state ?? "").startsWith("ag_") || pediuConfirmar || jaEmAndamento;
   const triagemEmAndamento = Object.keys(ctx.coletado ?? {}).some((k) => !FORA_DA_TRIAGEM.has(k));
   const jaPediu = falasIA.some((b) => b.toLowerCase().includes(MARCA_CONSENTIMENTO));
+  // Paciente que ja conversa com o medico: a mae que escreve "aquela tosse do
+  // Miguel..." nao recebe "podemos comecar? 1 ou 2". Os dados sao tratados
+  // para o cuidado do paciente, com quem ja e atendido por ele.
+  if (!ctx.consentiu && canal.jaConhece) {
+    await sb.rpc("nx_agent_consentir", { p_conv: conv });
+    ctx.consentiu = true;
+  }
   if (!ctx.consentiu && !agendando && (jaPediu || !triagemEmAndamento)) {
     const c = await consentimento(conv, t, ctx, falasIA);
     if (c !== undefined) return c;
@@ -1205,6 +1238,17 @@ export async function agente(conv: string, texto: string): Promise<string | null
         `e, no fim, repita a pergunta pendente do agendamento: "${ultimaIA}"`
       : "");
 
+  // Conversa anterior com o medico no proprio WhatsApp: a IA continua o
+  // assunto que a familia trouxe em vez de comecar um roteiro do zero.
+  const anterior = canal.historico.length
+    ? "# Conversa anterior entre a família e o médico (WhatsApp, mais antiga primeiro)\n" +
+      canal.historico.slice(-25).map((f) => `${f.em.slice(0, 10)} ${f.quem === "dono" ? "MÉDICO" : "FAMÍLIA"}: ${f.texto}`)
+        .join("\n") +
+      "\n\nEssa família já é atendida pelo médico. Não se apresente, não peça consentimento e não " +
+      "recomece do zero: responda ao que foi dito agora, use o contexto acima (nomes, quadro anterior) " +
+      "e faça só as perguntas que faltam para o médico avaliar."
+    : null;
+
   const r = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
@@ -1216,6 +1260,7 @@ export async function agente(conv: string, texto: string): Promise<string | null
       messages: [
         { role: "system", content: instrucoes },
         { role: "system", content: contexto },
+        ...(anterior ? [{ role: "system", content: anterior }] : []),
         ...historico,
         { role: "user", content: texto },
       ],
