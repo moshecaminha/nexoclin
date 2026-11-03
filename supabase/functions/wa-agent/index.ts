@@ -551,26 +551,21 @@ async function classificar(
           {
             role: "system",
             content:
-`Este é o WhatsApp pessoal de um médico (${clinica}), usado também para atender pacientes.
-Uma assistente virtual atende os PACIENTES. Você decide se ela deve entrar nesta conversa.
+`Este é o WhatsApp de um médico pediatra (${clinica}), usado também para atender pacientes.
+Uma assistente virtual atende as famílias dos PACIENTES. Você decide se ela entra nesta conversa.
 
-- paciente: alguém procurando a clínica como paciente ou responsável: marcar consulta,
-  sintoma, retorno, exame, receita, valor, horário. Primeiro contato sem relação anterior
-  com o médico, falando de atendimento, é paciente.
-- pessoal: a conversa anterior mostra relação pessoal ou profissional com o médico
-  (amigo, família, colega, escola, igreja, fornecedor, trabalho), ou a mensagem segue um
-  assunto já em andamento com ele, ou o contato chama o médico pelo apelido/primeiro nome
-  em tom pessoal. Amigo pedindo um conselho de saúde ao médico também é pessoal: quem
-  responde é ele.
-- Pedido de CONSULTA ou horário (para si ou para filho/familiar) é paciente, mesmo
-  vindo de amigo ou conhecido: "pode atender o José amanhã às 13h?" é paciente.
-- duvida: não dá para saber com segurança.
+- paciente: a mensagem nova fala da SAÚDE ou do ATENDIMENTO de uma criança ou de alguém da
+  família: sintoma, febre, tosse, cocô, xixi, vômito, remédio, dose, vacina, alimentação do bebê,
+  exame, consulta, horário, retorno, valor, receita, atestado. Vale mesmo que a pessoa chame o médico
+  de "Rafa", pelo primeiro nome ou com carinho: mães de pacientes falam assim. Vale mesmo que a
+  pessoa seja amiga ou conhecida do médico.
+- pessoal: a mensagem nova NÃO tem nada de saúde nem de atendimento: igreja, escola, trabalho,
+  compras, links, família, combinados, conversa social.
+- duvida: só quando não der mesmo para saber.
 
-Lembrete ou confirmação de uma consulta marcada no histórico indicam paciente.
-Mensagens da assistente virtual (boas-vindas, "podemos começar?", "da última vez
-falamos sobre...") NÃO provam nada: ela já respondeu amigos por engano.
-Foto, áudio ou arquivo sozinhos não fazem de ninguém paciente: decida pelo contexto.
-Na dúvida entre paciente e pessoal, responda duvida.`,
+Decida pela MENSAGEM NOVA; a conversa anterior serve para entender o contexto (nomes, um quadro
+que já vinha sendo acompanhado). Foto ou áudio: decida pelo conteúdo descrito.
+Mensagens antigas da assistente virtual não provam nada.`,
           },
           {
             role: "user",
@@ -622,15 +617,24 @@ async function porteiro(conv: string, texto: string): Promise<boolean> {
     }
     return false;
   }
-  if (marca?.modo === "paciente") {
-    if (!c.contexto_tipo) await marcar("paciente", "sinalizado pelo médico (#ia)");
-    return c.bot_active !== false;
-  }
+  // O medico (ou a equipe) respondeu essa pessoa nas ultimas 12h: a
+  // conversa e dele agora, a IA nao se mete.
+  const { data: humano } = await sb.from("messages").select("created_at")
+    .eq("conversation_id", conv).eq("direction", "out").not("author", "in", "(assistente,sistema)")
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (humano && Date.now() - Date.parse(humano.created_at) < 12 * 3600_000) return false;
 
-  // No numero do medico, IA desligada e silencio total: nada de retomada,
-  // confirmacao ou aviso automatico numa conversa que um humano conduz.
-  if (c.bot_active === false) return false;
-  if (c.contexto_tipo) return c.contexto_tipo === "paciente" || c.bot_active === true;
+  // Paciente (marcado com #ia ou ja reconhecido): a IA volta a atender quando
+  // a familia escreve de novo depois que o medico parou de responder.
+  const religar = async () => {
+    if (c.bot_active === false) await sb.from("conversations").update({ bot_active: true }).eq("id", conv);
+  };
+  if (marca?.modo === "paciente") {
+    if (c.contexto_tipo !== "paciente") await marcar("paciente", "sinalizado pelo médico (#ia)");
+    await religar();
+    return true;
+  }
+  if (c.contexto_tipo === "paciente") { await religar(); return true; }
 
   // Historico: o do proprio WhatsApp (Zernio) e o que ja esta na NexoClin.
   let hist: FalaHistorico[] = [];
@@ -648,10 +652,12 @@ async function porteiro(conv: string, texto: string): Promise<boolean> {
   }
 
   const { data: cl } = await sb.from("clinics").select("nome").eq("id", c.clinic_id).maybeSingle();
+  // Pessoal, duvida ou ainda sem decisao: reavalia a cada mensagem nova, porque
+  // a mae que hoje fala da igreja amanha escreve sobre a febre do filho.
   const d = await classificar(cl?.nome ?? "clínica", hist, texto);
   const tipo = d?.tipo ?? "duvida";
   await marcar(tipo, d?.motivo ?? "classificação indisponível");
-  if (tipo === "paciente") return true;
+  if (tipo === "paciente") { await religar(); return true; }
 
   // pessoal ou duvida: a IA sai desta conversa. Duvida chama a equipe.
   await sb.from("conversations")
