@@ -429,11 +429,13 @@ async function transcrever(bytes: Uint8Array, mime: string): Promise<string | nu
 // Comando do medico pelo celular, na conversa com o contato:
 //   #ia  -> o contato e paciente: a IA assume (e responde o que estiver pendente)
 //   #off -> a IA sai deste contato de vez
-//   #fim -> encerra o atendimento e gera o resumo (PDF) no sistema
+//   #encerraratendimento (ou #fim) -> encerra e gera o resumo (PDF) no sistema
 // #ia/#off valem para as proximas conversas do mesmo telefone (wa_contato_ia).
 async function comandoIA(phoneId: string, para: string, texto: string | null): Promise<boolean> {
   const t = String(texto ?? "").trim().toLowerCase();
-  if (t === "#fim" && para) {
+  // "#encerraratendimento" (nome que o Rafael escolheu), "#encerrar atendimento" ou "#fim"
+  const fim = ["#fim", "#encerraratendimento", "#encerrar"].includes(t.replace(/[\s_-]/g, ""));
+  if (fim && para) {
     EdgeRuntime.waitUntil(encerrarAtendimento(phoneId, para));
     return true;
   }
