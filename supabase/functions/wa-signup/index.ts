@@ -98,6 +98,8 @@ async function gravarConta(
     if (ja?.length) return json({ erro: "este número já está conectado nesta clínica." }, 409);
     const { error: errIns } = await admin.from("clinic_whatsapp_extra").insert({
       clinic_id, rotulo: adicional.rotulo || "Adicional", provider: "zernio",
+      // numero de agendamento passa a disparar os lembretes de consulta
+      lembretes: /^agend/i.test(adicional.rotulo ?? ""),
       phone_number_id: phoneId, access_token: conta, waba_id: acc?.metadata?.wabaId ?? null,
       display_number: acc?.username ?? acc?.displayName ?? null,
       status: acc?.isActive === false ? "pendente" : "conectado",
