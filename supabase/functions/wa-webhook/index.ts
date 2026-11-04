@@ -6,7 +6,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { PDFDocument, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 import {
-  CAMPOS_CONEXAO, enviarTextoCanal, lembrarConversaZernio, uazapi, type Conexao,
+  atualizarNumero, CAMPOS_CONEXAO, conexaoDaConversa, conexaoDoNumero, enviarTextoCanal,
+  lembrarConversaZernio, uazapi, type Conexao,
 } from "../_shared/canal.ts";
 
 const sb = createClient(
@@ -351,15 +352,13 @@ const CMD_ZERAR = ["zerar", "#zerar", "reset", "#reset", "recomecar", "recomeça
 async function zerarConversa(phoneId: string, telefone: string): Promise<boolean> {
   try {
     // zera so neste consultorio: o mesmo telefone pode falar com varios
-    const { data: cw } = await sb.from("clinic_whatsapp")
-      .select("clinic_id").eq("phone_number_id", phoneId).maybeSingle();
+    const cw = await conexaoDoNumero(phoneId);
     const { data: r, error: eReset } = await sb.rpc("nx_dev_reset", {
       p_telefone: telefone,
       p_clinic: cw?.clinic_id ?? null,
     });
     if (eReset) console.error("zerar:", eReset.message);
-    const { data: conn } = await sb.from("clinic_whatsapp")
-      .select(CAMPOS_CONEXAO).eq("phone_number_id", phoneId).single();
+    const conn = cw;
     if (!conn?.access_token) return true;
 
     const n = r?.conversas_apagadas ?? 0;
@@ -375,11 +374,10 @@ async function zerarConversa(phoneId: string, telefone: string): Promise<boolean
 }
 
 
-/** Manda um texto pelo numero da clinica e registra a mensagem enviada. */
-async function enviarTexto(clinic: string, conv: string, telefone: string, texto: string, autor: string) {
-  const { data: conn } = await sb.from("clinic_whatsapp")
-    .select(CAMPOS_CONEXAO).eq("clinic_id", clinic).single();
-  if (!conn?.access_token) { console.error("envio: clinica sem token"); return; }
+/** Manda um texto pelo numero da conversa e registra a mensagem enviada. */
+async function enviarTexto(_clinic: string, conv: string, telefone: string, texto: string, autor: string) {
+  const conn = await conexaoDaConversa(conv);
+  if (!conn?.access_token) { console.error("envio: conversa sem numero conectado"); return; }
 
   const env = await enviarTextoCanal(conn, telefone, texto);
   if (!env.ok) { console.error("envio: recusado", conn.provider, JSON.stringify(env.erro)); return; }
@@ -801,7 +799,7 @@ async function webhookZernio(req: Request): Promise<Response> {
   const phoneId = `zernio:${conta}`;
 
   const { data: conn } = conta
-    ? await sb.from("clinic_whatsapp").select("clinic_id").eq("phone_number_id", phoneId).maybeSingle()
+    ? { data: await conexaoDoNumero(phoneId) }
     : { data: null };
 
   try {
@@ -818,10 +816,10 @@ async function webhookZernio(req: Request): Promise<Response> {
     const convZernio = String(body?.conversation?.id ?? m?.conversationId ?? "");
 
     if (evento === "account.disconnected") {
-      await sb.from("clinic_whatsapp").update({
+      await atualizarNumero(phoneId, {
         status: "pendente", conexao_erro: "Zernio: " + (body?.account?.reason ?? "conta desconectada"),
         verificado_em: new Date().toISOString(),
-      }).eq("clinic_id", conn.clinic_id);
+      });
       return new Response("ok", { status: 200 });
     }
 
@@ -1031,8 +1029,7 @@ Deno.serve(async (req) => {
           // Arquivo: baixa DEPOIS de responder 200. Se demorar aqui dentro, a
           // Meta considera falha e reentrega o evento inteiro.
           if (mid && ctx?.clinic_id && ctx?.conversation_id) {
-            const { data: conn } = await sb.from("clinic_whatsapp")
-              .select("access_token").eq("clinic_id", ctx.clinic_id).single();
+            const conn = await conexaoDoNumero(phoneId);
             if (conn?.access_token) {
               EdgeRuntime.waitUntil(baixarMidia(
                 mid.id, msg.id, ctx.clinic_id, ctx.conversation_id,

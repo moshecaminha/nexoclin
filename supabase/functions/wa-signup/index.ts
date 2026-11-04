@@ -75,17 +75,39 @@ async function contasDoProfile(): Promise<any[]> {
  * (metadata.isCoexistence), para contas vinculadas fora do cadastro.
  */
 // deno-lint-ignore no-explicit-any
-async function gravarConta(admin: any, clinic_id: string, conta: string, coex: boolean | null) {
+async function gravarConta(
+  admin: any, clinic_id: string, conta: string, coex: boolean | null,
+  adicional: { rotulo: string | null } | null = null,
+) {
   const acc = (await contasDoProfile()).find((a) => String(a?._id) === conta);
   if (!acc) return json({ erro: "conta não encontrada na Zernio" }, 404);
 
   const phoneId = `zernio:${conta}`;
-  const { data: dono } = await admin.from("clinic_whatsapp")
+  const { data: dono } = await admin.from("wa_numeros")
     .select("clinic_id").eq("phone_number_id", phoneId).neq("clinic_id", clinic_id).limit(1);
   if (dono?.length) return json({ erro: "este número já está conectado em outra clínica da NexoClin." }, 409);
 
   const coexistencia = coex ?? (acc?.metadata?.isCoexistence === true);
   const agora = new Date().toISOString();
+
+  // Numero adicional (ex.: agendamento): entra ao lado do principal, sem
+  // substituir. Se ja era o principal desta clinica, nao duplica.
+  if (adicional) {
+    const { data: ja } = await admin.from("wa_numeros").select("principal")
+      .eq("phone_number_id", phoneId).eq("clinic_id", clinic_id).limit(1);
+    if (ja?.length) return json({ erro: "este número já está conectado nesta clínica." }, 409);
+    const { error: errIns } = await admin.from("clinic_whatsapp_extra").insert({
+      clinic_id, rotulo: adicional.rotulo || "Adicional", provider: "zernio",
+      phone_number_id: phoneId, access_token: conta, waba_id: acc?.metadata?.wabaId ?? null,
+      display_number: acc?.username ?? acc?.displayName ?? null,
+      status: acc?.isActive === false ? "pendente" : "conectado",
+      coexistencia, is_on_biz_app: coexistencia,
+      conexao_erro: acc?.isActive === false ? "conta inativa na Zernio" : null,
+      verificado_em: agora, connected_at: agora,
+    });
+    if (errIns) return json({ erro: "falha ao gravar", detalhe: errIns.message }, 500);
+    return json({ ok: true, status: "conectado", numero: acc?.username, coexistencia, adicional: true });
+  }
   const { error: errUp } = await admin.from("clinic_whatsapp").upsert({
     clinic_id, provider: "zernio",
     phone_number_id: phoneId, access_token: conta,
@@ -138,8 +160,10 @@ Deno.serve(async (req) => {
     try { voltar = new URL(String(b?.voltar ?? "")); } catch { return json({ erro: "voltar inválido" }, 400); }
     if (voltar.protocol !== "https:") return json({ erro: "voltar precisa ser https" }, 400);
 
+    const adicional = b?.adicional === true;
+    const rotulo = adicional ? String(b?.rotulo ?? "").trim().slice(0, 40) || null : null;
     const { data: est, error: errEst } = await admin.from("wa_zernio_estado")
-      .insert({ clinic_id, modo }).select("estado").single();
+      .insert({ clinic_id, modo, adicional, rotulo }).select("estado").single();
     if (errEst) return json({ erro: "falha ao iniciar", detalhe: errEst.message }, 500);
     voltar.searchParams.set("nx_zernio", est.estado);
 
@@ -161,12 +185,13 @@ Deno.serve(async (req) => {
     // Estado da mesma clinica, criado ha menos de 1h. So e consumido quando
     // a gravacao da certo: uma falha nossa nao obriga a refazer o cadastro.
     const { data: est } = await admin.from("wa_zernio_estado")
-      .select("modo").eq("estado", b.estado).eq("clinic_id", clinic_id)
+      .select("modo, adicional, rotulo").eq("estado", b.estado).eq("clinic_id", clinic_id)
       .gt("criado_em", new Date(Date.now() - 3600_000).toISOString())
       .maybeSingle();
     if (!est) return json({ erro: "cadastro expirado ou de outra clínica. Comece de novo." }, 409);
 
-    const resp = await gravarConta(admin, clinic_id, conta, est.modo === "coexistencia");
+    const resp = await gravarConta(admin, clinic_id, conta, est.modo === "coexistencia",
+      est.adicional ? { rotulo: est.rotulo ?? null } : null);
     if (resp.ok) await admin.from("wa_zernio_estado").delete().eq("estado", b.estado);
     return resp;
   }
@@ -185,7 +210,7 @@ Deno.serve(async (req) => {
     }
 
     const contas = await contasDoProfile();
-    const { data: usadas } = await admin.from("clinic_whatsapp")
+    const { data: usadas } = await admin.from("wa_numeros")
       .select("phone_number_id").like("phone_number_id", "zernio:%");
     const ligadas = new Set((usadas ?? []).map((u: any) => String(u.phone_number_id).slice(7)));
     return json({

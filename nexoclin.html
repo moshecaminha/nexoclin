@@ -2156,6 +2156,7 @@ function waRender(d,tpls){
       <button class="rc-b2" style="margin-top:8px;width:100%" onclick="waConectar('api')">Conectar n&uacute;mero s&oacute; na API (sem o app)</button>
       <div id="waLivres"></div>`}
     <div id="waMsg" style="margin-top:12px"></div>
+    ${st==='conectado'?'<div id="waExtras" style="margin-top:16px"></div>':''}
     <details style="margin-top:14px">
       <summary style="cursor:pointer;color:var(--mute);font-size:12.5px">Conex&atilde;o manual (avan&ccedil;ado)</summary>
       <div class="cl-2" style="margin-top:10px"><div class="cl-field"><label>N&uacute;mero exibido</label><input id="waNum" value="${d.display_number||''}" placeholder="+55 21 90000-0000"></div><div class="cl-field"><label>Phone Number ID</label><input id="waPhone" value="${d.phone_number_id||''}" placeholder="phone_number_id"></div></div>
@@ -2166,6 +2167,7 @@ function waRender(d,tpls){
     <div class="cl-sec2" style="margin-top:16px">Biblioteca de templates (${tpls.length})</div>
     <div class="wa-tpls">${tpls.map(t=>`<div class="wa-tpl"><div class="wa-tpl-h"><b>${t.name}</b><span class="wa-cat wa-${t.category}">${t.category}</span></div><div class="wa-tpl-b">${(t.body||'').replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>${t.descricao?`<div class="wa-tpl-d">${t.descricao}</div>`:''}</div>`).join('')}</div>`;
   if(st!=='conectado') waContasLivres();
+  else waExtrasLoad();
 }
 async function waSave(){
   const g=id=>((document.getElementById(id)||{}).value||'').trim();
@@ -2221,14 +2223,39 @@ async function waVincular(conta){
 // clique (antes do await) para o navegador nao bloquear; o endereco vem
 // depois. Se o navegador bloquear mesmo assim, cai no redirecionamento.
 let WA_JANELA = null;
-async function waConectar(modo){
+// Outros numeros da clinica (ex.: o de agendamento da secretaria). Cada um
+// atende as conversas que chegam nele; a resposta sai pelo mesmo numero.
+async function waExtrasLoad(){
+  const box=document.getElementById('waExtras'); if(!box) return;
+  let lista=[];
+  try{ const {data}=await SB.rpc('nx_wa_numeros',{p_clinic:NX.clinic}); lista=data||[]; }catch(e){}
+  const esc=t=>String(t||'').replace(/</g,'&lt;');
+  box.innerHTML = `<div class="cl-sec2">Outros n&uacute;meros da cl&iacute;nica</div>
+    ${lista.length?lista.map(n=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line)">
+      <span><b>${esc(n.rotulo)}</b> &middot; <code>${esc(n.display_number)}</code> <span style="font-size:12px;color:${n.status==='conectado'?'#12996A':'#B4790B'}">${esc(n.status)}</span>${n.conexao_erro?`<br><span style="font-size:12px;color:var(--coral)">${esc(n.conexao_erro)}</span>`:''}</span>
+      <button class="rc-b2" onclick="waExtraRemover('${String(n.id).replace(/[^\w-]/g,'')}')">Remover</button></div>`).join('')
+      :'<p class="wa-hint">Nenhum outro n&uacute;mero. Ex.: o WhatsApp de agendamento da secretaria.</p>'}
+    <button class="rc-b2" style="margin-top:10px;width:100%" onclick="waConectarOutro()">+ Conectar outro n&uacute;mero</button>`;
+}
+function waConectarOutro(){
+  const rotulo = prompt('Nome deste número (ex.: Agendamento, Secretaria):','Agendamento');
+  if (rotulo===null) return;
+  waConectar('coexistencia', { adicional:true, rotulo: rotulo.trim()||'Adicional' });
+}
+async function waExtraRemover(id){
+  if(!confirm('Remover este número da clínica? As mensagens que chegarem nele deixam de entrar na NexoClin.')) return;
+  try{ await SB.rpc('nx_wa_numero_remover',{p_clinic:NX.clinic,p_id:id}); toast('Número removido'); waExtrasLoad(); }
+  catch(e){ toast('Erro: '+(e.message||e),'⚠'); }
+}
+
+async function waConectar(modo, extra){
   waMsg('Abrindo o cadastro do WhatsApp...');
   const w = 520, h = 720;
   WA_JANELA = window.open('', 'nx_wa_cadastro',
     'width='+w+',height='+h+',left='+Math.max(0,(screen.width-w)/2)+',top='+Math.max(0,(screen.height-h)/2));
   try{
     const voltar = location.origin + location.pathname;
-    const d = await waSignup({ acao:'iniciar', modo: modo==='api'?'api':'coexistencia', voltar });
+    const d = await waSignup(Object.assign({ acao:'iniciar', modo: modo==='api'?'api':'coexistencia', voltar }, extra||{}));
     if (!d.ok || !d.url){
       if (WA_JANELA) WA_JANELA.close();
       waMsg('Falhou: '+(d.erro||JSON.stringify(d)),'err'); return;

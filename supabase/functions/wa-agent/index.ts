@@ -17,7 +17,7 @@
 // O modelo nunca informa horario, valor nem reserva: isso vem do banco. E so
 // pode SUBIR a gravidade, nunca baixar.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { historicoZernio, type FalaHistorico } from "../_shared/canal.ts";
+import { conexaoDaConversa, historicoZernio, type FalaHistorico } from "../_shared/canal.ts";
 
 const sb = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -503,8 +503,8 @@ async function canalDoMedico(conv: string) {
   const { data: c } = await sb.from("conversations")
     .select("clinic_id, telefone, contexto_motivo").eq("id", conv).maybeSingle();
   if (!c) return { compartilhado: false, historico: [] as FalaHistorico[], jaConhece: false };
-  const { data: w } = await sb.from("clinic_whatsapp")
-    .select("provider, access_token, coexistencia").eq("clinic_id", c.clinic_id).maybeSingle();
+  // o numero por onde esta conversa entrou (a clinica pode ter mais de um)
+  const w = await conexaoDaConversa(conv);
   const compartilhado = w?.coexistencia === true || w?.provider === "uazapi";
   if (!compartilhado) return { compartilhado, historico: [] as FalaHistorico[], jaConhece: false };
   const historico = w?.provider === "zernio" && w?.access_token
@@ -603,8 +603,8 @@ async function porteiro(conv: string, texto: string): Promise<boolean> {
   };
 
   // Numero so da clinica: todo contato e paciente.
-  const { data: w } = await sb.from("clinic_whatsapp")
-    .select("provider, access_token, coexistencia").eq("clinic_id", c.clinic_id).maybeSingle();
+  // o numero por onde esta conversa entrou (a clinica pode ter mais de um)
+  const w = await conexaoDaConversa(conv);
   const compartilhado = w?.coexistencia === true || w?.provider === "uazapi";
   if (!compartilhado) {
     if (!c.contexto_tipo) await marcar("paciente", "número exclusivo da clínica");

@@ -67,6 +67,34 @@ const sbc = () => sbCanal ??= createClient(
   Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
+/**
+ * Conexao de um numero (principal ou adicional da clinica). Uma clinica pode
+ * ter mais de um WhatsApp; a view wa_numeros junta todos.
+ */
+export async function conexaoDoNumero(phoneId?: string | null): Promise<(Conexao & {
+  clinic_id: string; coexistencia: boolean; principal: boolean; extra_id: string | null;
+}) | null> {
+  if (!phoneId) return null;
+  const { data } = await sbc().from("wa_numeros")
+    .select(`clinic_id, extra_id, principal, coexistencia, ${CAMPOS_CONEXAO}`)
+    .eq("phone_number_id", phoneId).limit(1).maybeSingle();
+  return data ?? null;
+}
+
+/** Conexao por onde a conversa entrou: a resposta sai pelo mesmo numero. */
+export async function conexaoDaConversa(conv: string) {
+  const { data: canal } = await sbc().rpc("nx_conv_canal", { p_conv: conv });
+  return await conexaoDoNumero(canal as string | null);
+}
+
+/** Atualiza o cadastro do numero na tabela certa (principal ou adicional). */
+export async function atualizarNumero(phoneId: string, patch: Record<string, unknown>) {
+  const n = await conexaoDoNumero(phoneId);
+  if (!n) return;
+  if (n.extra_id) await sbc().from("clinic_whatsapp_extra").update(patch).eq("id", n.extra_id);
+  else await sbc().from("clinic_whatsapp").update(patch).eq("clinic_id", n.clinic_id);
+}
+
 /** Guarda o id da conversa na Zernio: texto livre so sai por ele. */
 export async function lembrarConversaZernio(conta: string, fone: string, convZernio: string) {
   if (!conta || !fone || !convZernio) return;

@@ -3,7 +3,7 @@
 // O token da clinica nunca chega ao navegador: quem le e esta funcao.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
-  CAMPOS_CONEXAO, ehUazapi, ehZernio, enviarTemplateZernio, enviarTextoCanal,
+  conexaoDoNumero, ehUazapi, ehZernio, enviarTemplateZernio, enviarTextoCanal,
 } from "../_shared/canal.ts";
 
 /** Template aprovado vira texto na uazapi: troca {{1}}, {{2}}... pelos parametros. */
@@ -79,9 +79,8 @@ Deno.serve(async (req) => {
 
   // 3) Token da clinica: so aqui, com service_role.
   const admin = createClient(URL_SB, SRV);
-  const { data: conn } = await admin
-    .from("clinic_whatsapp").select(CAMPOS_CONEXAO)
-    .eq("clinic_id", ctx.clinic_id).single();
+  // o numero da conversa (a clinica pode ter mais de um WhatsApp)
+  const conn = await conexaoDoNumero(ctx.phone_number_id);
   if (!conn?.access_token) return json({ erro: "clínica sem token configurado" }, 409);
 
   // uazapi: sem janela de 24h e sem template da Meta. Template vira texto.

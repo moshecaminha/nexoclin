@@ -8,7 +8,9 @@
 //
 // Esta funcao roda por cron, acha as conversas nessa situacao e responde.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { CAMPOS_CONEXAO, ehUazapi, ehZernio, enviarTextoCanal, uazapi, zernio } from "../_shared/canal.ts";
+import {
+  atualizarNumero, CAMPOS_CONEXAO, conexaoDaConversa, ehUazapi, ehZernio, enviarTextoCanal, uazapi, zernio,
+} from "../_shared/canal.ts";
 
 const URL_SB = Deno.env.get("SUPABASE_URL")!;
 const sb = createClient(URL_SB, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
@@ -37,8 +39,7 @@ async function responderTravado(conv: string, clinic: string, telefone: string, 
   const j = await r.json().catch(() => ({}));
   if (!r.ok || !j?.resposta) return null;
 
-  const { data: conn } = await sb.from("clinic_whatsapp")
-    .select(CAMPOS_CONEXAO).eq("clinic_id", clinic).single();
+  const conn = await conexaoDaConversa(conv);
   if (!conn?.access_token) return null;
 
   const env = await enviarTextoCanal(conn, telefone, j.resposta);
@@ -69,7 +70,8 @@ function mesmaUrl(a?: string | null, b?: string | null) {
 }
 
 async function checarConexoes() {
-  const { data: conns } = await sb.from("clinic_whatsapp")
+  // todos os numeros da clinica: o principal e os adicionais
+  const { data: conns } = await sb.from("wa_numeros")
     .select(`clinic_id, ${CAMPOS_CONEXAO}`)
     .eq("status", "conectado");
   let alteradas = 0;
@@ -81,15 +83,14 @@ async function checarConexoes() {
       const st = await uazapi(c, "/instance/status").catch(() => null);
       const agora = new Date().toISOString();
       if (!st || st.status >= 500) {
-        await sb.from("clinic_whatsapp").update({ conexao_erro: "checagem: uazapi sem resposta", verificado_em: agora })
-          .eq("clinic_id", c.clinic_id);
+        await atualizarNumero(String(c.phone_number_id), { conexao_erro: "checagem: uazapi sem resposta", verificado_em: agora });
         continue;
       }
       const conectado = st.body?.status?.connected === true || st.body?.instance?.status === "connected";
-      await sb.from("clinic_whatsapp").update({
+      await atualizarNumero(String(c.phone_number_id), {
         verificado_em: agora,
         ...(conectado ? { conexao_erro: null } : { status: "pendente", conexao_erro: "instância uazapi desconectada" }),
-      }).eq("clinic_id", c.clinic_id);
+      });
       if (!conectado) alteradas++;
       continue;
     }
@@ -98,18 +99,18 @@ async function checarConexoes() {
       const h = await zernio(`/accounts/${encodeURIComponent(String(c.access_token))}/health`).catch(() => null);
       const agora = new Date().toISOString();
       if (!h || (!h.ok && h.status !== 404)) {
-        await sb.from("clinic_whatsapp").update({
+        await atualizarNumero(String(c.phone_number_id), {
           conexao_erro: "checagem: Zernio " + (h ? `HTTP ${h.status}` : "sem resposta"), verificado_em: agora,
-        }).eq("clinic_id", c.clinic_id);
+        });
         continue;
       }
       const motivo = h.status === 404 ? "conta removida da Zernio"
         : h.body?.status === "error" ? "Zernio: " + JSON.stringify(h.body?.issues ?? "conta com erro").slice(0, 300)
         : null;
-      await sb.from("clinic_whatsapp").update({
+      await atualizarNumero(String(c.phone_number_id), {
         verificado_em: agora,
         ...(motivo ? { status: "pendente", conexao_erro: motivo } : { conexao_erro: null }),
-      }).eq("clinic_id", c.clinic_id);
+      });
       if (motivo) alteradas++;
       continue;
     }
@@ -120,9 +121,9 @@ async function checarConexoes() {
     const agora = new Date().toISOString();
 
     if (!r.ok) {
-      await sb.from("clinic_whatsapp").update({
+      await atualizarNumero(String(c.phone_number_id), {
         conexao_erro: "checagem: " + (j?.error?.message ?? `HTTP ${r.status}`), verificado_em: agora,
-      }).eq("clinic_id", c.clinic_id);
+      });
       continue;
     }
 
@@ -131,11 +132,11 @@ async function checarConexoes() {
     if (!mesmaUrl(destino, WEBHOOK)) motivo = `webhook do número aponta para ${destino ?? "a URL padrão do app"}`;
     else if (j?.platform_type && j.platform_type !== "CLOUD_API") motivo = `número saiu do Cloud API (${j.platform_type})`;
 
-    await sb.from("clinic_whatsapp").update({
+    await atualizarNumero(String(c.phone_number_id), {
       is_on_biz_app: j?.is_on_biz_app ?? null,
       verificado_em: agora,
       ...(motivo ? { status: "pendente", conexao_erro: motivo } : { conexao_erro: null }),
-    }).eq("clinic_id", c.clinic_id);
+    });
     if (motivo) alteradas++;
   }
   return { verificadas: conns?.length ?? 0, marcadas_pendente: alteradas };
