@@ -4,6 +4,7 @@
 // Tambem recebe a uazapi (API nao oficial) em ?uaz=<segredo da conexao> e a
 // Zernio (API oficial intermediada), reconhecida pelo header X-Zernio-Signature.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { PDFDocument, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
 import {
   CAMPOS_CONEXAO, enviarTextoCanal, lembrarConversaZernio, uazapi, type Conexao,
 } from "../_shared/canal.ts";
@@ -428,9 +429,14 @@ async function transcrever(bytes: Uint8Array, mime: string): Promise<string | nu
 // Comando do medico pelo celular, na conversa com o contato:
 //   #ia  -> o contato e paciente: a IA assume (e responde o que estiver pendente)
 //   #off -> a IA sai deste contato de vez
-// Vale para as proximas conversas do mesmo telefone (wa_contato_ia).
+//   #fim -> encerra o atendimento e gera o resumo (PDF) no sistema
+// #ia/#off valem para as proximas conversas do mesmo telefone (wa_contato_ia).
 async function comandoIA(phoneId: string, para: string, texto: string | null): Promise<boolean> {
   const t = String(texto ?? "").trim().toLowerCase();
+  if (t === "#fim" && para) {
+    EdgeRuntime.waitUntil(encerrarAtendimento(phoneId, para));
+    return true;
+  }
   const modo = t === "#ia" ? "paciente" : t === "#off" ? "off" : null;
   if (!modo || !para) return false;
   const { data: conv, error } = await sb.rpc("nx_wa_comando_ia", {
@@ -439,6 +445,162 @@ async function comandoIA(phoneId: string, para: string, texto: string | null): P
   if (error) console.error("comando ia:", error.message);
   if (modo === "paciente" && conv) EdgeRuntime.waitUntil(assumirConversa(conv, para));
   return true;
+}
+
+// ---- #fim: resumo do atendimento ----
+const ESQUEMA_RESUMO = {
+  type: "json_schema",
+  json_schema: {
+    name: "resumo_atendimento",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["paciente", "responsavel", "motivo", "resumo", "risco", "desfecho", "medicacao", "proximos_passos"],
+      properties: {
+        paciente: { type: ["string", "null"], description: "Nome (e idade, se houver) de quem foi atendido" },
+        responsavel: { type: ["string", "null"] },
+        motivo: { type: "string", description: "Por que a família entrou em contato, em 1-2 frases" },
+        resumo: { type: "string", description: "Sintomas e informações relevantes relatadas" },
+        risco: { type: "string", enum: ["emergencia", "muito_urgente", "urgente", "pouco_urgente", "nao_urgente"] },
+        desfecho: { type: "string", description: "O que o MÉDICO orientou (observar, consulta, pronto-socorro...)" },
+        medicacao: { type: ["string", "null"], description: "Remédio e dose orientados pelo médico, se houver" },
+        proximos_passos: { type: ["string", "null"], description: "Retorno, sinais de alerta combinados, consulta marcada" },
+      },
+    },
+  },
+} as const;
+
+const ROTULO_RISCO: Record<string, string> = {
+  emergencia: "Emergência", muito_urgente: "Muito urgente", urgente: "Urgente",
+  pouco_urgente: "Pouco urgente", nao_urgente: "Não urgente",
+};
+
+/** Helvetica do PDF so tem Latin-1: tira emoji e afins. */
+const latin1 = (t: string) => String(t ?? "").replace(/[^\x09\x0A\x0D\x20-\x7E\xA0-\xFF]/g, "").trim();
+
+async function gerarPdfResumo(r: Record<string, any>, clinica: string, quando: string): Promise<Uint8Array> {
+  const pdf = await PDFDocument.create();
+  const fonte = await pdf.embedFont(StandardFonts.Helvetica);
+  const negrito = await pdf.embedFont(StandardFonts.HelveticaBold);
+  let pag = pdf.addPage([595, 842]);
+  let y = 790;
+  const margem = 50, largura = 495;
+  const quebrar = (texto: string, f: any, tam: number) => {
+    const linhas: string[] = [];
+    for (const par of latin1(texto).split("\n")) {
+      let atual = "";
+      for (const palavra of par.split(/\s+/)) {
+        const teste = atual ? `${atual} ${palavra}` : palavra;
+        if (f.widthOfTextAtSize(teste, tam) > largura && atual) { linhas.push(atual); atual = palavra; }
+        else atual = teste;
+      }
+      linhas.push(atual);
+    }
+    return linhas;
+  };
+  const escrever = (texto: string, f = fonte, tam = 11, cor = rgb(0.15, 0.15, 0.15)) => {
+    for (const l of quebrar(texto, f, tam)) {
+      if (y < 60) { pag = pdf.addPage([595, 842]); y = 790; }
+      pag.drawText(l, { x: margem, y, size: tam, font: f, color: cor });
+      y -= tam + 5;
+    }
+  };
+  const secao = (titulo: string, texto?: string | null) => {
+    if (!texto) return;
+    y -= 6; escrever(titulo, negrito, 11, rgb(0.08, 0.43, 0.56)); escrever(texto); y -= 4;
+  };
+
+  escrever("Resumo do atendimento por WhatsApp", negrito, 17, rgb(0.08, 0.43, 0.56));
+  escrever(`${clinica}  -  ${quando}`, fonte, 10, rgb(0.4, 0.4, 0.4));
+  y -= 8;
+  secao("Paciente", r.paciente ?? "não identificado");
+  secao("Responsável", r.responsavel);
+  secao("Motivo do contato", r.motivo);
+  secao("Classificação de risco", ROTULO_RISCO[r.risco] ?? r.risco);
+  secao("Relato", r.resumo);
+  secao("Desfecho / orientação do médico", r.desfecho);
+  secao("Medicação orientada", r.medicacao);
+  secao("Próximos passos", r.proximos_passos);
+  y -= 10;
+  escrever("Gerado automaticamente pela NexoClin a partir da conversa. Sem assinatura digital.", fonte, 8, rgb(0.5, 0.5, 0.5));
+  return await pdf.save();
+}
+
+/**
+ * "#fim": le a conversa inteira (familia, assistente e medico), monta o
+ * resumo, salva o PDF no atendimento e encerra. A proxima mensagem da
+ * familia abre um atendimento novo.
+ */
+async function encerrarAtendimento(phoneId: string, para: string) {
+  try {
+    const { data: conv } = await sb.rpc("nx_wa_conv_aberta", { p_phone_number_id: phoneId, p_to: para });
+    if (!conv) { console.error("#fim: sem conversa aberta", para); return; }
+    const { data: c } = await sb.from("conversations")
+      .select("clinic_id, patient_id, paciente_nome, paciente_idade, responsavel_nome, risk").eq("id", conv).single();
+    if (!c) return;
+    const { data: cl } = await sb.from("clinics").select("nome").eq("id", c.clinic_id).maybeSingle();
+    const { data: msgs } = await sb.from("messages").select("direction, author, body, transcript, created_at")
+      .eq("conversation_id", conv).order("created_at", { ascending: true }).limit(200);
+
+    const roteiro = (msgs ?? []).map((m: any) => {
+      const quem = m.direction === "in" ? "FAMÍLIA" : m.author === "assistente" ? "ASSISTENTE" : m.author === "sistema" ? "SISTEMA" : "MÉDICO";
+      const t = String(m.body || m.transcript || "").trim();
+      return t ? `${String(m.created_at).slice(0, 16).replace("T", " ")} ${quem}: ${t}` : null;
+    }).filter(Boolean).join("\n");
+
+    let r: Record<string, any> = {
+      paciente: c.paciente_nome, responsavel: c.responsavel_nome, motivo: "—", resumo: "—",
+      risco: c.risk ?? "nao_urgente", desfecho: "—", medicacao: null, proximos_passos: null,
+    };
+    const chave = Deno.env.get("OPENAI_API_KEY");
+    if (chave && roteiro) {
+      const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: Deno.env.get("WA_RESUMO_MODEL") ?? "gpt-4o-mini",
+          temperature: 0, max_tokens: 700, response_format: ESQUEMA_RESUMO,
+          messages: [
+            { role: "system", content:
+              "Resuma este atendimento pediátrico por WhatsApp para o registro do médico. Use só o que está " +
+              "na conversa, sem inventar. O desfecho e a medicação são o que o MÉDICO orientou; se ele não " +
+              "orientou nada, diga isso. Classifique o risco de forma conservadora. Português, frases curtas." +
+              `\nDados já registrados: paciente ${c.paciente_nome ?? "?"}, idade ${c.paciente_idade ?? "?"}, ` +
+              `risco ${c.risk ?? "?"}.` },
+            { role: "user", content: roteiro },
+          ],
+        }),
+      });
+      const j = await resp.json().catch(() => ({}));
+      const bruto = j?.choices?.[0]?.message?.content;
+      if (bruto) r = { ...r, ...JSON.parse(bruto) };
+      else console.error("#fim resumo:", JSON.stringify(j?.error ?? j));
+    }
+
+    const quando = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+    const pdf = await gerarPdfResumo(r, cl?.nome ?? "Clínica", quando);
+    const path = `${c.clinic_id}/${conv}/resumo_${Date.now()}.pdf`;
+    const { error: eUp } = await sb.storage.from("documentos")
+      .upload(path, pdf, { contentType: "application/pdf", upsert: false });
+    if (eUp) console.error("#fim upload:", eUp.message);
+
+    await sb.from("atendimento_resumo").insert({
+      clinic_id: c.clinic_id, conversation_id: conv, patient_id: c.patient_id ?? null,
+      dados: r, pdf_path: eUp ? null : path,
+    });
+    // Aparece na conversa do sistema como anexo. Nao vai para o WhatsApp.
+    await sb.from("messages").insert({
+      conversation_id: conv, direction: "out", type: "document", author: "sistema",
+      body: `Resumo do atendimento (${quando})`, media_url: eUp ? null : path,
+    });
+    await sb.from("conversations").update({
+      status: "finalizada", desfecho: String(r.desfecho ?? "").slice(0, 300), ended_at: new Date().toISOString(),
+      bot_state: null, updated_at: new Date().toISOString(),
+    }).eq("id", conv);
+  } catch (e) {
+    console.error("#fim:", e instanceof Error ? e.message : e);
+  }
 }
 
 /** Depois do #ia: se a ultima mensagem e do contato e ficou sem resposta, a IA responde. */

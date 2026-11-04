@@ -369,13 +369,17 @@ const RE_SO_5 = /^\s*(5|5️⃣)\s*[).]?\s*$/;
  * saber de qual delas se esta falando antes de registrar qualquer sintoma.
  */
 function familia(quem: any): string {
-  if (!quem?.encontrado) return "Cadastro: telefone ainda não conhecido nesta clínica\n";
+  if (!quem?.encontrado) {
+    return "Cadastro: telefone ainda não conhecido nesta clínica. Antes de qualquer pergunta de sintoma, " +
+      "confirme o NOME (e a idade) de quem precisa de atendimento.\n";
+  }
   const cr = (quem.criancas ?? []).map((c: any) => c.nome).filter(Boolean);
   return `Responsável já cadastrado: ${quem.responsavel_nome ?? "sem nome"}\n` +
     (cr.length
       ? `Crianças deste responsável: ${cr.join(", ")}. ` +
-        `Cumprimente pelo nome, confirme de QUAL delas se trata antes de coletar ` +
-        `sintoma, e nunca misture sintomas de irmãos.\n`
+        `Cumprimente pelo nome e, ANTES de qualquer pergunta de sintoma, confirme de QUAL ` +
+        `criança se trata citando os nomes${cr.length > 1 ? ` ("É sobre ${cr.slice(0, -1).join(", ")} ou ${cr[cr.length - 1]}?")` : ` ("É sobre ${cr[0]}?")`}, ` +
+        `mesmo que um nome já tenha aparecido. Nunca misture sintomas de irmãos.\n`
       : "Ainda sem criança cadastrada para este responsável.\n");
 }
 
@@ -1072,8 +1076,32 @@ const SITUACAO: Record<string, string> = {
 // Chaves que nao sao triagem: nao contam para decidir se ha triagem em andamento.
 const FORA_DA_TRIAGEM = new Set(["encaminhamento", "consentimento", "consentimento_recusado"]);
 
-/** Decide e responde. Devolve o texto a enviar, ou null se o bot deve calar. */
+/**
+ * Toda familia sabe que esta falando com uma assistente virtual: a primeira
+ * resposta de cada atendimento se apresenta e traz o aviso da LGPD, venha ela
+ * do modelo, da agenda ou de um alerta. Antes a apresentacao so saia para
+ * contato novo, e a mae que ja conversava com o medico achava que era ele.
+ */
 export async function agente(conv: string, texto: string): Promise<string | null> {
+  const { count: jaFalou } = await sb.from("messages").select("id", { count: "exact", head: true })
+    .eq("conversation_id", conv).eq("author", "assistente");
+  const resposta = await agenteInterno(conv, texto);
+  if (!resposta || jaFalou) return resposta;
+  if (/assistente virtual/i.test(resposta)) return resposta;
+
+  const { data: prof } = await sb.rpc("nx_conv_doctor", { p_conv: conv });
+  const { data: pr } = prof
+    ? await sb.from("profiles").select("nome").eq("id", prof).maybeSingle()
+    : { data: null };
+  const { data: c } = await sb.from("conversations").select("clinic_id").eq("id", conv).maybeSingle();
+  const { data: cl } = c ? await sb.from("clinics").select("nome").eq("id", c.clinic_id).maybeSingle() : { data: null };
+  const quem = pr?.nome ?? cl?.nome ?? null;
+  const intro = `Oi! 👋 Sou a *assistente virtual* ${quem ? `do consultório de ${quem}` : "do consultório"} ` +
+    "e vou adiantar o seu atendimento por aqui.";
+  return `${intro}\n\n${resposta}\n\n_Seus dados são usados só para o cuidado (LGPD)._`;
+}
+
+async function agenteInterno(conv: string, texto: string): Promise<string | null> {
   const t = texto.toLowerCase();
 
   // 0) Porteiro: conversa pessoal do medico nao e atendimento.
@@ -1198,7 +1226,9 @@ export async function agente(conv: string, texto: string): Promise<string | null
   // Paciente que ja conversa com o medico: a mae que escreve "aquela tosse do
   // Miguel..." nao recebe "podemos comecar? 1 ou 2". Os dados sao tratados
   // para o cuidado do paciente, com quem ja e atendido por ele.
-  if (!ctx.consentiu && canal.jaConhece) {
+  // A apresentacao com o aviso da LGPD sai na primeira resposta (agente()).
+  // Nada de "podemos comecar? 1 ou 2": a familia segue falando do que precisa.
+  if (!ctx.consentiu) {
     await sb.rpc("nx_agent_consentir", { p_conv: conv });
     ctx.consentiu = true;
   }
