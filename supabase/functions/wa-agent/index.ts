@@ -41,13 +41,13 @@ o que é grave. Depois disso, fale sempre da criança na terceira pessoa
 Se for o próprio adolescente escrevendo, fale diretamente com ele, com cuidado.
 
 # Checagem de segurança
-Logo depois de nome e idade, pergunte se a criança está AGORA com algum destes
-sinais (responder SIM ou NÃO):
-• dificuldade para respirar ou peito afundando
-• lábios ou rosto arroxeados
-• muito molinha ou difícil de acordar
-• convulsão
-• manchas roxas que não somem ao apertar
+Logo depois de nome e idade, pergunte numa frase só, de forma natural, se a criança
+está AGORA com algum destes sinais: dificuldade para respirar ou peito afundando,
+lábios ou rosto arroxeados, muito molinha ou difícil de acordar, convulsão, manchas
+roxas que não somem ao apertar. Ex.: "Agora ela está com dificuldade pra respirar,
+lábios roxos, muito molinha, convulsão ou manchas roxas que não somem?"
+NÃO peça para responder SIM ou NÃO item por item: aceite a resposta livre da mãe
+("não", "nenhum", "só tá cansadinha") e entenda o que ela quis dizer.
 
 A qualquer momento, classifique como emergencia e encaminhe para humano se houver:
 - dificuldade respiratória, peito afundando, respiração muito rápida
@@ -128,13 +128,10 @@ cuidados de criança: não peça nota de 0 a 10 (pergunte o comportamento), e
 qualquer febre em bebê com menos de 3 meses é emergência.
 
 # Checagem de segurança
-Antes da triagem, pergunte se a pessoa está AGORA com algum destes sinais
-(responder SIM ou NÃO):
-• Dor forte no peito
-• Falta de ar intensa
-• Boca torta ou fraqueza de um lado (AVC)
-• Sangramento intenso
-• Desmaio
+Antes da triagem, pergunte numa frase só, de forma natural, se a pessoa está AGORA
+com algum destes sinais: dor forte no peito, falta de ar intensa, boca torta ou
+fraqueza de um lado, sangramento intenso, desmaio. Não peça SIM ou NÃO item por item:
+aceite a resposta livre.
 Se SIM, ou se qualquer desses sinais aparecer depois: classifique como
 emergencia, oriente ligar agora para o SAMU 192 ou ir ao pronto-socorro mais
 próximo, avise que já avisou a equipe da clínica, e pare a triagem.
@@ -185,7 +182,7 @@ Se a pessoa pedir para falar com um atendente, encaminhe sem resistir.
 - Confirme o que entendeu antes de encerrar ("dor de garganta há 2 dias, febre 38").
 
 # O que coletar (use estas chaves exatas em "dados")
-tipo_paciente, paciente_nome, paciente_idade, responsavel_nome, motivo,
+tipo_paciente, paciente_nome, paciente_idade, responsavel_nome, ja_paciente, ultima_consulta, motivo,
 sintoma_principal, inicio, padrao, intensidade, localizacao, fatores, febre,
 sintomas_associados, historico_sintoma, doencas_cronicas, medicacoes_uso,
 alergias, red_flags, risco_sugerido, especialidade_sugerida, observacoes,
@@ -371,7 +368,9 @@ const RE_SO_5 = /^\s*(5|5️⃣)\s*[).]?\s*$/;
 function familia(quem: any): string {
   if (!quem?.encontrado) {
     return "Cadastro: telefone ainda não conhecido nesta clínica. Antes de qualquer pergunta de sintoma, " +
-      "confirme o NOME (e a idade) de quem precisa de atendimento.\n";
+      "confirme o NOME (e a idade) de quem precisa de atendimento, uma vez só. Logo depois, pergunte se a criança JÁ " +
+      "É PACIENTE do médico e quando foi a ÚLTIMA CONSULTA (aproximada serve), e anote em dados como " +
+      "ja_paciente e ultima_consulta. Pergunte isso uma vez só.\n";
   }
   const cr = (quem.criancas ?? []).map((c: any) => c.nome).filter(Boolean);
   return `Responsável já cadastrado: ${quem.responsavel_nome ?? "sem nome"}\n` +
@@ -379,7 +378,8 @@ function familia(quem: any): string {
       ? `Crianças deste responsável: ${cr.join(", ")}. ` +
         `Cumprimente pelo nome e, ANTES de qualquer pergunta de sintoma, confirme de QUAL ` +
         `criança se trata citando os nomes${cr.length > 1 ? ` ("É sobre ${cr.slice(0, -1).join(", ")} ou ${cr[cr.length - 1]}?")` : ` ("É sobre ${cr[0]}?")`}, ` +
-        `mesmo que um nome já tenha aparecido. Nunca misture sintomas de irmãos.\n`
+        `mesmo que um nome já tenha aparecido. Confirme UMA vez só, no começo do atendimento; ` +
+        `depois de confirmado, não pergunte de novo. Nunca misture sintomas de irmãos.\n`
       : "Ainda sem criança cadastrada para este responsável.\n");
 }
 
@@ -1280,9 +1280,11 @@ async function agenteInterno(conv: string, texto: string): Promise<string | null
     ? "# Conversa anterior entre a família e o médico (WhatsApp, mais antiga primeiro)\n" +
       canal.historico.slice(-25).map((f) => `${f.em.slice(0, 10)} ${f.quem === "dono" ? "MÉDICO" : "FAMÍLIA"}: ${f.texto}`)
         .join("\n") +
-      "\n\nEssa família já é atendida pelo médico. Não se apresente, não peça consentimento e não " +
-      "recomece do zero: responda ao que foi dito agora, use o contexto acima (nomes, quadro anterior) " +
-      "e faça só as perguntas que faltam para o médico avaliar."
+      "\n\nEssa família já conversa com o médico. A apresentação e o aviso da LGPD já são feitos " +
+      "pelo sistema: não se apresente e não peça consentimento. Use a conversa acima SÓ para conhecer a " +
+      "família (nomes, filhos, um quadro que já vinha sendo acompanhado). NÃO retome assunto antigo por " +
+      "conta própria: se a mensagem nova for só um cumprimento (\"oi\", \"bom dia\", \"boa noite\"), " +
+      "responda apenas perguntando como pode ajudar. Só volte a um assunto anterior se a família o trouxer."
     : null;
 
   const r = await fetch("https://api.openai.com/v1/chat/completions", {
