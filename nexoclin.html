@@ -2822,13 +2822,16 @@ async function dashLoad(){ const b=document.getElementById('dashBox'); if(!b||!S
   if(DASH_PERIOD==='7'){ const ff=new Date(today); ff.setDate(ff.getDate()-6); from=iso(ff); } else if(DASH_PERIOD==='30'){ const ff=new Date(today); ff.setDate(ff.getDate()-29); from=iso(ff); }
   const todayISO=iso(new Date());
   try{
-    const [dR,apR,lemR,waR,docR]=await Promise.all([
+    const [dR,apR,lemR,waR,docR,abR]=await Promise.all([
       SB.rpc('nx_dash',{p_clinic:NX.clinic,p_from:from,p_to:to}),
       SB.rpc('nx_appt_list',{p_clinic:NX.clinic,p_from:todayISO+'T00:00:00',p_to:todayISO+'T23:59:59'}),
       SB.rpc('nx_lembrete_list',{p_clinic:NX.clinic}),
       SB.rpc('nx_wa_inbox_urgent',{p_clinic:NX.clinic,p_limit:6}),
-      SB.rpc('nx_doc_novos',{p_clinic:NX.clinic})
+      SB.rpc('nx_doc_novos',{p_clinic:NX.clinic}),
+      SB.rpc('nx_prt_abertos',{p_clinic:NX.clinic})
     ]);
+    const abertos=(abR&&abR.data)||[];
+    const abertoCard=abertos.length?`<div class="home-novos" style="background:#fff7e6;border-color:#f0c4c4;border-left:4px solid #c07b12"><b style="color:#7a5a12">⚠ ${abertos.length} atendimento(s) em andamento — não finalizado(s)</b><div class="home-novos-list">${abertos.map(a=>`<div class="home-novos-row"><span>${(a.paciente||'Paciente')} · iniciado ${ptFmtdt(a.inicio)}${a.meu?'':(' · <i>'+(a.profissional||'outro profissional')+'</i>')}</span><span class="doc-open" onclick="homeAbrirAtend('${a.patient_id}',${JSON.stringify(a.paciente||'')},'${a.id}')">Continuar →</span></div>`).join('')}</div><div class="cl-cs" style="color:#7a5a12">Nenhum atendimento é finalizado automaticamente. Clique em Continuar para retomar de onde parou e finalizar você mesmo.</div></div>`:'';
     const d=dR.data||{}; const kpi=(v,l)=>`<div class="pt-kpi"><div class="pt-kpi-n">${v||0}</div><div class="pt-kpi-l">${l}</div></div>`;
     const stCor={agendada:'#B4790B',confirmada:'#12996A',cancelada:'#F2564C',realizada:'#6b7b83',faltou:'#F2564C'};
     const ags=(apR.data||[]).filter(a=>iso(new Date(a.scheduled_at))===todayISO).sort((x,y)=>new Date(x.scheduled_at)-new Date(y.scheduled_at));
@@ -2837,7 +2840,7 @@ async function dashLoad(){ const b=document.getElementById('dashBox'); if(!b||!S
     const RK={emergencia:['Emergência','#c0392b'],muito_urgente:['Muito urgente','#e8590c'],urgente:['Urgente','#B4790B'],pouco_urgente:['Pouco urgente','#12996A'],nao_urgente:['Não urgente','#6b7b83']};
     const waRows=(waR.data||[]).map(w=>{const r=RK[w.risk]||['—','#6b7b83']; const wm=w.waiting_min||0; const wait=wm>=60?(Math.floor(wm/60)+'h'+(wm%60)+'m'):(wm+'min'); return `<div class="wa-urg" onclick="nav('cockpit')"><div class="wa-urg-top"><span class="wa-risk" style="border-color:${r[1]};color:${r[1]}">${r[0]}</span><b>${w.paciente_nome||w.responsavel_nome||w.telefone||'—'}</b><span class="wa-wait">${hico('clock')} ${wait}</span></div><div class="wa-urg-body">${(w.body||'').replace(/</g,'&lt;')}</div></div>`;}).join('')||'<div class="rc-empty" style="padding:8px 0">Nenhuma mensagem aguardando resposta.</div>';
     const novos=(docR.data||[]); const novosCard=novos.length?`<div class="home-novos">${hico('inbox')} <b>${novos.length} documento(s) novo(s) enviado(s) por pacientes</b><div class="home-novos-list">${novos.slice(0,6).map(n=>`<div class="home-novos-row" onclick="docAbrirPaciente('${n.patient_id}')"><span>${n.paciente||'Paciente'} · ${docTipoLabel(n.tipo)}</span><span class="doc-open">Ver →</span></div>`).join('')}</div></div>`:''; const upRows=NX_UPDATES.slice(0,6).map(u=>`<div class="home-up"><span class="home-up-d">${u.d}</span><span>${u.t}</span></div>`).join('');
-    b.innerHTML=`<div class="pt-kpis">${kpi(d.pacientes,'Pacientes')}${kpi(d.consultas_periodo,'Consultas ('+(d.periodo_de||'')+'–'+(d.periodo_ate||'')+')')}${kpi(d.realizadas_periodo,'Realizadas no período')}${kpi(d.agendados_semana,'Agendados (7 dias)')}${kpi(d.aguardando,'Aguardando médico')}${kpi(d.aniversariantes_mes,'Aniversariantes do mês')}</div>
+    b.innerHTML=`${abertoCard}<div class="pt-kpis">${kpi(d.pacientes,'Pacientes')}${kpi(d.consultas_periodo,'Consultas ('+(d.periodo_de||'')+'–'+(d.periodo_ate||'')+')')}${kpi(d.realizadas_periodo,'Realizadas no período')}${kpi(d.agendados_semana,'Agendados (7 dias)')}${kpi(d.aguardando,'Aguardando médico')}${kpi(d.aniversariantes_mes,'Aniversariantes do mês')}</div>
       ${novosCard}
       <div class="home-grid">
         <div>
@@ -2917,7 +2920,7 @@ async function pacNewSave(){ const g=id=>((document.getElementById(id)||{}).valu
   try{ const {data,error}=await SB.rpc('nx_patient_full_create',{p_clinic:NX.clinic,p:j}); if(error) throw error; closeModal(); prontOpen(data.patient_id,nm); toast('Paciente criado'); }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 // PRONTUÁRIO
 function prontOpen(pid,nome,sec){ PRONT.patient=pid; PRONT.nome=nome||(((PRONT.list||[]).find(x=>x.id===pid)||{}).nome)||''; PRONT.sec=sec||'ident'; PRONT.atend=null; PRONT.valores={}; PRONT.cronStart=null; if(PRONT.cronIv){clearInterval(PRONT.cronIv);PRONT.cronIv=null;} const a=document.getElementById('pacArea'); if(a) a.innerHTML='<div class="rc-empty">Abrindo prontuário…</div>'; prontLoad(); }
-async function prontLoad(){ try{ const r=await Promise.all([SB.rpc('nx_pt_get',{p_patient:PRONT.patient}),SB.rpc('nx_prt_def',{p_clinic:NX.clinic}),SB.rpc('nx_prt_timeline',{p_patient:PRONT.patient}),SB.rpc('nx_doc_pt_list',{p_patient:PRONT.patient})]); PRONT.data=r[0].data||{}; PRONT.def=r[1].data||[]; PRONT.timeline=r[2].data||[]; PRONT.docs=r[3].data||[]; prontRender(); }catch(e){ const a=document.getElementById('pacArea'); if(a) a.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao abrir prontuário.</div>'; } }
+async function prontLoad(){ try{ const r=await Promise.all([SB.rpc('nx_pt_get',{p_patient:PRONT.patient}),SB.rpc('nx_prt_def',{p_clinic:NX.clinic}),SB.rpc('nx_prt_timeline',{p_patient:PRONT.patient}),SB.rpc('nx_doc_pt_list',{p_patient:PRONT.patient})]); PRONT.data=r[0].data||{}; PRONT.def=r[1].data||[]; PRONT.timeline=r[2].data||[]; PRONT.docs=r[3].data||[]; prontRender(); if(PRONT._resume){ const rid=PRONT._resume; PRONT._resume=null; atendContinuar(rid); } }catch(e){ const a=document.getElementById('pacArea'); if(a) a.innerHTML='<div class="rc-empty" style="color:var(--coral)">Erro ao abrir prontuário.</div>'; } }
 function ptIdadeDetalhe(nasc){ if(!nasc) return 'idade —'; const b=new Date(nasc), n=new Date(); let y=n.getFullYear()-b.getFullYear(), m=n.getMonth()-b.getMonth(), d=n.getDate()-b.getDate(); if(d<0){ m--; d+=new Date(n.getFullYear(),n.getMonth(),0).getDate(); } if(m<0){ y--; m+=12; } return `${y}a ${m}m ${d}d`; }
 function prontCronTick(){ const el=document.getElementById('prontCronT'); if(!el) return; const s=Math.floor((Date.now()-(PRONT.cronStart||Date.now()))/1000); el.textContent=('0'+Math.floor(s/3600)).slice(-2)+':'+('0'+(Math.floor(s/60)%60)).slice(-2)+':'+('0'+(s%60)).slice(-2); }
 function prontCronStart(){ if(!PRONT.cronStart) PRONT.cronStart=Date.now(); if(PRONT.cronIv) clearInterval(PRONT.cronIv); PRONT.cronIv=setInterval(prontCronTick,1000); prontCronTick(); }
@@ -3075,6 +3078,7 @@ async function catMgrDel(id,isGlobal){ if(!confirm(isGlobal?'Ocultar este item d
   }catch(e){ toast('Erro: '+(e.message||e),'⚠'); } }
 
 function docAbrirPaciente(pid){ nav('pacientes'); setTimeout(()=>{ try{ prontOpen(pid,'','docs'); }catch(e){} }, 350); }
+function homeAbrirAtend(pid,nome,atendId){ PRONT._resume=atendId||null; nav('pacientes'); setTimeout(()=>{ try{ prontOpen(pid,nome||''); }catch(e){} }, 350); }
 
 function renderSecaoDin(sec){ const active=!!PRONT.atend;
   const fields=(sec.campos||[]).map(c=>{ const key=sec.chave+'.'+c.chave; const v=(PRONT.valores[key]!=null?PRONT.valores[key]:''); return campoRender(sec,c,v,active); }).join('');
