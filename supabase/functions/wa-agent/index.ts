@@ -48,19 +48,30 @@ roxas que não somem ao apertar. Ex.: "Agora ela está com dificuldade pra respi
 lábios roxos, muito molinha, convulsão ou manchas roxas que não somem?"
 NÃO peça para responder SIM ou NÃO item por item: aceite a resposta livre da mãe
 ("não", "nenhum", "só tá cansadinha") e entenda o que ela quis dizer.
+NUNCA escreva esses sinais em lista, tópicos ou marcadores (•, -, 1)): sempre numa
+frase corrida. Pergunte isso UMA vez no atendimento.
 
-A qualquer momento, classifique como emergencia e encaminhe para humano se houver:
-- dificuldade respiratória, peito afundando, respiração muito rápida
-- lábios ou rosto arroxeados
-- criança muito molinha, difícil de acordar, gemendo
-- convulsão
-- manchas roxas que não somem ao pressionar
-- sangramento intenso, trauma grave
-- desidratação (sem urinar há muitas horas, boca seca, sem lágrimas)
-- QUALQUER febre em bebê com menos de 3 meses
-- recusa total de mamar ou beber
-Nesses casos oriente ligar para o SAMU 192 ou ir ao pronto-socorro, avise que
-está chamando a equipe, e pare a triagem.
+# Sinais de alerta: tom calmo, sem assustar
+São famílias de pacientes particulares, acostumadas a serem orientadas pelo médico.
+"Vá imediatamente ao pronto-socorro" assusta e soa como se o médico não fosse olhar.
+
+1) SINAL DE ALERTA citado (criança muito molinha/prostrada, gemendo, febre alta que não
+cede, desidratação, recusa de mamar ou beber, sangramento, vômitos repetidos, febre em
+bebê com menos de 3 meses): classifique como muito_urgente, encaminhe para humano
+(encaminhar_humano = true) e responda neste tom, adaptando ao caso:
+"Você citou um sinal que pede avaliação mais rápida. Já classifiquei sua mensagem como
+urgente e avisei o Dr. para ele olhar com prioridade. Se notar piora, procure o serviço
+de urgência mais próximo." NÃO mande ir imediatamente ao pronto-socorro, NÃO cite SAMU
+e NÃO interrompa o atendimento: continue colhendo, com calma, o que o médico precisa
+(temperatura, horário e dose do último remédio, se está bebendo e urinando).
+
+2) EMERGÊNCIA CLARA acontecendo agora (convulsão, lábios ou rosto roxos, muita
+dificuldade para respirar ou peito afundando, não acorda, manchas roxas que não somem):
+classifique como emergencia e oriente com clareza, mas sem alarde, procurar o serviço
+de urgência agora ou ligar 192, e diga que o Dr. já foi avisado.
+
+Depois de orientar uma vez, NÃO repita o aviso de urgência/pronto-socorro nas mensagens
+seguintes, a menos que apareça um sinal novo ou piora.
 
 # Triagem (uma pergunta por vez)
 Depois da checagem de segurança, descubra a queixa principal e classifique-a em
@@ -280,10 +291,20 @@ const FORMATO = {
   },
 };
 
+// Dois niveis, a pedido do Rafael: "va imediatamente ao pronto-socorro" assusta
+// familia de paciente particular. Sinal de alerta recebe tom calmo e prioridade;
+// so a emergencia clara (convulsao, roxo, nao acorda, esforco para respirar)
+// recebe a orientacao de procurar urgencia agora.
 const MSG_EMERGENCIA =
-  "🚨 Pelo que você descreveu, isso pode ser uma *emergência*.\n\n" +
-  "Por favor, ligue *agora* para o SAMU *192* ou vá ao pronto-socorro mais próximo.\n\n" +
-  "Já estou avisando a equipe da clínica. 💙";
+  "Pelo que você descreveu, é importante uma avaliação presencial agora: procure o " +
+  "serviço de urgência mais próximo ou ligue 192.\n\n" +
+  "Já avisei o médico, e a equipe acompanha você por aqui. 💙";
+const MSG_ALERTA =
+  "Você citou um sinal que pede uma avaliação mais rápida. Já classifiquei sua mensagem " +
+  "como *urgente* e avisei o médico para olhar com prioridade. 💙\n\n" +
+  "Se notar piora, procure o serviço de urgência mais próximo.";
+const RE_GRAVE =
+  /(convuls|roxo|arroxead|morad|n[ãa]o acorda|dif[íi]cil de acordar|nuca dura|puxando o peito|afundando as costelas|falta de ar|n[ãa]o consigo respirar|desmai|boca torta|derrame|manchas? roxas?|mancha que n[ãa]o some|pet[ée]quia|dor no peito|aperto no peito)/;
 
 const MSG_SAUDE_MENTAL: Record<string, string> = {
   geral:
@@ -1185,11 +1206,18 @@ async function agenteInterno(conv: string, texto: string): Promise<string | null
   const { data: meses } = await sb.rpc("nx_idade_meses", { p: conversa.paciente_idade ?? null });
   const { data: bandeira } = await sb.rpc("nx_wa_has_redflag", { t, p_meses: meses ?? null });
   if (bandeira === true) {
+    const grave = RE_GRAVE.test(t);
+    const msg = grave ? MSG_EMERGENCIA : MSG_ALERTA;
     await sb.rpc("nx_agent_aplicar", {
-      p_conv: conv, p_risco: "emergencia", p_encaminhar: true,
+      p_conv: conv, p_risco: grave ? "emergencia" : "muito_urgente", p_encaminhar: true,
       p_dados: [{ chave: "red_flags", valor: texto.slice(0, 160), atencao: true }],
     });
-    return (await alertaRepetido(MSG_EMERGENCIA)) ? null : MSG_EMERGENCIA;
+    // ja avisou (qualquer dos dois) e ninguem falou depois: nao repete
+    if (await alertaRepetido(msg)) return null;
+    const { data: ja } = await sb.from("messages").select("id").eq("conversation_id", conv)
+      .in("body", [MSG_ALERTA, MSG_EMERGENCIA]).limit(1).maybeSingle();
+    if (ja && !grave) return null;
+    return msg;
   }
 
   // 3) So um humano cala a IA: pausou no cockpit ou assumiu o atendimento.
@@ -1292,7 +1320,7 @@ async function agenteInterno(conv: string, texto: string): Promise<string | null
     headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: MODELO,
-      temperature: 0.3,
+      temperature: 0.1,   // segue o roteiro; criatividade aqui assusta familia
       max_tokens: 800,
       response_format: formato(cats.length ? cats.map((c) => c.codigo) : null),
       messages: [
