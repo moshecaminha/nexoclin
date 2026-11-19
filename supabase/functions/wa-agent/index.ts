@@ -1105,6 +1105,63 @@ const SITUACAO: Record<string, string> = {
 // Chaves que nao sao triagem: nao contam para decidir se ha triagem em andamento.
 const FORA_DA_TRIAGEM = new Set(["encaminhamento", "consentimento", "consentimento_recusado"]);
 
+// ---- nao repetir pergunta ----
+// A instrucao sozinha nao bastou: no teste do caso da Isabel o modelo
+// perguntou "esta comendo, bebendo e fazendo xixi?" em 4 respostas seguidas.
+const PARADAS = new Set(["a", "o", "as", "os", "e", "de", "da", "do", "das", "dos", "que", "se", "um",
+  "uma", "ela", "ele", "voce", "você", "esta", "está", "tem", "ter", "pra", "para", "por", "com", "me",
+  "na", "no", "nas", "nos", "em", "mais", "algum", "alguma", "so", "só", "isso", "sua", "seu", "como",
+  "qual", "quais", "quando", "pode", "consegue", "conseguindo", "normalmente", "agora", "ja", "já"]);
+
+// mesma ideia com outras palavras: "urinando" = "fazer xixi", "comendo" = "comer"
+const SINONIMOS: Record<string, string> = { xixi: "urin", fralda: "urin", mamando: "come", mama: "come",
+  alimentando: "come", tomando: "bebe", liquido: "bebe", liquidos: "bebe", agua: "bebe", febres: "febr" };
+function palavras(t: string): Set<string> {
+  return new Set(t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9 ]/g, " ").split(/\s+/)
+    .filter((w) => w.length > 2 && !PARADAS.has(w) && !["fazer", "faz", "esta", "estao"].includes(w))
+    .map((w) => SINONIMOS[w] ?? w.slice(0, 4)));
+}
+
+/** Perguntas e pedidos de informacao num texto ("...?" ou "pode me enviar..."). */
+const RE_PEDIDO = /(me (envie|envia|conte|conta|diga|diz|informe|mande|confirme)|pode me (enviar|contar|dizer|informar|mandar|confirmar)|se puder)/i;
+function perguntasDe(t: string): string[] {
+  return (t.match(/[^.!?\n]+[.!?]?/g) ?? []).map((q) => q.trim())
+    .filter((q) => q.length > 8 && (q.endsWith("?") || RE_PEDIDO.test(q)));
+}
+
+function parecida(a: Set<string>, b: Set<string>): boolean {
+  if (!a.size || !b.size) return false;
+  let comum = 0;
+  for (const w of a) if (b.has(w)) comum++;
+  // pelo menos 2 palavras em comum: "qual a temperatura agora?" nao e repeticao
+  return comum >= 2 && comum / Math.min(a.size, b.size) >= 0.6;
+}
+
+/**
+ * Tira da resposta as perguntas que a IA ja fez antes nesta conversa. Se nao
+ * sobrar nada de util, fica so a confirmacao de que o medico foi avisado.
+ */
+function semRepetir(resposta: string, falasIA: string[]): string {
+  const antigas = falasIA.flatMap(perguntasDe).map(palavras);
+  if (!antigas.length) return resposta;
+  let r = resposta;
+  for (const q of perguntasDe(resposta)) {
+    const w = palavras(q);
+    if (!antigas.some((a) => parecida(w, a))) continue;
+    // leva junto a justificativa colada na pergunta ("Isso ajuda o medico...")
+    const i = r.indexOf(q);
+    if (i < 0) continue;
+    const resto = r.slice(i + q.length);
+    const cauda = resto.match(/^[\s,]*(isso|assim|com isso)\b[^.!?\n]*[.!?]?/i)?.[0] ?? "";
+    r = r.slice(0, i) + resto.slice(cauda.length);
+  }
+  // frase de justificativa que ficou sozinha no inicio de linha
+  r = r.replace(/(^|\n)\s*(isso|assim) (ajuda|me ajuda|consigo|deixo)[^.!?\n]*[.!?]?/gi, "$1");
+  r = r.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/ {2,}/g, " ").trim();
+  return r.length >= 20 ? r : "Já deixei tudo registrado para o médico avaliar. Se notar alguma mudança, me conte por aqui.";
+}
+
 /**
  * Toda familia sabe que esta falando com uma assistente virtual: a primeira
  * resposta de cada atendimento se apresenta e traz o aviso da LGPD, venha ela
@@ -1297,12 +1354,17 @@ async function agenteInterno(conv: string, texto: string): Promise<string | null
     : { data: null };
   const catAtual: string | null = convCat?.queixa_categoria ?? null;
 
+  const jaPerguntadas = falasIA.flatMap(perguntasDe).slice(-12);
   const contexto =
     `Clínica: ${ctx.clinica ?? "—"}\n` +
     `Paciente já identificado: ${ctx.paciente_nome ?? "ainda não"}\n` +
     `Idade: ${ctx.paciente_idade ?? "ainda não"}\n` +
     familia(ctx.quem) +
     (cats.length ? `Categoria da queixa até aqui: ${catAtual ?? "nao_classificado"}\n` : "") +
+    (jaPerguntadas.length
+      ? `Perguntas que você JÁ FEZ nesta conversa (não repita nenhuma, nem com outras palavras):\n` +
+        jaPerguntadas.map((q) => `- ${q}`).join("\n") + "\n"
+      : "") +
     `Já coletado: ${JSON.stringify(ctx.coletado ?? {})}\n` +
     `Situação: ${SITUACAO[ctx.status ?? ""] ?? "em triagem"}` +
     ((conversa.bot_state ?? "").startsWith("ag_")
@@ -1385,7 +1447,13 @@ async function agenteInterno(conv: string, texto: string): Promise<string | null
     p_manter_bot: administrativo,
   });
 
-  return saida.resposta;
+  // Sem pergunta repetida e com palavras da idade (mamando so para bebe).
+  let final = semRepetir(saida.resposta, falasIA);
+  const idadeMeses = Number(ctx.meses ?? NaN);
+  if (Number.isFinite(idadeMeses) && idadeMeses >= 24) {
+    final = final.replace(/mamando\s*\/\s*comendo/gi, "comendo").replace(/\bmamando\b/gi, "comendo");
+  }
+  return final;
 }
 
 Deno.serve(async (req) => {
