@@ -287,7 +287,7 @@ async function aguardarRajada(conv: string, texto: string, wamid?: string | null
   if (saida) q = q.gt("created_at", saida.created_at);
   const { data: rajada } = await q.order("created_at", { ascending: false }).limit(8);
 
-  const partes = (rajada ?? []).reverse().map((m: any) => {
+  const partes = (rajada ?? []).reverse().filter((m: any) => m.type !== "unsupported").map((m: any) => {
     const corpo = String(m.body ?? "").trim();
     const conteudo = String(m.transcript ?? "").trim();
     if (m.type !== "text" && conteudo) return corpo && corpo !== conteudo ? `${conteudo} Legenda: ${corpo}` : conteudo;
@@ -863,21 +863,25 @@ async function webhookZernio(req: Request): Promise<Response> {
     if (!fone) return new Response("ok", { status: 200 });
     await lembrarConversaZernio(conta, fone, convZernio);
 
-    const texto = (m?.text ?? "").trim() || null;
+    // Tipo que o WhatsApp nao entrega a sistemas (enquete, visualizacao unica,
+    // evento...: erro 131051). Fica registrado, mas nao aciona IA nem equipe:
+    // antes virava "[Unsupported message]" e o porteiro marcava "duvida".
+    const naoSuportada = !!body?.metadata?.unsupported || /^\[unsupported message\]$/i.test(String(m?.text ?? "").trim());
+    const texto = naoSuportada ? null : ((m?.text ?? "").trim() || null);
     if (CMD_ZERAR.includes((texto ?? "").toLowerCase())) {
       EdgeRuntime.waitUntil(zerarConversa(phoneId, fone));
       return new Response("ok", { status: 200 });
     }
 
-    const tipo = zernioTipo(m);
-    const anexo = m?.attachments?.[0] ?? null;
+    const tipo = naoSuportada ? "unsupported" : zernioTipo(m);
+    const anexo = naoSuportada ? null : (m?.attachments?.[0] ?? null);
     const wamid = m?.platformMessageId ?? null;
     const { data: ctx } = await sb.rpc("nx_wa_ingest", {
       p_phone_number_id: phoneId,
       p_from: fone,
       p_nome: m?.sender?.name ?? body?.conversation?.participantName ?? null,
       p_type: tipo,
-      p_body: texto,
+      p_body: naoSuportada ? "[mensagem que o WhatsApp não mostra ao sistema]" : texto,
       p_wamid: wamid,                     // idempotencia: a Zernio reentrega
       p_ts: Math.floor(Date.parse(m?.sentAt ?? "") / 1000) || 0,
       p_payload: m,

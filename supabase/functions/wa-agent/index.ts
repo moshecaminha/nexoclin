@@ -399,7 +399,8 @@ function familia(quem: any): string {
     return "Cadastro: telefone ainda não conhecido nesta clínica. Antes de qualquer pergunta de sintoma, " +
       "confirme o NOME (e a idade) de quem precisa de atendimento, uma vez só. Logo depois, pergunte se a criança JÁ " +
       "É PACIENTE do médico e quando foi a ÚLTIMA CONSULTA (aproximada serve), e anote em dados como " +
-      "ja_paciente e ultima_consulta. Pergunte isso uma vez só.\n";
+      "ja_paciente e ultima_consulta (se a família não lembrar, ultima_consulta = \"não lembra\"). " +
+      "Pergunte isso uma vez só.\n";
   }
   const cr = (quem.criancas ?? []).map((c: any) => c.nome).filter(Boolean);
   return `Responsável já cadastrado: ${quem.responsavel_nome ?? "sem nome"}\n` +
@@ -589,7 +590,8 @@ Uma assistente virtual atende as famílias dos PACIENTES. Você decide se ela en
 
 - paciente: a mensagem nova fala da SAÚDE ou do ATENDIMENTO de uma criança ou de alguém da
   família: sintoma, febre, tosse, cocô, xixi, vômito, remédio, dose, vacina, alimentação do bebê,
-  exame, consulta, horário, retorno, valor, receita, atestado. Vale mesmo que a pessoa chame o médico
+  exame, consulta, horário, retorno, valor, receita, atestado, sono, comportamento, birra,
+  desenvolvimento, fala, alimentação. Vale mesmo que a pessoa chame o médico
   de "Rafa", pelo primeiro nome ou com carinho: mães de pacientes falam assim. Vale mesmo que a
   pessoa seja amiga ou conhecida do médico.
 - pessoal: a mensagem nova NÃO tem nada de saúde nem de atendimento: igreja, escola, trabalho,
@@ -683,6 +685,11 @@ async function porteiro(conv: string, texto: string): Promise<boolean> {
       em: String(m.created_at ?? ""),
     } as FalaHistorico)).filter((f) => f.texto);
   }
+
+  // As mensagens novas ja estao no historico (entraram antes de chegar aqui).
+  // Sem tirar, o modelo ve a mesma mensagem duas vezes e acha que e repetida.
+  const corte = Date.now() - 15 * 60_000;
+  hist = hist.filter((f) => !(f.quem === "contato" && Date.parse(f.em) > corte));
 
   const { data: cl } = await sb.from("clinics").select("nome").eq("id", c.clinic_id).maybeSingle();
   // Pessoal, duvida ou ainda sem decisao: reavalia a cada mensagem nova, porque
@@ -1182,12 +1189,16 @@ const MSG_SECRETARIA = "Certo! Vou chamar a secretária para falar com você por
  * Confere o intervalo quando ja se sabe a idade e a ultima consulta. Devolve
  * o aviso (e pausa o pre-atendimento) ou null para seguir normalmente.
  */
-async function conferirIntervalo(conv: string, dados: Record<string, string>, idadeMeses: number | null) {
+async function conferirIntervalo(
+  conv: string, dados: Record<string, string>, idadeMeses: number | null, textoFamilia = "",
+) {
   const { data: c } = await sb.from("conversations")
     .select("clinic_id, bloqueio_em, paciente_nome, paciente_idade").eq("id", conv).maybeSingle();
   if (!c || c.bloqueio_em) return null;                       // ja pausou uma vez neste atendimento
   const jaPaciente = String(dados.ja_paciente ?? "");
-  const ultima = String(dados.ultima_consulta ?? "");
+  // A IA nem sempre anota "nao lembro": le a propria resposta da familia.
+  const falaDaConsulta = /(consulta|lembr|faz |h[áa] |m[eê]s|meses|ano)/i.test(textoFamilia);
+  const ultima = String(dados.ultima_consulta ?? "") || (falaDaConsulta ? textoFamilia : "");
   if (!ultima || RE_NAO.test(jaPaciente)) return null;      // paciente novo: segue a triagem
   let meses = idadeMeses;
   if (meses == null) {
@@ -1283,7 +1294,11 @@ function semRepetir(resposta: string, falasIA: string[]): string {
 export async function agente(conv: string, texto: string): Promise<string | null> {
   const { count: jaFalou } = await sb.from("messages").select("id", { count: "exact", head: true })
     .eq("conversation_id", conv).eq("author", "assistente");
-  const resposta = await agenteInterno(conv, texto);
+  const bruta = await agenteInterno(conv, texto);
+  // o aviso da LGPD e so da primeira mensagem; o modelo as vezes o copia de novo
+  const resposta = bruta && jaFalou
+    ? bruta.replace(/\n*_?Seus dados são usados só para o (seu )?cuidado \(LGPD\)\._?\s*$/i, "").trimEnd()
+    : bruta;
   if (!resposta || jaFalou) return resposta;
   if (/assistente virtual/i.test(resposta)) return resposta;
 
@@ -1579,7 +1594,8 @@ async function agenteInterno(conv: string, texto: string): Promise<string | null
   // Protocolo do intervalo: ja se sabe a idade e a ultima consulta?
   const juntos: Record<string, string> = { ...(ctx.coletado ?? {}) };
   for (const d of dados) if (d?.chave && d?.valor) juntos[d.chave] = String(d.valor);
-  const aviso = await conferirIntervalo(conv, juntos, Number.isFinite(Number(ctx.meses)) ? Number(ctx.meses) : null);
+  const aviso = await conferirIntervalo(conv, juntos,
+    ctx.meses != null && Number.isFinite(Number(ctx.meses)) ? Number(ctx.meses) : null, texto);
   if (aviso) return aviso;
 
   // Sem pergunta repetida e com palavras da idade (mamando so para bebe).
