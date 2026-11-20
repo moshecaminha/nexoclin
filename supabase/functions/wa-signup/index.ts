@@ -138,6 +138,27 @@ Deno.serve(async (req) => {
     return await configurarWebhook();
   }
 
+  // Modelo aprovado pela Meta para lembrar de agendar depois das 24h (fora da
+  // janela, so template). Interno: cria na conta da Zernio do numero informado.
+  if (b?.acao === "criar_template_lembrete") {
+    if (!INTERNO || req.headers.get("x-nx-internal") !== INTERNO) return json({ erro: "forbidden" }, 403);
+    const conta = String(b?.account_id ?? "");
+    if (!conta) return json({ erro: "account_id é obrigatório" }, 400);
+    const r = await zernio("/whatsapp/templates", {
+      accountId: conta,
+      name: "lembrete_consulta_rotina",
+      category: "MARKETING",
+      language: "pt_BR",
+      components: [{
+        type: "body",
+        text: "Olá! 💙 Não esqueça de agendar a consulta de rotina de {{1}}. Ela garante o melhor cuidado " +
+          "para o desenvolvimento da criança e também o suporte pelo WhatsApp. Responda esta mensagem para agendar.",
+        example: { body_text: [["João"]] },
+      }],
+    });
+    return json({ ok: r.ok, status: r.status, zernio: r.body }, r.ok ? 200 : 502);
+  }
+
   const jwt = req.headers.get("Authorization") ?? "";
   if (!jwt.startsWith("Bearer ")) return json({ erro: "sem autenticação" }, 401);
   if (!Deno.env.get("ZERNIO_API_KEY") || !PROFILE) {

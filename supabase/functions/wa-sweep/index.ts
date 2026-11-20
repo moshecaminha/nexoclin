@@ -142,6 +142,41 @@ async function checarConexoes() {
   return { verificadas: conns?.length ?? 0, marcadas_pendente: alteradas };
 }
 
+/**
+ * Lembretes (pedido do Rafael), sempre dentro da janela de 24h do WhatsApp:
+ *  - pre: a familia sumiu no meio da triagem; um lembrete 2h30 depois
+ *  - bloqueio: pre-atendimento pausado pelo intervalo de consultas; lembrete
+ *    para agendar em ~3h e ~20h, enquanto ninguem agendar nem responder
+ * Quem escolhe a conversa e a hora e nx_wa_lembretes_pendentes (horario comercial).
+ */
+async function lembretes() {
+  const { data } = await sb.rpc("nx_wa_lembretes_pendentes");
+  let enviados = 0;
+  for (const l of (data ?? []) as Array<{ conversation_id: string; telefone: string; tipo: string; paciente: string }>) {
+    const conn = await conexaoDaConversa(l.conversation_id);
+    if (!conn?.access_token) continue;
+    const nome = String(l.paciente ?? "").split(/\s+/)[0].replace(/[()]/g, "");
+    const texto = l.tipo === "bloqueio"
+      ? `Olá! 💙 Não esqueça de agendar a consulta de rotina${nome ? ` do(a) *${nome}*` : ""}: ela garante o ` +
+        "melhor cuidado para o desenvolvimento da criança e também o suporte por aqui pelo WhatsApp.\n\n" +
+        "Responda *1* para agendar ou *2* para falar com a secretária."
+      : "Olá! 👋 Gostaria de continuar com o seu pré-atendimento? É só me responder por aqui.";
+    const env = await enviarTextoCanal(conn, l.telefone, texto);
+    if (!env.ok) { console.error("lembrete:", JSON.stringify(env.erro)); continue; }
+    await sb.rpc("nx_wa_record_out", {
+      p_conv: l.conversation_id, p_body: texto, p_wamid: env.id, p_type: "text", p_author: "assistente",
+    });
+    if (l.tipo === "bloqueio") {
+      const { data: c } = await sb.from("conversations").select("lembretes_bloq").eq("id", l.conversation_id).single();
+      await sb.from("conversations").update({ lembretes_bloq: (c?.lembretes_bloq ?? 0) + 1 }).eq("id", l.conversation_id);
+    } else {
+      await sb.from("conversations").update({ lembrete_pre_em: new Date().toISOString() }).eq("id", l.conversation_id);
+    }
+    enviados++;
+  }
+  return enviados;
+}
+
 Deno.serve(async (req) => {
   if (INTERNO && req.headers.get("x-nx-internal") !== INTERNO) {
     return new Response("forbidden", { status: 403 });
@@ -162,7 +197,10 @@ Deno.serve(async (req) => {
       const r = await responder(p.conversation_id, p.clinic_id, p.telefone, p.texto);
       if (r) feitas.push(p.conversation_id);
     }
-    return Response.json({ ok: true, pendentes: lista.length, respondidas: feitas.length, checagem });
+    let lembretesEnviados = 0;
+    try { lembretesEnviados = await lembretes(); }
+    catch (e) { console.error("lembretes:", e instanceof Error ? e.message : e); }
+    return Response.json({ ok: true, pendentes: lista.length, respondidas: feitas.length, lembretes: lembretesEnviados, checagem });
   } catch (e) {
     console.error("wa-sweep:", e instanceof Error ? e.message : e);
     return Response.json({ erro: String(e) }, { status: 500 });

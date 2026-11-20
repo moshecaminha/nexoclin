@@ -1105,6 +1105,118 @@ const SITUACAO: Record<string, string> = {
 // Chaves que nao sao triagem: nao contam para decidir se ha triagem em andamento.
 const FORA_DA_TRIAGEM = new Set(["encaminhamento", "consentimento", "consentimento_recusado"]);
 
+// ---- intervalo entre consultas (protocolo do Rafael) ----
+// Guia da clinica: mensal ate 1 ano, a cada 2 meses ate 18m, a cada 3 meses
+// ate 3-4 anos e no maximo 6 meses depois. Passou do intervalo (com folga),
+// ou a familia nao lembra da ultima consulta: a IA nao orienta pelo WhatsApp.
+function intervaloMeses(idadeMeses: number): number {
+  if (idadeMeses < 12) return 1;
+  if (idadeMeses < 18) return 2;
+  if (idadeMeses < 48) return 3;
+  return 6;
+}
+
+const ESQUEMA_ULTIMA = {
+  type: "json_schema",
+  json_schema: {
+    name: "ultima_consulta",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["meses_desde", "nao_lembra"],
+      properties: {
+        meses_desde: { type: ["number", "null"], description: "Meses desde a última consulta (pode ter fração)" },
+        nao_lembra: { type: "boolean", description: "true se a família diz que não lembra ou não sabe" },
+      },
+    },
+  },
+} as const;
+
+/** "agosto", "há 2 meses", "não lembro" -> meses desde a ultima consulta. */
+async function mesesDesdeConsulta(texto: string): Promise<{ meses: number | null; naoLembra: boolean } | null> {
+  const chave = Deno.env.get("OPENAI_API_KEY");
+  if (!chave || !texto) return null;
+  const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+  try {
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: Deno.env.get("WA_INTERP_MODEL") ?? "gpt-4o-mini",
+        temperature: 0, max_tokens: 60, response_format: ESQUEMA_ULTIMA,
+        messages: [
+          { role: "system", content: `Hoje é ${hoje}. Diga há quantos meses foi a última consulta descrita. ` +
+            "Mês sem ano é o mais recente já passado. Se a pessoa não lembra ou não sabe, nao_lembra = true." },
+          { role: "user", content: texto },
+        ],
+      }),
+    });
+    const j = await r.json().catch(() => ({}));
+    const p = JSON.parse(j?.choices?.[0]?.message?.content ?? "null");
+    return p ? { meses: typeof p.meses_desde === "number" ? p.meses_desde : null, naoLembra: p.nao_lembra === true } : null;
+  } catch (e) {
+    console.error("ultima consulta:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+const RE_NAO = /^\s*(n[ãa]o|nao sou|ainda n[ãa]o|primeira (vez|consulta)|nunca)/i;
+
+function avisoIntervalo(nome: string | null): string {
+  const quem = nome ? `do(a) *${nome}*` : "da criança";
+  return "🔒 *Pré-atendimento pausado*\n\n" +
+    `Pelo nosso protocolo de segurança, a última consulta ${quem} passou do intervalo recomendado ` +
+    "para a idade dele(a). Com o acompanhamento desatualizado, qualquer orientação clínica pelo " +
+    "WhatsApp pode trazer riscos à saúde da criança. Por isso, não consigo seguir com a sua dúvida por aqui.\n\n" +
+    "Para continuarmos, o caminho é agendar uma consulta. Se preferir, posso chamar a secretária.\n\n" +
+    "*1* para agendar · *2* para falar com a secretária\n\n" +
+    "_O intervalo entre consultas pode variar conforme a necessidade de cada criança._";
+}
+const MSG_INTERVALO_REFORCO =
+  "Por segurança da criança, não consigo orientar por aqui neste momento. " +
+  "Responda *1* para agendar a consulta ou *2* para falar com a secretária.";
+const MSG_SECRETARIA = "Certo! Vou chamar a secretária para falar com você por aqui. 💙";
+
+/**
+ * Confere o intervalo quando ja se sabe a idade e a ultima consulta. Devolve
+ * o aviso (e pausa o pre-atendimento) ou null para seguir normalmente.
+ */
+async function conferirIntervalo(conv: string, dados: Record<string, string>, idadeMeses: number | null) {
+  const { data: c } = await sb.from("conversations")
+    .select("clinic_id, bloqueio_em, paciente_nome, paciente_idade").eq("id", conv).maybeSingle();
+  if (!c || c.bloqueio_em) return null;                       // ja pausou uma vez neste atendimento
+  const jaPaciente = String(dados.ja_paciente ?? "");
+  const ultima = String(dados.ultima_consulta ?? "");
+  if (!ultima || RE_NAO.test(jaPaciente)) return null;      // paciente novo: segue a triagem
+  let meses = idadeMeses;
+  if (meses == null) {
+    const idade = dados.paciente_idade ?? c.paciente_idade ?? null;
+    if (idade) { const { data } = await sb.rpc("nx_idade_meses", { p: idade }); meses = data ?? null; }
+  }
+  if (meses == null) return null;                           // sem idade nao da para decidir
+
+  const lida = await mesesDesdeConsulta(ultima);
+  if (!lida) return null;
+  const { data: cl } = await sb.from("clinics").select("intervalo_folga_dias").eq("id", c.clinic_id).maybeSingle();
+  const folga = Number(cl?.intervalo_folga_dias ?? 15);
+  const limiteDias = intervaloMeses(meses) * 30 + folga;
+  const vencido = lida.naoLembra || (lida.meses != null && lida.meses * 30.4 > limiteDias);
+  if (!vencido) return null;
+
+  await sb.from("conversations").update({
+    bot_state: "bloq_intervalo", bloqueio_em: new Date().toISOString(), lembretes_bloq: 0,
+  }).eq("id", conv);
+  await sb.rpc("nx_agent_aplicar", {
+    p_conv: conv, p_risco: "", p_encaminhar: false, p_manter_bot: true,
+    p_dados: [{ chave: "intervalo_vencido",
+      valor: `idade ${meses} meses; última consulta: ${ultima}; intervalo ${intervaloMeses(meses)} meses + ${folga} dias`,
+      atencao: true }],
+  });
+  const nome = String(dados.paciente_nome ?? c.paciente_nome ?? "").split(/\s+/)[0] || null;
+  return avisoIntervalo(nome);
+}
+
 // ---- nao repetir pergunta ----
 // A instrucao sozinha nao bastou: no teste do caso da Isabel o modelo
 // perguntou "esta comendo, bebendo e fazendo xixi?" em 4 respostas seguidas.
@@ -1295,6 +1407,23 @@ async function agenteInterno(conv: string, texto: string): Promise<string | null
     .map((m: any) => String(m.body ?? ""));
   const ultimaIA = falasIA[falasIA.length - 1] ?? "";
 
+  // 3.4) Pre-atendimento pausado pelo intervalo de consultas.
+  if (conversa.bot_state === "bloq_intervalo") {
+    if (/^\s*(1\b|1️⃣)/.test(t) || RE_AGENDAR.test(t) || /\bagend/.test(t)) {
+      await sb.from("conversations").update({ bot_state: null }).eq("id", conv);
+      return await iniciarAgenda(conv, texto);
+    }
+    if (/^\s*(2\b|2️⃣)/.test(t) || /(secret[áa]ria|atendente|pessoa|humano)/.test(t)) {
+      await sb.rpc("nx_agent_aplicar", {
+        p_conv: conv, p_risco: "", p_encaminhar: true, p_manter_bot: false,
+        p_dados: [{ chave: "encaminhamento", valor: "pediu a secretária após o aviso de intervalo", atencao: true }],
+      });
+      await sb.from("conversations").update({ bot_state: null, bot_active: false }).eq("id", conv);
+      return MSG_SECRETARIA;
+    }
+    return ultimaIA === MSG_INTERVALO_REFORCO ? null : MSG_INTERVALO_REFORCO;
+  }
+
   // 3.5) Cadastro pedido depois de marcar.
   if (conversa.bot_state === "cad") {
     const cad = await passoCadastro(conv, texto);
@@ -1446,6 +1575,12 @@ async function agenteInterno(conv: string, texto: string): Promise<string | null
     p_dados: dados,
     p_manter_bot: administrativo,
   });
+
+  // Protocolo do intervalo: ja se sabe a idade e a ultima consulta?
+  const juntos: Record<string, string> = { ...(ctx.coletado ?? {}) };
+  for (const d of dados) if (d?.chave && d?.valor) juntos[d.chave] = String(d.valor);
+  const aviso = await conferirIntervalo(conv, juntos, Number.isFinite(Number(ctx.meses)) ? Number(ctx.meses) : null);
+  if (aviso) return aviso;
 
   // Sem pergunta repetida e com palavras da idade (mamando so para bebe).
   let final = semRepetir(saida.resposta, falasIA);
