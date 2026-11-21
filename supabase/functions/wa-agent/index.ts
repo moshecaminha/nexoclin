@@ -397,8 +397,10 @@ const RE_SO_5 = /^\s*(5|5️⃣)\s*[).]?\s*$/;
 function familia(quem: any): string {
   if (!quem?.encontrado) {
     return "Cadastro: telefone ainda não conhecido nesta clínica. Antes de qualquer pergunta de sintoma, " +
-      "confirme o NOME (e a idade) de quem precisa de atendimento, uma vez só. Logo depois, pergunte se a criança JÁ " +
-      "É PACIENTE do médico e quando foi a ÚLTIMA CONSULTA (aproximada serve), e anote em dados como " +
+      "confirme o NOME e a IDADE de quem precisa de atendimento, uma vez só, e ESPERE a resposta. Só na mensagem " +
+      "seguinte, pergunte se a criança JÁ É PACIENTE do médico e a DATA da ÚLTIMA CONSULTA, pedindo dia/mês/ano " +
+      "ou mês/ano (ex.: \"06/11/2025\" ou \"novembro de 2025\"). Nunca pergunte idade e última consulta na " +
+      "mesma mensagem. Anote em dados como " +
       "ja_paciente e ultima_consulta (se a família não lembrar, ultima_consulta = \"não lembra\"). " +
       "Pergunte isso uma vez só.\n";
   }
@@ -411,8 +413,9 @@ function familia(quem: any): string {
         `mesmo que um nome já tenha aparecido. Confirme UMA vez só, no começo do atendimento; ` +
         `depois de confirmado, não pergunte de novo. Nunca misture sintomas de irmãos.\n`
       : "Ainda sem criança cadastrada para este responsável.\n") +
-    "Se ultima_consulta ainda não está nos dados já coletados, pergunte UMA vez quando foi a ÚLTIMA CONSULTA " +
-    "da criança com o médico (aproximada serve) e anote em dados como ultima_consulta " +
+    "Se ultima_consulta ainda não está nos dados já coletados, depois de confirmada a criança (e a idade), " +
+    "pergunte UMA vez, numa mensagem separada, a DATA da ÚLTIMA CONSULTA com o médico, pedindo dia/mês/ano ou " +
+    "mês/ano (ex.: \"06/11/2025\" ou \"novembro de 2025\"), e anote em dados como ultima_consulta " +
     "(se a família não lembrar, ultima_consulta = \"não lembra\").\n";
 }
 
@@ -1144,7 +1147,7 @@ const ESQUEMA_ULTIMA = {
 } as const;
 
 /** "agosto", "há 2 meses", "não lembro" -> meses desde a ultima consulta. */
-async function mesesDesdeConsulta(texto: string): Promise<{ meses: number | null; naoLembra: boolean } | null> {
+async function mesesDesdeConsulta(texto: string, pergunta = ""): Promise<{ meses: number | null; naoLembra: boolean } | null> {
   const chave = Deno.env.get("OPENAI_API_KEY");
   if (!chave || !texto) return null;
   const hoje = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
@@ -1159,8 +1162,9 @@ async function mesesDesdeConsulta(texto: string): Promise<{ meses: number | null
           { role: "system", content: `Hoje é ${hoje}. Diga há quantos meses foi a última consulta descrita. ` +
             "Mês sem ano é o mais recente já passado. Só marque nao_lembra = true se a pessoa disser claramente " +
             "que não lembra ou não sabe quando foi a consulta. Se o texto não fala de quando foi a última " +
-            "consulta, meses_desde = null e nao_lembra = false." },
-          { role: "user", content: texto },
+            "consulta, meses_desde = null e nao_lembra = false. ATENÇÃO: a idade da criança (\"1 ano\", " +
+            "\"tem 8 meses\") NÃO é a data da consulta; resposta que só diz a idade: meses_desde = null." },
+          { role: "user", content: (pergunta ? `Pergunta da clínica: ${pergunta.slice(-400)}\n` : "") + `Resposta da família: ${texto}` },
         ],
       }),
     });
@@ -1172,6 +1176,11 @@ async function mesesDesdeConsulta(texto: string): Promise<{ meses: number | null
     return null;
   }
 }
+
+// Resposta que pode trazer a data da ultima consulta ("06/11", "em julho",
+// "ha 2 meses", "nao lembro"). Idade sozinha ("um ano") nao conta.
+const RE_DATA_CONSULTA =
+  /(consulta|lembr|\bh[áa] \d|\bh[áa] (um|uma|dois|tr[eê]s|pouco)|\bfaz \d|\bfaz (um|uma|dois|tr[eê]s)|janeiro|fevereiro|mar[çc]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro|\d{1,2}\s*\/\s*\d{1,2}|m[eê]s passado|semana passada|ano passado)/i;
 
 const RE_NAO = /^\s*(n[ãa]o|nao sou|ainda n[ãa]o|primeira (vez|consulta)|nunca)/i;
 
@@ -1205,9 +1214,7 @@ async function conferirIntervalo(
   // So vale se a IA acabou de perguntar da ultima consulta: sem isso, um relato
   // qualquer ("desde quarta... ela faz uma refeicao") virava bloqueio.
   const perguntou = /[úu]ltima consulta/i.test(perguntaIA);
-  const falaDaConsulta = perguntou &&
-    /(consulta|lembr|\bh[áa] \d|\bh[áa] (um|uma|dois|tr[eê]s)|\bm[eê]s\b|\bmeses\b|\banos?\b|janeiro|fevereiro|mar[çc]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro|\d{1,2}\/\d)/i
-      .test(textoFamilia);
+  const falaDaConsulta = perguntou && RE_DATA_CONSULTA.test(textoFamilia);
   const ultima = String(dados.ultima_consulta ?? "") || (falaDaConsulta ? textoFamilia : "");
   if (!ultima || RE_NAO.test(jaPaciente)) return null;      // paciente novo: segue a triagem
   let meses = idadeMeses;
@@ -1217,7 +1224,7 @@ async function conferirIntervalo(
   }
   if (meses == null) return null;                           // sem idade nao da para decidir
 
-  const lida = await mesesDesdeConsulta(ultima);
+  const lida = await mesesDesdeConsulta(ultima, dados.ultima_consulta ? "" : perguntaIA);
   if (!lida) return null;
   const { data: cl } = await sb.from("clinics").select("intervalo_folga_dias").eq("id", c.clinic_id).maybeSingle();
   const folga = Number(cl?.intervalo_folga_dias ?? 15);
@@ -1445,6 +1452,30 @@ async function agenteInterno(conv: string, texto: string): Promise<string | null
       });
       await sb.from("conversations").update({ bot_state: null, bot_active: false }).eq("id", conv);
       return MSG_SECRETARIA;
+    }
+    // Mandou a data da ultima consulta depois do aviso ("ultima consulta foi
+    // 06/11"): confere de novo e, se estiver em dia, segue a triagem.
+    if (RE_DATA_CONSULTA.test(texto)) {
+      const { data: cc } = await sb.from("conversations").select("paciente_idade, clinic_id").eq("id", conv).maybeSingle();
+      let im: number | null = ctx.meses != null && Number.isFinite(Number(ctx.meses)) ? Number(ctx.meses) : null;
+      if (im == null && cc?.paciente_idade) {
+        const { data } = await sb.rpc("nx_idade_meses", { p: cc.paciente_idade }); im = data ?? null;
+      }
+      const lida = await mesesDesdeConsulta(texto, "Quando foi a última consulta da criança?");
+      const { data: cl } = await sb.from("clinics").select("intervalo_folga_dias")
+        .eq("id", cc?.clinic_id).maybeSingle();
+      const folga = Number(cl?.intervalo_folga_dias ?? 15);
+      if (im != null && lida && !lida.naoLembra && lida.meses != null &&
+          lida.meses * 30.4 <= intervaloMeses(im) * 30 + folga) {
+        await sb.from("conversations").update({ bot_state: null, bloqueio_em: null, lembretes_bloq: 0 }).eq("id", conv);
+        await sb.from("collected_data").delete().eq("conversation_id", conv).eq("chave", "intervalo_vencido");
+        await sb.rpc("nx_agent_aplicar", {
+          p_conv: conv, p_risco: "", p_encaminhar: false, p_manter_bot: true,
+          p_dados: [{ chave: "ultima_consulta", valor: texto.slice(0, 120), atencao: false }],
+        });
+        return "Obrigada! Com a consulta em dia, sigo com o seu pré-atendimento. 💙\n\n" +
+          "Pode me contar de novo, em poucas palavras, o que está acontecendo agora?";
+      }
     }
     return ultimaIA === MSG_INTERVALO_REFORCO ? null : MSG_INTERVALO_REFORCO;
   }
