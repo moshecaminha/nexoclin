@@ -410,7 +410,10 @@ function familia(quem: any): string {
         `criança se trata citando os nomes${cr.length > 1 ? ` ("É sobre ${cr.slice(0, -1).join(", ")} ou ${cr[cr.length - 1]}?")` : ` ("É sobre ${cr[0]}?")`}, ` +
         `mesmo que um nome já tenha aparecido. Confirme UMA vez só, no começo do atendimento; ` +
         `depois de confirmado, não pergunte de novo. Nunca misture sintomas de irmãos.\n`
-      : "Ainda sem criança cadastrada para este responsável.\n");
+      : "Ainda sem criança cadastrada para este responsável.\n") +
+    "Se ultima_consulta ainda não está nos dados já coletados, pergunte UMA vez quando foi a ÚLTIMA CONSULTA " +
+    "da criança com o médico (aproximada serve) e anote em dados como ultima_consulta " +
+    "(se a família não lembrar, ultima_consulta = \"não lembra\").\n";
 }
 
 
@@ -1154,7 +1157,9 @@ async function mesesDesdeConsulta(texto: string): Promise<{ meses: number | null
         temperature: 0, max_tokens: 60, response_format: ESQUEMA_ULTIMA,
         messages: [
           { role: "system", content: `Hoje é ${hoje}. Diga há quantos meses foi a última consulta descrita. ` +
-            "Mês sem ano é o mais recente já passado. Se a pessoa não lembra ou não sabe, nao_lembra = true." },
+            "Mês sem ano é o mais recente já passado. Só marque nao_lembra = true se a pessoa disser claramente " +
+            "que não lembra ou não sabe quando foi a consulta. Se o texto não fala de quando foi a última " +
+            "consulta, meses_desde = null e nao_lembra = false." },
           { role: "user", content: texto },
         ],
       }),
@@ -1190,14 +1195,19 @@ const MSG_SECRETARIA = "Certo! Vou chamar a secretária para falar com você por
  * o aviso (e pausa o pre-atendimento) ou null para seguir normalmente.
  */
 async function conferirIntervalo(
-  conv: string, dados: Record<string, string>, idadeMeses: number | null, textoFamilia = "",
+  conv: string, dados: Record<string, string>, idadeMeses: number | null, textoFamilia = "", perguntaIA = "",
 ) {
   const { data: c } = await sb.from("conversations")
     .select("clinic_id, bloqueio_em, paciente_nome, paciente_idade").eq("id", conv).maybeSingle();
   if (!c || c.bloqueio_em) return null;                       // ja pausou uma vez neste atendimento
   const jaPaciente = String(dados.ja_paciente ?? "");
   // A IA nem sempre anota "nao lembro": le a propria resposta da familia.
-  const falaDaConsulta = /(consulta|lembr|faz |h[áa] |m[eê]s|meses|ano)/i.test(textoFamilia);
+  // So vale se a IA acabou de perguntar da ultima consulta: sem isso, um relato
+  // qualquer ("desde quarta... ela faz uma refeicao") virava bloqueio.
+  const perguntou = /[úu]ltima consulta/i.test(perguntaIA);
+  const falaDaConsulta = perguntou &&
+    /(consulta|lembr|\bh[áa] \d|\bh[áa] (um|uma|dois|tr[eê]s)|\bm[eê]s\b|\bmeses\b|\banos?\b|janeiro|fevereiro|mar[çc]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro|\d{1,2}\/\d)/i
+      .test(textoFamilia);
   const ultima = String(dados.ultima_consulta ?? "") || (falaDaConsulta ? textoFamilia : "");
   if (!ultima || RE_NAO.test(jaPaciente)) return null;      // paciente novo: segue a triagem
   let meses = idadeMeses;
@@ -1595,7 +1605,8 @@ async function agenteInterno(conv: string, texto: string): Promise<string | null
   const juntos: Record<string, string> = { ...(ctx.coletado ?? {}) };
   for (const d of dados) if (d?.chave && d?.valor) juntos[d.chave] = String(d.valor);
   const aviso = await conferirIntervalo(conv, juntos,
-    ctx.meses != null && Number.isFinite(Number(ctx.meses)) ? Number(ctx.meses) : null, texto);
+    ctx.meses != null && Number.isFinite(Number(ctx.meses)) ? Number(ctx.meses) : null, texto,
+    falasIA[falasIA.length - 1] ?? "");
   if (aviso) return aviso;
 
   // Sem pergunta repetida e com palavras da idade (mamando so para bebe).
